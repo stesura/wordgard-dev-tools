@@ -5,6 +5,7 @@ export {
   ensureRegistry,
   type Agent,
   type Entry,
+  type NamedFields,
   type Registry,
 } from "./registry.ts"
 export * from "./protocol.ts"

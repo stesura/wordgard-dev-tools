@@ -123,8 +123,8 @@ describe("agent", () => {
     stop()
     const id = registry().editors.get(a)?.id
     expect(seen).toEqual([
-      {type: "stateChanged", id, docChanged: true, selectionSet: false},
-      {type: "stateChanged", id, docChanged: false, selectionSet: true},
+      {type: "stateChanged", id, docChanged: true, selectionSet: false, reconfigured: false},
+      {type: "stateChanged", id, docChanged: false, selectionSet: true, reconfigured: false},
     ])
   })
 
@@ -133,11 +133,15 @@ describe("agent", () => {
     const recorded = vi.spyOn(agent(), "recorded")
     wg.dispatch({changes: {from: 1, insert: [Leaf.text("x")]}})
     expect(recorded).not.toHaveBeenCalled()
-    await ask({type: "record", id: registry().editors.get(wg)?.id ?? 0, on: true})
+    const id = registry().editors.get(wg)?.id ?? 0
+    await expect(ask({type: "record", id, on: true})).rejects.toThrow("Select the editor before recording")
+    await ask({type: "select", id})
+    await ask({type: "record", id, on: true})
     wg.dispatch({changes: {from: 1, insert: [Leaf.text("y")]}})
     expect(recorded).toHaveBeenCalledTimes(1)
     expect(recorded.mock.calls[0]?.[1]).toHaveLength(1)
     recorded.mockRestore()
+    await ask({type: "select", id: null})
   })
 
   it("serialises children shallowly", async () => {

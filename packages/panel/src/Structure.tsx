@@ -26,11 +26,11 @@ declare module "react" {
 }
 
 // A colour per node type, so the same types read alike across the document.
-const hue = (name: string): CSSProperties => ({
+export const hue = (name: string): CSSProperties => ({
   "--hue": [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7),
 })
 // Readable on both themes.
-const typeColour = "text-[hsl(var(--hue)_60%_38%)] dark:text-[hsl(var(--hue)_70%_72%)]"
+export const typeColour = "text-[hsl(var(--hue)_60%_38%)] dark:text-[hsl(var(--hue)_70%_72%)]"
 
 type Marks = {selection: SelectionInfo | null; focused: string; matches: ReadonlySet<string>; current: string | null}
 
@@ -155,7 +155,7 @@ const Box = ({node, marks}: {node: StructureNode; marks: Marks}) => {
 }
 
 /** Scrolls an item into the structure's scroller, not the page around an in-page dock. */
-const scrollInto = (container: HTMLElement, element: Element) => {
+export const scrollInto = (container: HTMLElement, element: Element) => {
   const top = element.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop
   if (top < container.scrollTop || top > container.scrollTop + container.clientHeight - 24) {
     container.scrollTop = top - 8

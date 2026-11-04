@@ -8,6 +8,9 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "#co
 import {Tooltip, TooltipContent, TooltipTrigger} from "#components/ui/tooltip"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "#components/ui/tabs"
 import {DocTree} from "./DocTree.tsx"
+import {Log} from "./Log.tsx"
+import {Fields} from "./Fields.tsx"
+import {Schema} from "./Schema.tsx"
 import type {PanelStore, View} from "./store.ts"
 import {Structure} from "./Structure.tsx"
 import {nextTheme, type ThemeChoice, type ThemeStore} from "./theme.ts"
@@ -110,7 +113,7 @@ const Notices = ({store}: {store: PanelStore}) => {
   )
 }
 
-const isView = (value: unknown): value is View => value == "tree" || value == "structure"
+const isView = (value: unknown): value is View => value == "tree" || value == "structure" || value == "schema" || value == "fields" || value == "log"
 
 const Body = ({store}: {store: PanelStore}) => {
   const {editors, selected, view} = useSyncExternalStore(store.subscribe, store.get)
@@ -122,7 +125,7 @@ const Body = ({store}: {store: PanelStore}) => {
     )
   }
   if (selected == null) return null
-  // Both tabs stay mounted (the tree keeps its expanded rows); per editor, so switching starts afresh.
+  // The tabs stay mounted (the tree keeps its expanded rows); per editor, so switching starts afresh.
   return (
     <Tabs
       value={view}
@@ -138,12 +141,30 @@ const Body = ({store}: {store: PanelStore}) => {
         <TabsTrigger value="structure" className="flex-none px-2 text-xs">
           Structure
         </TabsTrigger>
+        <TabsTrigger value="schema" className="flex-none px-2 text-xs">
+          Schema
+        </TabsTrigger>
+        <TabsTrigger value="fields" className="flex-none px-2 text-xs">
+          Fields
+        </TabsTrigger>
+        <TabsTrigger value="log" className="flex-none px-2 text-xs">
+          Log
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="tree" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
         <DocTree key={selected} store={store} editorId={selected} />
       </TabsContent>
       <TabsContent value="structure" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
         <Structure key={selected} store={store} editorId={selected} />
+      </TabsContent>
+      <TabsContent value="schema" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
+        <Schema key={selected} store={store} editorId={selected} />
+      </TabsContent>
+      <TabsContent value="fields" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
+        <Fields key={selected} store={store} editorId={selected} />
+      </TabsContent>
+      <TabsContent value="log" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
+        <Log key={selected} store={store} editorId={selected} />
       </TabsContent>
     </Tabs>
   )

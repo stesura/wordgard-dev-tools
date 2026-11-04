@@ -25,7 +25,7 @@ export default defineConfig({
   server: {
     fs: {allow: [searchForWorkspaceRoot(process.cwd()), fileURLToPath(new URL("../../../wordgard", import.meta.url))]},
   },
-  optimizeDeps: {include: ["wordgard/schema", "wordgard/editor", "wordgard/state", "wordgard/doc"]},
+  optimizeDeps: {include: ["wordgard/schema", "wordgard/editor", "wordgard/state", "wordgard/doc", "wordgard/types", "wordgard/history"]},
   test: {
     include: ["test/**/*.test.ts"],
     browser: {

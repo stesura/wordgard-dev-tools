@@ -1,5 +1,6 @@
 import type {Wordgard} from "wordgard/editor"
 import type {Path, Push} from "./protocol.ts"
+import {byAgent} from "./reads.ts"
 import type {Entry, Registry} from "./registry.ts"
 import {locate} from "./serialise.ts"
 
@@ -147,9 +148,10 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
     }
   }
 
+  // From the page's events (scrolling, the pointer while picking): reads the agent made.
   const tryShow = (wg: Wordgard, path: Path, by: "highlight" | "pick") => {
     try {
-      show(wg, path, by)
+      byAgent(() => show(wg, path, by))
     } catch {
       // The editor went away, or is mid-flush: the outline is gone.
     }
@@ -200,7 +202,7 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
 
   const onMove = (event: Event) => {
     const entry = editorOf(event)
-    if (entry && event instanceof MouseEvent) tryShow(entry.wg, resolve(entry, event), "pick")
+    if (entry && event instanceof MouseEvent) tryShow(entry.wg, byAgent(() => resolve(entry, event)), "pick")
     // Off the editors, only the picker's own outline goes: a tree row's hover stays.
     else if (shown?.by == "pick") hide()
   }
@@ -209,7 +211,7 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
     const entry = editorOf(event)
     if (!entry || !(event instanceof MouseEvent)) return
     swallow(event)
-    const path = resolve(entry, event)
+    const path = byAgent(() => resolve(entry, event))
     end()
     push({type: "picked", id: entry.id, path})
   }

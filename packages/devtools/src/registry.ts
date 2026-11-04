@@ -1,11 +1,14 @@
 import type {Wordgard} from "wordgard/editor"
-import type {Transaction} from "wordgard/state"
+import type {GardState, Transaction} from "wordgard/state"
 import {createAgent} from "./agent.ts"
 import type {Push, Reply, Request, RequestType} from "./protocol.ts"
 
 // The registry is the contract between copies of this package on one page
 // (the app's and react-wordgard's may differ): duck-typed, versioned on its own.
 export const REGISTRY_VERSION = 1
+
+/** State fields by name, for the Fields tab (the shape `GardState.toJSON` takes). */
+export type NamedFields = {[name: string]: GardState.Field<unknown>}
 
 export type Entry = {
   readonly id: number
@@ -15,6 +18,8 @@ export type Entry = {
   attached: boolean
   /** The transaction log records this editor. */
   recording: boolean
+  /** Named by the plugins' options; optional for registries made by older copies. */
+  fields?: NamedFields
 }
 
 export type Agent = {
@@ -31,8 +36,8 @@ export type Agent = {
 export type Registry = {
   readonly registryVersion: number
   readonly editors: ReadonlyMap<Wordgard, Entry>
-  /** Adds the editor, or renames it when known. Counted: one per connected plugin. */
-  register: (wg: Wordgard, name?: string) => Entry
+  /** Adds the editor, or renames it when known, adding field names. Counted: one per connected plugin. */
+  register: (wg: Wordgard, name?: string, fields?: NamedFields) => Entry
   /** Removes the editor once no plugin holds it, or when it is disconnected. */
   unregister: (wg: Wordgard) => void
   subscribe: (listener: () => void) => () => void
@@ -67,20 +72,22 @@ const createRegistry = (): Registry => {
   return {
     registryVersion: REGISTRY_VERSION,
     editors,
-    register: (wg, name) => {
+    register: (wg, name, fields) => {
       holds.set(wg, (holds.get(wg) ?? 0) + 1)
       const known = editors.get(wg)
       if (known) {
-        if (name && name != known.name) {
-          known.name = name
-          changed()
-        }
+        const named = fields && Object.entries(fields).some(([key, field]) => known.fields?.[key] != field)
+        if (named) known.fields = {...known.fields, ...fields}
+        const renamed = Boolean(name) && name != known.name
+        if (name && renamed) known.name = name
+        // The panel reloads its editors, and with them the field names.
+        if (named || renamed) changed()
         return known
       }
       // Stable across reconnects of the same instance.
       const id = ids.get(wg) ?? nextId++
       ids.set(wg, id)
-      const entry: Entry = {id, name: name || defaultName(wg, id), wg, attached: false, recording: false}
+      const entry: Entry = {id, name: name || defaultName(wg, id), wg, attached: false, recording: false, fields}
       editors.set(wg, entry)
       changed()
       return entry

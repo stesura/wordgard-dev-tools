@@ -14,6 +14,14 @@ export const truncate = (text: string, max = PREVIEW_LENGTH) =>
 const hasToJSON = (value: object): value is {toJSON: () => unknown} =>
   "toJSON" in value && typeof value.toJSON == "function"
 
+const tryToJSON = (value: {toJSON: () => unknown}): {ok: true; value: unknown} | {ok: false} => {
+  try {
+    return {ok: true, value: value.toJSON()}
+  } catch {
+    return {ok: false}
+  }
+}
+
 /** A structured-cloneable copy of a value, with depth and cycle limits. */
 export const toSafe = (value: unknown, depth = DEPTH, seen = new Set<object>()): unknown => {
   if (typeof value == "bigint") return `${value}n`
@@ -31,8 +39,11 @@ export const toSafe = (value: unknown, depth = DEPTH, seen = new Set<object>()):
     if (Array.isArray(value)) return value.map(v => toSafe(v, depth - 1, seen))
     if (value instanceof Map) return {"[Map]": [...value].map(entry => toSafe(entry, depth - 1, seen))}
     if (value instanceof Set) return {"[Set]": [...value].map(v => toSafe(v, depth - 1, seen))}
-    // Wordgard nodes and marks, dates.
-    if (hasToJSON(value)) return toSafe(value.toJSON(), depth, seen)
+    // Wordgard nodes and marks, dates. Some toJSON methods need arguments (a state): then the object's own properties.
+    if (hasToJSON(value)) {
+      const json = tryToJSON(value)
+      if (json.ok) return toSafe(json.value, depth, seen)
+    }
     const out: Record<string, unknown> = {}
     for (const [key, v] of Object.entries(value)) out[key] = toSafe(v, depth - 1, seen)
     return out

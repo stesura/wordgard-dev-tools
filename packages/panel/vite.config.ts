@@ -31,7 +31,9 @@ export default defineConfig({
       "react-dom/client",
       "wordgard/doc",
       "wordgard/editor",
+      "wordgard/history",
       "wordgard/schema",
+      "wordgard/state",
     ],
   },
   build: {

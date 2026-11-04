@@ -36,7 +36,14 @@ it("shares one registry, and only its creator runs the agent", async () => {
   both.dispatch({changes: {from: 1, insert: [Leaf.text("x")]}})
   both.flush()
   stop()
-  expect(seen).toEqual([{type: "stateChanged", id: entry?.id, docChanged: true, selectionSet: false}])
+  expect(seen).toEqual([{type: "stateChanged", id: entry?.id, docChanged: true, selectionSet: false, reconfigured: false}])
+
+  // Both copies' transaction listeners deliver each transaction: logged once.
+  const id = entry?.id ?? 0
+  await first.ensureRegistry()?.agent?.request({type: "record", id, on: true})
+  both.dispatch({changes: {from: 1, insert: [Leaf.text("y")]}})
+  const log = await first.ensureRegistry()?.agent?.request({type: "log", id, from: 0, to: 10})
+  expect(log?.ok && log.value.rows.length).toBe(1)
 
   for (const wg of [a, b, both]) wg.dom.remove()
   expect(registry().editors.size).toBe(0)

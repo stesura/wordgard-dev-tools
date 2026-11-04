@@ -1,0 +1,315 @@
+import type {Wordgard} from "wordgard/editor"
+import {GardState, Transaction} from "wordgard/state"
+import type {ChangedRange, LogEntryDetail, LogRow, LogSlice, NamedValue, Push} from "./protocol.ts"
+import {agentReading} from "./reads.ts"
+import type {Entry, Registry} from "./registry.ts"
+import {toSafe} from "./serialise.ts"
+
+// Loaded with the serialisers, on the first panel request.
+
+export const LOG_SIZE = 500
+
+type Item = {
+  index: number
+  tr: Transaction
+  dispatchMs: number | null
+  flushMs: number | null
+  flush: number | null
+  agentFlush: boolean
+}
+
+type Log = {
+  items: Item[]
+  end: number
+  size: number
+  /** Recorded, not drawn yet: the next flush times them. */
+  unflushed: Item[]
+  /** Recorded during the outermost open `dispatch` call. */
+  dispatched: Item[] | null
+  flushes: number
+  timer: Timer | null
+  scheduled: boolean
+  /** Two copies of the package on one editor both deliver each transaction. */
+  seen: WeakSet<Transaction>
+}
+
+type Timer = {
+  /** Stops timing dispatches; the flush wrapper stays until the transactions waiting for it are drawn. */
+  pause: () => void
+  resume: () => void
+  /** Restores both now (the editor disconnected). */
+  stop: () => void
+}
+
+type Dispatch = Wordgard["dispatch"]
+
+/**
+ * Own-property wrappers on `flush` (on the prototype: the rAF callback and `ensureFlushed` look
+ * it up on the instance) and `dispatch` (bound in the constructor; callers that kept the
+ * original aren't timed).
+ */
+const time = (wg: Wordgard, log: Log, changed: () => void): Timer => {
+  const saved = {flush: Object.getOwnPropertyDescriptor(wg, "flush"), dispatch: Object.getOwnPropertyDescriptor(wg, "dispatch")}
+  const flush = wg.flush
+  const dispatch = wg.dispatch
+  let active = true
+  let depth = 0
+  const installed = {flush: false, dispatch: false}
+
+  // Someone who wrapped ours keeps their wrapper; ours passes through.
+  const restore = (key: "flush" | "dispatch", ours: unknown) => {
+    if (!installed[key] || wg[key] != ours) return
+    installed[key] = false
+    const descriptor = saved[key]
+    if (descriptor) Object.defineProperty(wg, key, descriptor)
+    else Reflect.deleteProperty(wg, key)
+  }
+
+  const timedFlush = () => {
+    if (!wg.connected || (!active && !log.unflushed.length)) return flush.call(wg)
+    const drawn = log.unflushed
+    log.unflushed = []
+    const agent = agentReading()
+    const start = performance.now()
+    try {
+      flush.call(wg)
+    } catch (e) {
+      // Not drawn (react-wordgard refused the update): the next flush draws them.
+      log.unflushed = [...drawn, ...log.unflushed]
+      throw e
+    }
+    const ms = performance.now() - start
+    if (drawn.length) {
+      const flushNumber = ++log.flushes
+      for (const item of drawn) Object.assign(item, {flushMs: ms, flush: flushNumber, agentFlush: agent})
+      changed()
+    }
+    if (!active && !log.unflushed.length) restore("flush", timedFlush)
+  }
+
+  // Nested dispatches (a transaction listener dispatching) count toward the outermost call.
+  const timedDispatch: Dispatch = tr => {
+    if (!active) return dispatch.call(wg, tr)
+    if (depth++ == 0) log.dispatched = []
+    const start = performance.now()
+    try {
+      dispatch.call(wg, tr)
+    } finally {
+      if (--depth == 0) {
+        const ms = performance.now() - start
+        for (const item of log.dispatched ?? []) item.dispatchMs = ms
+        log.dispatched = null
+      }
+    }
+  }
+
+  const install = () => {
+    active = true
+    if (!installed.flush) wg.flush = timedFlush
+    if (!installed.dispatch) wg.dispatch = timedDispatch
+    installed.flush = installed.dispatch = true
+  }
+  install()
+  return {
+    pause: () => {
+      active = false
+      log.dispatched = null
+      restore("dispatch", timedDispatch)
+      if (!log.unflushed.length || !wg.connected) restore("flush", timedFlush)
+    },
+    resume: install,
+    stop: () => {
+      active = false
+      log.unflushed = []
+      log.dispatched = null
+      restore("flush", timedFlush)
+      restore("dispatch", timedDispatch)
+    },
+  }
+}
+
+const annotationNames = new Map<object, string>([
+  [Transaction.time, "time"],
+  [Transaction.userEvent, "userEvent"],
+  [Transaction.addToHistory, "addToHistory"],
+  [Transaction.remote, "remote"],
+  [Transaction.appended, "appended"],
+])
+
+// `annotations` is internal to Wordgard (`annotation(type)` is the public reader): counted when present.
+const annotationsOf = (tr: Transaction): Transaction.Annotation<unknown>[] =>
+  "annotations" in tr && Array.isArray(tr.annotations)
+    ? tr.annotations.filter(a => a instanceof Transaction.Annotation)
+    : []
+
+const effectName = (effect: Transaction.Effect<unknown>) =>
+  effect.is(GardState.reconfigure) ? "reconfigure" : effect.is(GardState.appendConfig) ? "appendConfig" : "effect"
+
+const row = ({index, tr, dispatchMs, flushMs, flush, agentFlush}: Item): LogRow => ({
+  index,
+  time: tr.annotation(Transaction.time) ?? 0,
+  userEvent: tr.annotation(Transaction.userEvent) ?? null,
+  appended: tr.annotation(Transaction.appended) ?? false,
+  docChanged: tr.docChanged,
+  selectionSet: tr.selection != null,
+  effects: tr.effects.length,
+  annotations: annotationsOf(tr).filter(a => a.type != Transaction.time).length,
+  dispatchMs,
+  flushMs,
+  flush,
+  agentFlush,
+})
+
+const tokens = (doc: GardState["doc"], from: number, to: number) => doc.slice(from, to).map(token => toSafe(token.toJSON(), 64))
+
+const detail = (item: Item): LogEntryDetail => {
+  const {tr} = item
+  const before = tr.startState.doc
+  const after = tr.state.doc
+  const ranges: ChangedRange[] = []
+  tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+    ranges.push({
+      fromA,
+      toA,
+      fromB,
+      toB,
+      before: tokens(before, fromA, toA),
+      after: tokens(after, fromB, toB),
+      beforeText: before.textContent({from: fromA, to: toA, blockSeparator: "\n"}),
+      afterText: after.textContent({from: fromB, to: toB, blockSeparator: "\n"}),
+    })
+  })
+  return {
+    ...row(item),
+    changes: tr.changes.toJSON(),
+    ranges,
+    selection: {
+      set: tr.selection ? toSafe(tr.selection.toJSON(tr.state)) : null,
+      before: toSafe(tr.startState.selection.toJSON(tr.startState)),
+      after: toSafe(tr.newSelection.toJSON(tr.state)),
+    },
+    effectValues: tr.effects.map((effect): NamedValue => ({type: effectName(effect), value: toSafe(effect.value)})),
+    annotationValues: annotationsOf(tr).map(
+      (a): NamedValue => ({type: annotationNames.get(a.type) ?? "annotation", value: toSafe(a.value)}),
+    ),
+    scrollIntoView: tr.scrollIntoView,
+    reconfigured: tr.reconfigured,
+  }
+}
+
+export type Recorder = {
+  /** From every copy's transaction listener. */
+  recorded: (entry: Entry, transactions: readonly Transaction[]) => void
+  record: (entry: Entry, on: boolean, size?: number) => void
+  clear: (entry: Entry) => void
+  slice: (entry: Entry, from: number, to: number) => LogSlice
+  detail: (entry: Entry, index: number) => LogEntryDetail
+  /** A transaction's index, while the log holds it. */
+  indexOf: (entry: Entry, tr: Transaction) => number | null
+  /** Drops the logs of editors that left the registry (a disconnect), restoring their methods. */
+  prune: () => void
+}
+
+export const createRecorder = (registry: Registry, push: (message: Push) => void): Recorder => {
+  const logs = new Map<Entry, Log>()
+
+  const logOf = (entry: Entry) => {
+    let log = logs.get(entry)
+    if (!log) {
+      log = {
+        items: [],
+        end: 0,
+        size: LOG_SIZE,
+        unflushed: [],
+        dispatched: null,
+        flushes: 0,
+        timer: null,
+        scheduled: false,
+        seen: new WeakSet(),
+      }
+      logs.set(entry, log)
+    }
+    return log
+  }
+
+  // One push per task: a dispatch and its appended transactions, or a flush.
+  const changed = (entry: Entry, log: Log) => {
+    if (log.scheduled || !entry.attached) return
+    log.scheduled = true
+    queueMicrotask(() => {
+      log.scheduled = false
+      if (logs.get(entry) == log && entry.attached) push({type: "logChanged", id: entry.id, end: log.end})
+    })
+  }
+
+  const trim = (log: Log) => {
+    if (log.items.length > log.size) log.items.splice(0, log.items.length - log.size)
+  }
+
+  const held = (entry: Entry, index: number) => {
+    const item = logs.get(entry)?.items.find(i => i.index == index)
+    if (!item) throw new Error(`Transaction ${index} is no longer in the log`)
+    return item
+  }
+
+  return {
+    recorded: (entry, transactions) => {
+      if (!entry.recording) return
+      const log = logOf(entry)
+      for (const tr of transactions) {
+        if (log.seen.has(tr)) continue
+        log.seen.add(tr)
+        const item: Item = {index: log.end++, tr, dispatchMs: null, flushMs: null, flush: null, agentFlush: false}
+        log.items.push(item)
+        // Limitation: a flush forced earlier in this dispatch (a listener ordered before ours reading
+        // layout) already drew it; it is credited to the next flush.
+        log.unflushed.push(item)
+        log.dispatched?.push(item)
+      }
+      trim(log)
+      changed(entry, log)
+    },
+    record: (entry, on, size) => {
+      const log = logOf(entry)
+      if (size != null) {
+        if (!Number.isInteger(size) || size < 1) throw new Error(`Invalid log size ${size}`)
+        log.size = size
+        trim(log)
+      }
+      entry.recording = on
+      if (!on) log.timer?.pause()
+      else if (log.timer) log.timer.resume()
+      else log.timer = time(entry.wg, log, () => changed(entry, log))
+      changed(entry, log)
+    },
+    clear: entry => {
+      const log = logs.get(entry)
+      if (!log) return
+      log.items = []
+      log.unflushed = []
+      changed(entry, log)
+    },
+    slice: (entry, from, to) => {
+      const log = logs.get(entry)
+      if (!log) return {start: 0, end: 0, pending: 0, recording: entry.recording, size: LOG_SIZE, rows: []}
+      return {
+        start: log.items[0]?.index ?? log.end,
+        end: log.end,
+        pending: log.unflushed[0]?.index ?? log.end,
+        recording: entry.recording,
+        size: log.size,
+        rows: log.items.filter(item => item.index >= from && item.index < to).map(row),
+      }
+    },
+    detail: (entry, index) => detail(held(entry, index)),
+    indexOf: (entry, tr) => logs.get(entry)?.items.find(item => item.tr == tr)?.index ?? null,
+    prune: () => {
+      for (const [entry, log] of logs) {
+        if (registry.editors.get(entry.wg) == entry) continue
+        log.timer?.stop()
+        logs.delete(entry)
+        entry.recording = false
+      }
+    },
+  }
+}

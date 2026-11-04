@@ -84,12 +84,12 @@ describe("frames transport", () => {
     pushed.length = 0
     const push = (frameId: number, p: Push) =>
       receive({type: "fromFrame", frameId, url: "", message: {type: "push", v: PROTOCOL, push: p}})
-    push(7, {type: "stateChanged", id: 1, docChanged: true, selectionSet: false})
-    push(0, {type: "stateChanged", id: 1, docChanged: true, selectionSet: false})
+    push(7, {type: "stateChanged", id: 1, docChanged: true, selectionSet: false, reconfigured: false})
+    push(0, {type: "stateChanged", id: 1, docChanged: true, selectionSet: false, reconfigured: false})
     push(7, {type: "picked", id: 1, path: [0, 1]})
     push(7, {type: "pickCancelled"})
     expect(pushed).toEqual([
-      {type: "stateChanged", id: 1, docChanged: true, selectionSet: false},
+      {type: "stateChanged", id: 1, docChanged: true, selectionSet: false, reconfigured: false},
       {type: "picked", id: 1, path: [0, 1]},
       {type: "pickCancelled"},
     ])

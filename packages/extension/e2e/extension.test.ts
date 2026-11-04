@@ -88,6 +88,24 @@ it("draws the document's structure", async () => {
   await panel.getByRole("tab", {name: "Tree"}).click()
 })
 
+it("shows the schema", async () => {
+  await panel.getByRole("tab", {name: "Schema"}).click()
+  await panel.locator("[data-type='node-Paragraph']").getByText("inline: any", {exact: false}).waitFor()
+  await panel.locator("[data-type='mark-Strong']").waitFor()
+  await panel.getByRole("tab", {name: "Tree"}).click()
+})
+
+it("shows the state fields, a named one among them", async () => {
+  await panel.getByRole("tab", {name: "Fields"}).click()
+  const fields = panel.getByRole("listbox", {name: "State fields"})
+  await fields.locator("[data-field='wordCount']").waitFor()
+  await demo.locator("#plain wg-content").click()
+  await demo.keyboard.press("Control+End")
+  await demo.keyboard.type(" more words")
+  await fields.locator("[data-field='wordCount']").getByTitle("Changes seen").filter({hasText: /\d/}).waitFor()
+  await panel.getByRole("tab", {name: "Tree"}).click()
+})
+
 it("switches to an editor in an iframe and follows it", async () => {
   await panel.getByLabel("Editor").click()
   await panel.getByRole("option", {name: /framed/}).click()
@@ -126,6 +144,25 @@ it("picks a node in an iframe's editor without moving its caret", async () => {
   await expect.poll(() => panel.evaluate(() => document.activeElement?.getAttribute("data-path"))).toBe("0")
   expect(await panel.getByLabel("Pick a node in the page").getAttribute("aria-pressed")).toBe("false")
   expect(await caret()).toEqual(before)
+})
+
+it("records the transaction log, with timing", async () => {
+  await panel.getByLabel("Editor").click()
+  await panel.getByRole("option", {name: /left/}).click()
+  await panel.getByText("Left editor.").waitFor()
+  await panel.getByRole("tab", {name: "Log"}).click()
+  await panel.getByRole("button", {name: "Record"}).click()
+  await panel.getByRole("button", {name: "Pause"}).waitFor()
+  await demo.locator("#left wg-content").click()
+  await demo.keyboard.type("x")
+  const list = panel.getByRole("listbox", {name: "Transactions"})
+  await list.getByText("input.type").waitFor()
+  // Drawn: the flush's timing is in.
+  await list.locator("[title^='Flush #']").first().waitFor()
+  await list.getByRole("option").filter({hasText: "input.type"}).click()
+  await panel.getByLabel("Transaction").getByText("x", {exact: true}).waitFor()
+  await panel.getByRole("button", {name: "Pause"}).click()
+  await panel.getByRole("tab", {name: "Tree"}).click()
 })
 
 it("keeps the picked editor across a reload", async () => {

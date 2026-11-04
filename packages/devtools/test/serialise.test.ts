@@ -24,3 +24,11 @@ it("previews values as truncated JSON", () => {
   expect(preview("hi")).toBe('"hi"')
   expect(preview({src: "a".repeat(100)})).toHaveLength(80)
 })
+
+it("walks an object whose toJSON needs arguments", () => {
+  const value = {
+    depth: 2,
+    toJSON: (state: {facet: () => number}) => state.facet(),
+  }
+  expect(toSafe(value)).toEqual({depth: 2, toJSON: "[Function toJSON]"})
+})

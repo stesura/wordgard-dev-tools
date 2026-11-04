@@ -33,7 +33,7 @@ export const SelectionStrip = ({selection, onReveal}: {selection: SelectionInfo 
   </div>
 )
 
-const Field = ({label, children}: {label: string; children: ReactNode}) => (
+export const Field = ({label, children}: {label: string; children: ReactNode}) => (
   <div className="grid grid-cols-[4.5rem_1fr] gap-2 py-0.5">
     <span className="text-muted-foreground">{label}</span>
     <span className="min-w-0 wrap-break-word">{children}</span>

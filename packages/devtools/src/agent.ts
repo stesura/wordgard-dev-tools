@@ -11,12 +11,17 @@ import {
   type Results,
 } from "./protocol.ts"
 import type {Agent, Entry, Registry} from "./registry.ts"
+import type * as Fields from "./fields.ts"
 import type * as Inspect from "./inspect.ts"
+import type * as Log from "./log.ts"
+import type * as Schema from "./schema.ts"
+import {byAgent} from "./reads.ts"
 import type * as Serialisers from "./serialise.ts"
 import {VERSION} from "./version.ts"
 
 /** Who asked: the in-page panel calls the agent directly, the extension over postMessage. */
 type Client = "local" | "remote"
+const clients: Client[] = ["local", "remote"]
 
 type Handlers = {[K in RequestType]: (request: Request<K>, client: Client) => Results[K] | Promise<Results[K]>}
 
@@ -32,7 +37,10 @@ const notYet = (phase: number) => () => {
 const createHandlers = (
   registry: Registry,
   s: typeof Serialisers,
+  schema: typeof Schema,
   inspector: Inspect.Inspector,
+  recorder: Log.Recorder,
+  tracker: Fields.FieldTracker,
   select: (client: Client, id: number | null) => void,
 ): Handlers => {
   const entry = (id: number) => {
@@ -55,14 +63,29 @@ const createHandlers = (
     },
     node: ({id, path}) => s.node(entry(id).wg.state.doc, path),
     structure: ({id}) => s.structure(entry(id).wg.state.doc),
+    schema: ({id}) => schema.schemaInfo(entry(id).wg.state.schema),
     selection: ({id}) => s.selection(entry(id).wg.state),
-    record: ({id, on}) => {
-      entry(id).recording = on
+    fields: ({id}) => tracker.list(entry(id)),
+    field: ({id, index}) => tracker.detail(entry(id), index),
+    watchFields: ({id, on}, client) => {
+      const e = entry(id)
+      if (on && !e.attached) throw new Error("Select the editor before watching its fields")
+      tracker.watch(e, client, on)
       return null
     },
-    clear: notYet(5),
-    log: notYet(5),
-    entry: notYet(5),
+    record: ({id, on, size}) => {
+      const e = entry(id)
+      // The log records only what a panel shows (see `sync`).
+      if (on && !e.attached) throw new Error("Select the editor before recording")
+      recorder.record(e, on, size)
+      return null
+    },
+    clear: ({id}) => {
+      recorder.clear(entry(id))
+      return null
+    },
+    log: ({id, from, to}) => recorder.slice(entry(id), from, to),
+    entry: ({id, index}) => recorder.detail(entry(id), index),
     highlight: ({id, path}) => {
       inspector.highlight(path ? entry(id) : null, path)
       return null
@@ -92,10 +115,18 @@ export const createAgent = (registry: Registry): Agent => {
   let remote = false
   let handlers: Promise<Handlers> | null = null
   let inspector: Inspect.Inspector | null = null
+  let recorder: Log.Recorder | null = null
+  let tracker: Fields.FieldTracker | null = null
   // Each client's editor: one doesn't detach the other's (the dock and the extension at once).
   const selected: Record<Client, number | null> = {local: null, remote: null}
   const sync = () => {
-    for (const e of registry.editors.values()) e.attached = e.id == selected.local || e.id == selected.remote
+    for (const e of registry.editors.values()) {
+      e.attached = e.id == selected.local || e.id == selected.remote
+      // Nothing records unless a panel shows it: the log pauses, and keeps what it has.
+      if (e.recording && !e.attached) recorder?.record(e, false)
+      // Each panel watches the fields of the editor it shows.
+      for (const client of clients) if (selected[client] != e.id && tracker?.watching(e, client)) tracker.watch(e, client, false)
+    }
   }
   const select = (client: Client, id: number | null) => {
     selected[client] = id
@@ -117,10 +148,13 @@ export const createAgent = (registry: Registry): Agent => {
 
   // Serialisers load on the first request: pages that never open the panel skip them.
   const loadHandlers = () =>
-    (handlers ??= Promise.all([import("./serialise.ts"), import("./inspect.ts")]).then(
-      ([s, inspect]) => {
+    (handlers ??= Promise.all([import("./serialise.ts"), import("./inspect.ts"), import("./log.ts"), import("./schema.ts"), import("./fields.ts")]).then(
+      ([s, inspect, log, schema, fields]) => {
         inspector = inspect.createInspector(registry, push)
-        return createHandlers(registry, s, inspector, select)
+        const logged = log.createRecorder(registry, push)
+        recorder = logged
+        tracker = fields.createFieldTracker(registry, logged.indexOf)
+        return createHandlers(registry, s, schema, inspector, logged, tracker, select)
       },
       e => {
         handlers = null
@@ -130,13 +164,17 @@ export const createAgent = (registry: Registry): Agent => {
 
   const request = async <K extends RequestType>(message: Request<K>, client: Client): Promise<Reply<K>> => {
     try {
-      return {ok: true, value: await run(await loadHandlers(), message, client)}
+      const loaded = await loadHandlers()
+      // Reads that force a flush are tagged in the log.
+      return {ok: true, value: await byAgent(() => run(loaded, message, client))}
     } catch (e) {
       return {ok: false, error: e instanceof Error ? e.message : String(e)}
     }
   }
 
   registry.subscribe(() => {
+    recorder?.prune()
+    tracker?.prune()
     // A reconnected editor (same instance, same id) is attached again.
     sync()
     push({type: "editorsChanged"})
@@ -178,9 +216,15 @@ export const createAgent = (registry: Registry): Agent => {
       // Two copies of the package on one editor both report the same update.
       if (!entry.attached || lastUpdate.get(entry) == update) return
       lastUpdate.set(entry, update)
-      push({type: "stateChanged", id: entry.id, docChanged: update.docChanged, selectionSet: update.selectionSet})
+      tracker?.updated(entry, update)
+      push({
+        type: "stateChanged",
+        id: entry.id,
+        docChanged: update.docChanged,
+        selectionSet: update.selectionSet,
+        reconfigured: update.startState.config != update.state.config,
+      })
     },
-    // The transaction log is plan phase 5.
-    recorded: () => {},
+    recorded: (entry, transactions) => recorder?.recorded(entry, transactions),
   }
 }

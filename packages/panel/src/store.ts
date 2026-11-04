@@ -1,7 +1,7 @@
 import type {AgentInfo, EditorInfo, Path, Push, Request, SelectionInfo} from "wordgard-devtools"
 import type {Transport} from "./transport.ts"
 
-export type View = "tree" | "structure"
+export type View = "tree" | "structure" | "schema" | "fields" | "log"
 
 export type PanelState = {
   agent: AgentInfo | null
@@ -24,11 +24,20 @@ export type PanelStore = {
   select: (id: number | null) => Promise<void>
   /** The selected editor's document changed (coalesced per frame). */
   onDocChanged: (listener: (id: number) => void) => () => void
+  /** The selected editor's state changed: any update (coalesced per frame). */
+  onStateChanged: (listener: (id: number) => void) => () => void
+  /** The selected editor's configuration changed (coalesced per frame). */
+  onConfigChanged: (listener: (id: number) => void) => () => void
+  /** The selected editor's transaction log changed (coalesced per frame). */
+  onLogChanged: (listener: (id: number) => void) => () => void
   pick: (on: boolean) => void
   setView: (view: View) => void
   /** A node to reveal in an editor's tree (a pick): taken once, by that editor's tree. */
   takeReveal: (id: number) => Path | null
-  /** A reveal is waiting; the tree takes it with `takeReveal`. */
+  /** Shows the Log tab with an entry selected (taken once with `takeLogReveal`). */
+  showLogEntry: (id: number, index: number) => void
+  takeLogReveal: (id: number) => number | null
+  /** A reveal is waiting; the tree takes it with `takeReveal`, the log with `takeLogReveal`. */
   onReveal: (listener: () => void) => () => void
   transport: Transport
   /** Subscribes to pushes and loads the editors. Returns the stop function, which detaches. */
@@ -50,8 +59,12 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   }
   const listeners = new Set<() => void>()
   const docListeners = new Set<(id: number) => void>()
+  const logListeners = new Set<(id: number) => void>()
+  const configListeners = new Set<(id: number) => void>()
+  const stateListeners = new Set<(id: number) => void>()
   const revealListeners = new Set<() => void>()
   let reveal: {id: number; path: Path} | null = null
+  let logReveal: {id: number; index: number} | null = null
   const set = (patch: Partial<PanelState>) => {
     state = {...state, ...patch}
     for (const listener of listeners) listener()
@@ -126,6 +139,21 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   // Coalesced per frame: a burst of updates refetches once.
   let frame: number | null = null
   let docChanged = false
+  let stateChanged = false
+  let logChanged = false
+  let configChanged = false
+  const schedule = () => {
+    frame ??= requestAnimationFrame(() => {
+      frame = null
+      const id = state.selected
+      if (id != null && docChanged) for (const listener of docListeners) listener(id)
+      if (id != null && logChanged) for (const listener of logListeners) listener(id)
+      if (id != null && configChanged) for (const listener of configListeners) listener(id)
+      if (id != null && stateChanged) for (const listener of stateListeners) listener(id)
+      if (stateChanged) loadSelection().catch(fail)
+      docChanged = stateChanged = logChanged = configChanged = false
+    })
+  }
   const onPush = (push: Push) => {
     if (push.type == "editorsChanged") void refreshEditors()
     // Another panel's picking (the dock and the extension on one page) isn't ours.
@@ -140,13 +168,12 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       for (const listener of revealListeners) listener()
     } else if (push.type == "stateChanged" && push.id == state.selected) {
       docChanged ||= push.docChanged
-      frame ??= requestAnimationFrame(() => {
-        frame = null
-        const id = state.selected
-        if (docChanged && id != null) for (const listener of docListeners) listener(id)
-        docChanged = false
-        loadSelection().catch(fail)
-      })
+      configChanged ||= push.reconfigured
+      stateChanged = true
+      schedule()
+    } else if (push.type == "logChanged" && push.id == state.selected) {
+      logChanged = true
+      schedule()
     }
   }
 
@@ -165,6 +192,24 @@ export const createPanelStore = (transport: Transport): PanelStore => {
         docListeners.delete(listener)
       }
     },
+    onStateChanged: listener => {
+      stateListeners.add(listener)
+      return () => {
+        stateListeners.delete(listener)
+      }
+    },
+    onConfigChanged: listener => {
+      configListeners.add(listener)
+      return () => {
+        configListeners.delete(listener)
+      }
+    },
+    onLogChanged: listener => {
+      logListeners.add(listener)
+      return () => {
+        logListeners.delete(listener)
+      }
+    },
     pick,
     setView: view => set({view}),
     takeReveal: id => {
@@ -172,6 +217,17 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       const {path} = reveal
       reveal = null
       return path
+    },
+    showLogEntry: (id, index) => {
+      logReveal = {id, index}
+      set({view: "log"})
+      for (const listener of revealListeners) listener()
+    },
+    takeLogReveal: id => {
+      if (logReveal?.id != id) return null
+      const {index} = logReveal
+      logReveal = null
+      return index
     },
     onReveal: listener => {
       revealListeners.add(listener)
@@ -196,7 +252,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
         stopPushes()
         if (frame != null) cancelAnimationFrame(frame)
         frame = null
-        docChanged = false
+        docChanged = stateChanged = logChanged = configChanged = false
         if (state.picking) set({picking: false})
         for (const request of [
           {type: "pick", on: false},

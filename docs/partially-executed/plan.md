@@ -1,9 +1,10 @@
 # Wordgard DevTools — plan
 
-Status: PARTIALLY EXECUTED. Phases 0, 1, 2, 2b, 3, 4 and 4b done on 2026-11-04, see the
+Status: PARTIALLY EXECUTED. Phases 0, 1, 2, 2b, 3, 4, 4b, 5, 5b and 5c done on 2026-11-04, see the
 implementation notes for [0-2](#implementation-notes-phases-0-2-2026-11-04),
 [2b](#implementation-notes-phase-2b-2026-11-04), [3](#implementation-notes-phase-3-2026-11-04),
-[4](#implementation-notes-phase-4-2026-11-04) and [4b](#implementation-notes-phase-4b-2026-11-04). Drafted 2026-11-04, revised
+[4](#implementation-notes-phase-4-2026-11-04), [4b](#implementation-notes-phase-4b-2026-11-04),
+[5](#implementation-notes-phase-5-2026-11-04) and [5b and 5c](#implementation-notes-phases-5b-and-5c-2026-11-04). Drafted 2026-11-04, revised
 after a Fable review the same day, see [Review](#review-2026-11-04).
 
 A browser DevTools panel for [Wordgard](../../../wordgard) editors, the counterpart of
@@ -140,7 +141,7 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
   `entry(id, index)`, `highlight(id, path | null)`, `pick(on)`, `setConsole(id, index?)`,
   `repro(id)`.
 - Pushes: `editorsChanged`, `stateChanged(id, {docChanged, selectionSet})`, `picked(id, path)`,
-  `logAppended(id, count)`.
+  `logChanged(id, end)` (planned as `logAppended(id, count)`; see phase 5's notes).
 
 ### Serialisation and positions
 
@@ -281,10 +282,10 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
    nodes holding the selection are marked; hovering a box outlines its node in the page; clicking
    one shows it in the side pane; a pick reveals it there too. One `structure(id)` request sends
    the document's shallow nodes nested (developers' documents: no paging).
-5. Transaction log and timing.
-5b. Schema tab (added 2026-11-04): the editor's node and mark types: names, groups, what each
+5. **Executed.** Transaction log and timing.
+5b. **Executed.** Schema tab (added 2026-11-04): the editor's node and mark types: names, groups, what each
    holds, parameters, mark targets, from the state's schema (public API).
-5c. Fields tab (added 2026-11-04): each `GardState.Field` (Wordgard's plugin state) with its value,
+5c. **Executed.** Fields tab (added 2026-11-04): each `GardState.Field` (Wordgard's plugin state) with its value,
    when it last changed, and its history of changes linked to the transaction log. Fields are
    found through `state.config.base` (public); they have no names, so they show as "field #n"
    unless the app names them: `wordgardDevtools({fields: {history: historyField}})` (the shape
@@ -393,8 +394,7 @@ while typing, remounting the react-wordgard editor, theme toggle, collapse.
 
 - CI has not run yet: the sibling-tarball step and `npm ci` with the `file:` links in the lockfile
   are untested.
-- Phase 5: `recorded` must dedupe by `Transaction` identity (two copies on one editor each
-  deliver the same transactions).
+- ~~Phase 5: `recorded` must dedupe by `Transaction` identity~~ (done in phase 5, per editor).
 - Phase 2b: the agent's `remote` flag never resets, so after an extension panel has connected once,
   pushes keep going over `postMessage` (cheap: nothing is attached once the panel detaches). The
   theme choice moves to `chrome.storage.local` there.
@@ -589,3 +589,178 @@ followed; its findings are fixed below.
   and a new panel against an old agent shows the "Unknown request" error inline.
 - The vitest config pre-bundles the panel's dependencies: one discovered mid-run reloads the
   browser tests, which a cold CI cache would hit.
+
+## Implementation notes: phase 5 (2026-11-04)
+
+Checks at the end: `npm run typecheck`; `npm test` (devtools 51, panel 45, extension 12, two
+consecutive clean runs); `npm run build`; e2e 9 tests (a Log step: record, type in an editor, the
+row with its flush timing, its entry). A Fable audit followed; its findings are below.
+
+### How it works
+
+- `packages/devtools/src/log.ts`, loaded with the serialisers: a ring buffer per editor (500 by
+  default; `record(id, on, size?)` sets it) of `Transaction` references. Indices count up per
+  editor and are never reused, `clear` included. `log(id, from, to)` serialises rows (index, time,
+  userEvent, appended, docChanged, selectionSet, effect and annotation counts, timing);
+  `entry(id, index)` the detail (`changes.toJSON()`, each `iterChangedRanges` range's tokens and
+  text before and after, the selection set / before / after, effects and annotations through
+  `toSafe`, named when they are Wordgard's own: `reconfigure`, `appendConfig`, `time`,
+  `userEvent`, `addToHistory`, `remote`, `appended`). Transactions are deduped per editor by
+  identity.
+- Timing: own-property wrappers on `wg.flush` and `wg.dispatch` while recording. A dispatch's time
+  (nested dispatches included) goes to the transactions recorded during the outermost call; a
+  flush's time to those recorded since the previous flush, numbered so rows sharing a flush show
+  it. Flushes forced while the agent handles a request, follows an outline or resolves a pick are
+  tagged (`packages/devtools/src/reads.ts`, `byAgent`). Pausing restores `dispatch` at once and
+  `flush` once the transactions waiting for it are drawn; a disconnect restores both. A wrapper
+  someone added over ours stays, and ours passes through.
+- `logChanged(id, end)` is pushed once per task (a microtask), for attached editors, when rows are
+  appended, timed or cleared. `LogSlice.pending` is the first row that may still change: the panel
+  keeps the rows before it and refetches from there.
+- Panel: a Log tab (`packages/panel/src/Log.tsx`, `log-source.ts`): Record/Pause, Clear, a count
+  with the rows over 16 ms; a timeline strip (one bar per entry, square-root height, the dashed
+  line a frame's budget, click to select); virtualized rows with a sticky header (index, time,
+  userEvent, doc/sel/app, effects, annotations, dispatch and flush ms, `*` for a flush DevTools
+  forced; slow rows tinted); the list follows new rows while scrolled to the bottom; arrows,
+  Page Up/Down, Home and End move the selection. The entry pane shows the detail (ranges as
+  struck-out/added text, tokens and ChangeSet JSON folded). Loads only while the tab is shown, as
+  the Structure.
+
+### Deviations
+
+- **Push renamed** `logAppended(id, count)` → `logChanged(id, end)`: it also fires when rows get
+  their flush timing or are cleared.
+- **Recording needs a panel showing the editor** (not planned): `record(on)` on an editor no
+  panel has selected fails, and an editor that stops being shown (switching editors, collapsing
+  the dock, closing the extension's panel) pauses; its log stays. This keeps "nothing is recorded
+  unless the panel is recording" when a panel goes away while recording.
+- **Annotations** are read from Wordgard's internal `Transaction.annotations` (the public API only
+  reads one annotation type at a time), narrowed with `"annotations" in tr`; without it the count is
+  0 and the list empty. The count leaves out the automatic `time`.
+- **Ring size** is set per `record` request, not in the plugin options (the registry's contract
+  stays as it is); the panel doesn't offer it.
+- The Vitest config pre-bundles `wordgard/state` too: found mid-run, Vite gave `log.ts` a second
+  Wordgard copy, whose `Transaction.time` didn't match the editor's.
+
+### Audit (Fable)
+
+Accepted and fixed:
+
+1. In the dock, an editor reconnecting as the same instance (same id) kept a stale Log claiming to
+   record. The Log now reloads on any change to the editor list, and restarts when the page's log
+   is shorter than its own. Tested.
+2. Pausing (or a deselect) before the frame's flush dropped that flush's timing. `flush` now stays
+   wrapped until those transactions are drawn. Tested.
+3. `timedDispatch` dropped `this` for a wrapper the app had installed as a method: called with
+   `dispatch.call(wg, tr)`.
+4. The dedupe set was global: a transaction dispatched to two editors sharing a state was logged
+   only in the first. Per editor now. Tested.
+5. A failed entry detail stayed cached with no way out: the pane shows Retry.
+6. `aria-activedescendant` pointed at a row the virtualizer had dropped: set only while the row is
+   rendered.
+7. The plan wasn't updated (this section).
+
+Kept as limitations:
+
+- A flush forced inside a dispatch before the devtools listener ran (a listener ordered before
+  ours reading layout) draws a transaction not yet recorded: it is credited to the next flush. A
+  comment says so.
+- The detail cache can evict (past 32 entries viewed) a promise the pane still shows; the next
+  render then shows "Loading…" briefly. Not worth more code.
+
+### Open points
+
+- The timeline is per entry, not on a time axis.
+- ~~The timer rewrite after the audit wasn't re-audited~~: the 5b/5c audit covered it and found
+  nothing.
+
+## Implementation notes: phases 5b and 5c (2026-11-04)
+
+Checks at the end: `npm run typecheck`; `npm test` (devtools 59, panel 52, extension 12, two
+consecutive clean runs); `npm run build`; e2e 11 tests (a Schema step; a Fields step that types in
+the demo's editor and sees its named `wordCount` field change). One Fable audit covered both
+phases and phase 5's reworked timer.
+
+### 5b: how it works
+
+- `schema(id)` (`packages/devtools/src/schema.ts`, lazy): per node type its kind, inline or block,
+  groups, roles, the spec's content query, the types it holds (`schema.canContain`), the marks
+  allowed on it (`schema.markAllowed`), its param (`defaultParam`, `validate`), flags (doc,
+  textblock, isolating, defining, neutral, preserveWhitespace, canBeEmpty, row, selectable) and a
+  short shape (`<p>`, a structure's HTML, `[attribute]`); per mark type its spec target, the node
+  types it goes on, rank, flags (inclusive, spanning, element, keepOnSplit, keepOnTypeChange),
+  param and shape. Plus the document type and the line break.
+- The `stateChanged` push gained `reconfigured`; the store's `onConfigChanged` reloads the tab
+  (when shown, as the Structure).
+- Panel: a Schema tab (`Schema.tsx`): a card per type, coloured like the Structure's; type names
+  link to their cards; a filter by name.
+
+### 5b: deviations
+
+- **Groups have no names in Wordgard** (only identity). Its own are named (`Textblock`,
+  `Content`, `TableCell`, `ListItem`; `All`, `Inline`, `Block`, `Leaf`, `Plot` are left out, the
+  kind says them); others are numbered `group #n` in the order the specs mention them. A group
+  only a `Schema.Override` mentions isn't seen.
+- **Content and targets are the spec's wording**, marked "(spec)": an override may change them.
+  `holds`, `goes on` and the groups come from the schema, so they are what applies.
+
+### 5c: how it works
+
+- `wordgardDevtools({fields: {name: field}})` names fields. `register(wg, name, fields)` merges the
+  names into the entry (`Entry.fields`, optional: an older copy's registry ignores them) and
+  notifies, so the panel reloads.
+- `packages/devtools/src/fields.ts` (lazy): fields are found by walking `state.config.base`
+  (arrays, Wordgard's precedence and compartment wrappers, a compartment's current content through
+  `Compartment.get`, objects with an `extension`), cached per configuration; unnamed ones are
+  `field #n` in that order. While tracked, the agent's `updated` compares each field's value per
+  transaction of the update (`!==`), keeping the last 50 changes per field, each with its
+  transaction, linked to its log index when the log holds it.
+- Tracked while the log records, or while a panel shows the Fields tab (`watchFields(id, on)`,
+  per client: the dock and the extension each have their own; it stops when that client no
+  longer shows the editor).
+- `fields(id)`: name, preview, changes seen, last change (time, log index). `field(id, index)`:
+  the value through `toSafe` and the history. `toSafe` now walks an object's own properties when
+  its `toJSON()` throws (Wordgard's history field needs a state).
+- Panel: a Fields tab (`Fields.tsx`): the list, a pane with the value and the history (newest
+  first); a change's `#n` opens the Log tab with that entry selected (`store.showLogEntry`).
+  Reloads on every state change while shown.
+- The demo names a `wordCount` field on its plain editor.
+
+### 5c: deviations
+
+- **Changes are found per update** (the update listener every package copy already delivers to
+  attached editors), not by a new transaction listener flag, which older copies wouldn't know.
+  So changes appear after the editor's flush.
+- **Discovery limits**: a field only a facet or another field provides (`Field.provides`, a facet's
+  `enables`) isn't found. Nothing in Wordgard itself does that today.
+
+### Audit (Fable)
+
+Accepted and fixed:
+
+1. A same-instance reconnect (same id) left the Fields tab saying "Tracking" while the page had
+   dropped its tracking: it now reloads and watches again when the editor list changes, as the Log
+   does. Tested.
+2. One watching flag per editor for two panels: one hiding its tab stopped tracking for the other.
+   Per client now. Tested.
+3. Field names added to an editor already registered didn't notify the panel: they do now.
+4. A custom group first named in a later type's content query was missing from earlier types'
+   groups: every spec's groups and queries are named before the types are listed. Content and
+   targets are marked as the spec's wording. Tested.
+5. Plan not updated: this section.
+
+Rejected:
+
+- History kept after tracking stops (each change holds a `Transaction`): bounded (50 per field)
+  and dropped with the editor; keeping it means the tab shows the history again when reopened.
+
+Nothing found in phase 5's reworked timer.
+
+### Open points
+
+- Field indices can shift on a reconfigure that adds or removes a field: the selected field may
+  then show another one. Not tested.
+- The Fields tab doesn't say which fields it can't find (see the discovery limits).
+- `record` is still one flag per editor for both panels (phase 5's design): one panel pausing
+  pauses the other.
+
