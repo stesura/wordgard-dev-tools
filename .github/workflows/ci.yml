@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 # wordgard and @stesura/react-wordgard are local path dependencies on ../wordgard and
 # ../react-wordgard. CI fills those folders from their npm releases.
@@ -27,7 +28,9 @@ jobs:
             mkdir -p "$2"
             npm pack "$1" --pack-destination "$RUNNER_TEMP" --silent > "$RUNNER_TEMP/$2.name"
             tar -xzf "$RUNNER_TEMP/$(cat "$RUNNER_TEMP/$2.name")" -C "$2" --strip-components=1
-            (cd "$2" && npm install --omit=dev --ignore-scripts --no-package-lock --no-audit --no-fund)
+            # The tarballs ship dist/ built, not the build scripts: npm ci would run `prepare` on these
+            # file: links and fail.
+            (cd "$2" && npm pkg delete scripts.prepare && npm install --omit=dev --ignore-scripts --no-package-lock --no-audit --no-fund)
           }
           fetch "wordgard@$WORDGARD_VERSION" wordgard
           fetch "@stesura/react-wordgard@$REACT_WORDGARD_VERSION" react-wordgard

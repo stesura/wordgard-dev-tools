@@ -392,8 +392,7 @@ while typing, remounting the react-wordgard editor, theme toggle, collapse.
 
 ### Open points
 
-- CI has not run yet: the sibling-tarball step and `npm ci` with the `file:` links in the lockfile
-  are untested.
+- ~~CI has not run yet~~: see "CI (2026-11-04)" at the end.
 - ~~Phase 5: `recorded` must dedupe by `Transaction` identity~~ (done in phase 5, per editor).
 - Phase 2b: the agent's `remote` flag never resets, so after an extension panel has connected once,
   pushes keep going over `postMessage` (cheap: nothing is attached once the panel detaches). The
@@ -881,6 +880,17 @@ was asked; a fixed assignment would need every type known up front.
 - **Pick mode's cursor**: a crosshair over the editors' content while picking (a stylesheet adopted by
   the document and by the shadow roots holding editors, removed when picking ends); the rest of the
   page and the panel keep theirs.
+
+### CI (2026-11-04)
+
+- The first GitHub run (the push of phase 4) failed at Install: `npm ci` ran the `prepare` script
+  of the `file:` link to `../wordgard`, and the npm tarball ships `dist/` built but not
+  `bin/build.ts`. Locally npm 12 blocks install scripts, so it never showed. The sibling step now
+  deletes `scripts.prepare` from the unpacked tarballs. The workflow can also be started by hand
+  (`workflow_dispatch`).
+- The workflow's steps then passed on a copy of the working tree, with the siblings from their
+  tarballs and npm 11 as on GitHub: `npm ci`, typecheck, tests (devtools 64, panel 69, extension 12),
+  build, e2e 11. Not run: Ubuntu, `playwright install --with-deps`. The next push runs it on GitHub.
 
 Audit of this batch (Fable), all accepted and fixed:
 
