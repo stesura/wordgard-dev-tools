@@ -792,6 +792,115 @@ Nothing found in phase 5's reworked timer.
 - The dock's collapse button is a Close button (it still leaves the reopen button). A Pause button
   (`store.pause`) stops the panel as closing does: no pushes, no editor attached, so the plugins'
   listeners only check their flags; an overlay with a play button resumes.
+- Colours (`colours.ts`): node and mark types take a hue from a palette of 12 distinct colours,
+  the one their name hashes to, or the next free one when another type has it (kept for the
+  session; shared by hash once all are taken). Marks are tinted badges; text chips have a slate
+  right edge.
+- Structure boxes use `content-visibility: auto` (the browser skips laying out and painting boxes
+  off-screen) instead of virtualization, which would have meant flattening the nested boxes into
+  rows. React still renders every node: fine for the developers' documents in scope.
+
+### Tree replaced by State (2026-11-04, at the user's request)
+
+The Tree and the Structure showed the same thing. The Tree tab is gone; a **State** tab shows the
+editor's state as plain JSON, and the Structure is the one view of the document.
+
+- `stateJSON(id)` (`serialise.ts`): `GardState.toJSON()`, plus each field named by
+  `wordgardDevtools({fields})` whose spec has a `toJSON` (Wordgard's `toJSON(fields)` throws for the
+  others; they're left out). The `children` request, `doc-source.ts`, `DocTree.tsx` and headless-tree
+  are gone.
+- `State.tsx`: a virtualized JSON viewer (TanStack Virtual, one line per value, opening or closing
+  bracket), collapsible per object and array, expand all / collapse all, copy, tree keyboard
+  (arrows, Home, End; Left closes or goes to the parent). Reloads on every state change while shown.
+- The Structure is the first tab and the default. A pick switches to it. The context menu's
+  "Show in Tree / Structure" is gone.
+- Structure: expand all / collapse all (the document stays open); the selection's start and end are
+  marked in the innermost node holding each (their own icons; a cursor has one), with "Start of
+  selection - pos X" / "End of selection - pos Y" / "Cursor - pos X" tooltips; Reveal has a
+  tooltip.
+- Schema: the card a link or a click lands on is ringed ("show type in Schema" included); more space
+  between the node and mark sections.
+- The pause icon is two solid bars.
+
+Fixes from the audit of the previous batch:
+
+- The split pane ignored no measurement: a hidden tab measures 0 wide, which flipped it to stacked
+  and remounted its content on every tab switch (reloading it). Zero sizes are ignored now; a test
+  runs at 1200 px wide.
+- While paused, the editor picker and the Pick button still reached the page: the picker is
+  disabled, Pick hidden, `select` and `pick(true)` ignored, and the content under the overlay is
+  `inert`.
+- Four tooltips per Log row: per-row tooltips dropped, the column headers keep theirs; the Fields
+  list's tooltip only where there are changes.
+- The Tree didn't scroll when wide: gone with the Tree.
+- A stale comment in `inspect.ts`.
+
+Audit of this pass (Fable). Accepted and fixed:
+
+1. Resuming after a pause left the Structure, State and Schema showing what they had before (the
+   agent drops updates while nothing is attached): resuming now reloads every tab once the editor
+   is attached again. Tested.
+2. State: closing an object (or Collapse all) that held the focused line lost the focus: it moves
+   to the closed object (the root's entry holding it, for Collapse all). Tested.
+3. State: line ids collided for keys containing "/" (or empty keys vs closing lines): keys are
+   URI-encoded in ids, closing lines end in `#`. Tested.
+4. A node selection marked the block around it, not the node: `SelectionInfo.nodePath` is the
+   selected node's path, marked with its own icon ("Selected node - pos X–Y"). Tested.
+5. State: ArrowRight on an open object now goes to its first entry (the ARIA tree pattern).
+6. Leftover Tree wording in two tests; the Structure test's "Collapse all" lookup is scoped to its
+   tab (the State has a button of that name too).
+
+Kept: colours depend on which type claims a hue first, so after a reload a colliding pair (e.g.
+Paragraph and BulletList hash to the same hue) can swap. Consistent within a session, which is what
+was asked; a fixed assignment would need every type known up front.
+
+### View tab, contrast and polish (2026-11-04, at the user's request)
+
+- **View tab** (`View.tsx`, `view-source.ts`; page side `view.ts`): the editor's status (connected,
+  editable, focusable, focused, composing, Wordgard or a subclass, document or shadow root, theme
+  classes, where the head is drawn) and its content's DOM as a virtualized, collapsible tree. Each
+  element shows the node it draws (`nodeFromDOM` + `nodeDOM`, in the type's colour, with its
+  positions); text shows its position (`posAtDOM`); uneditable elements drawing no node are flagged
+  "chrome" (widgets, decorations, React chrome). A click outlines the element in the page (the
+  inspector outlines any DOM node now); a button logs it to the page's console. Requests `view` and
+  `viewElement` (outline or log, by child indices). Not shown: plugins and decoration sets (Wordgard
+  internals).
+- **Contrast**: `--muted-foreground` is darker in light (0.50, 5:1 or more on background, muted and
+  accent) and lighter in dark (0.76, 4.8:1 or more); type and mark colours darker in light (5.2:1 or
+  more on muted).
+- **Tabs and bars**: the header and the tab bar are grey; tabs are filled, the active one on the
+  content's background; each tab's own toolbar is lightly tinted.
+- **Schema**: an × clears the node/mark toggle, and one per section clears its tag filters.
+- **Fields**: a status badge ("Tracking changes") with the explanation in a tooltip; a header row
+  aligned with the columns; each field in its own box, its name in a badge.
+- **Reopen button**: black with white text in both themes (15:1 or more, hovered too; the old dark
+  hover was wrong), with a lighter border and a faint ring on dark pages (orange first, back to
+  black at the user's request); a cog
+  menu in the dock's toolbar puts it in any corner, or minimizes it to a cog. Saved with the dock
+  layout. The dock and theme menus close on a pick.
+- **Pick mode's cursor**: a crosshair over the editors' content while picking (a stylesheet adopted by
+  the document and by the shadow roots holding editors, removed when picking ends); the rest of the
+  page and the panel keep theirs.
+
+Audit of this batch (Fable), all accepted and fixed:
+
+1. In a read-only editor every element was "chrome": Wordgard marks the content element itself
+   `contenteditable="false"`. It no longer counts. Tested.
+2. The reopen button's tooltip never showed: it renders outside the panel, with no portal root. It
+   has its own now. Tested.
+3. Dark State booleans (violet-400 on the focused row, 3.6:1): violet-300.
+4. Dark search matches in the Structure drowned their text in yellow: a ring marks them, over a
+   faint tint.
+5. Slow Log timings (`text-destructive` on the slow rows' tint, 4.4:1): red-700 / red-300.
+6. An outlined View element that left the DOM left a 0×0 box at the viewport's corner: the
+   outline goes when its element does.
+7. A click on a View element that changed since the last load did nothing: the View reloads.
+8. "Wordgard or a subclass" compared classes, false with two copies of Wordgard: it checks the
+   prototype chain (Wordgard extends nothing).
+9. The State and View roots showed as selected before any interaction: nothing is until a line
+   is picked.
+
+
 
 ### Open points
 

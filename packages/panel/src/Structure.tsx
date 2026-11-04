@@ -1,12 +1,21 @@
 import {cn} from "cn"
-import {ChevronDownIcon, ChevronRightIcon, ChevronUpIcon} from "lucide-react"
+import {
+  ArrowLeftToLineIcon,
+  ArrowRightToLineIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ChevronsDownUpIcon,
+  ChevronsUpDownIcon,
+  ChevronUpIcon,
+  SquareDashedMousePointerIcon,
+  TextCursorIcon,
+} from "lucide-react"
 import {
   useCallback,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
-  type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
 } from "react"
@@ -17,22 +26,11 @@ import {ROOT, itemId, pathOf} from "./detail-cache.ts"
 import {NodeMenu, createNodeMenuAnchor} from "./node-menu.tsx"
 import {NodePane, SelectionStrip, isPrefix, json} from "./node-pane.tsx"
 import {SplitPane} from "./split-pane.tsx"
+import {hue, markColour, typeColour} from "./colours.ts"
 import type {PanelStore} from "./store.ts"
+import {Tip} from "./tip.tsx"
 import {createStructureSource} from "./structure-source.ts"
 
-declare module "react" {
-  interface CSSProperties {
-    /** A node type's hue, for its colours. */
-    "--hue"?: number
-  }
-}
-
-// A colour per node type, so the same types read alike across the document.
-export const hue = (name: string): CSSProperties => ({
-  "--hue": [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7),
-})
-// Readable on both themes.
-export const typeColour = "text-[hsl(var(--hue)_60%_38%)] dark:text-[hsl(var(--hue)_70%_72%)]"
 
 type Marks = {
   selection: SelectionInfo | null
@@ -57,19 +55,65 @@ const search = (doc: StructureNode, query: string) => {
   return found
 }
 
+// In dark, a yellow tint strong enough to see drowns the text: a ring marks the match instead.
 const matchClass = (id: string, marks: Marks) =>
-  marks.current == id ? "bg-yellow-500/40" : marks.matches.has(id) ? "bg-yellow-500/20" : ""
+  marks.current == id
+    ? "bg-yellow-500/40 dark:bg-yellow-500/15 dark:ring-2 dark:ring-yellow-500"
+    : marks.matches.has(id)
+      ? "bg-yellow-500/20 dark:bg-yellow-500/10 dark:ring-1 dark:ring-yellow-500/60"
+      : ""
 
 const selectionMark = (path: Path, selection: SelectionInfo | null) => {
   if (!selection || !path.length) return undefined
   const exact = (other: Path) => other.join() == path.join()
+  if (selection.nodePath) {
+    if (exact(selection.nodePath)) return "innermost"
+    return isPrefix(path, selection.nodePath) ? "holds" : undefined
+  }
   if (exact(selection.headPath) || exact(selection.anchorPath)) return "innermost"
   return isPrefix(path, selection.headPath) || isPrefix(path, selection.anchorPath) ? "holds" : undefined
 }
 
+/**
+ * Where the selection starts or ends, in the innermost node holding that position: its own mark
+ * for each end (one for a cursor), with the position in a tooltip.
+ */
+const SelectionEnd = ({node, marks, at}: {node: StructureNode; marks: Marks; at: "start" | "end"}) => {
+  const selection = marks.selection
+  if (!selection) return null
+  // A node selection: the node itself, once.
+  if (selection.nodePath) {
+    if (at == "end" || selection.nodePath.join(".") != node.path.join(".")) return null
+    const label = `Selected node - pos ${selection.from}–${selection.to}`
+    return (
+      <Tip label={label}>
+        <span data-selection-end="node" aria-label={label} className="flex text-primary [&_svg]:size-3">
+          <SquareDashedMousePointerIcon />
+        </span>
+      </Tip>
+    )
+  }
+  if (selection.empty && at == "end") return null
+  const forward = selection.anchor <= selection.head
+  const path = (at == "start") == forward ? selection.anchorPath : selection.headPath
+  if (path.join(".") != node.path.join(".")) return null
+  const [label, icon] = selection.empty
+    ? [`Cursor - pos ${selection.head}`, <TextCursorIcon key="cursor" />]
+    : at == "start"
+      ? [`Start of selection - pos ${selection.from}`, <ArrowRightToLineIcon key="start" />]
+      : [`End of selection - pos ${selection.to}`, <ArrowLeftToLineIcon key="end" />]
+  return (
+    <Tip label={label}>
+      <span data-selection-end={at} aria-label={label} className="flex text-primary [&_svg]:size-3">
+        {icon}
+      </span>
+    </Tip>
+  )
+}
+
 const MarkTags = ({node}: {node: StructureNode}) =>
   node.marks.map(mark => (
-    <Tag key={mark.name}>
+    <Tag key={mark.name} className={markColour} style={hue("mark", mark.name)}>
       {mark.name}
       {mark.preview != null && `=${mark.preview}`}
     </Tag>
@@ -97,16 +141,18 @@ const Chip = ({node, marks}: {node: StructureNode; marks: Marks}) => {
       {...props}
       className={cn(
         "mr-1 mb-1 inline-flex cursor-default flex-wrap items-center gap-1 rounded border px-1 align-top outline-none",
+        node.name == "Text" && "border-r-2 border-r-slate-400 dark:border-r-slate-500",
         props["data-selection"] == "innermost" && "border-primary",
         props["aria-selected"] && "ring-2 ring-ring",
         matchClass(itemId(node.path), marks),
       )}
     >
+      <SelectionEnd node={node} marks={marks} at="start" />
       {node.name == "Text" && node.textPreview != null ? (
         <span className="whitespace-pre">{json(node.textPreview)}</span>
       ) : (
         <>
-          <span className={typeColour} style={hue(node.name)}>
+          <span className={typeColour} style={hue("node", node.name)}>
             {node.name}
           </span>
           {node.paramPreview != null && <span className="text-muted-foreground">{node.paramPreview}</span>}
@@ -116,6 +162,7 @@ const Chip = ({node, marks}: {node: StructureNode; marks: Marks}) => {
       <span className="text-muted-foreground">
         {node.from}–{node.to}
       </span>
+      <SelectionEnd node={node} marks={marks} at="end" />
       {node.children.length > 0 && (
         <span role="group" className="inline-flex flex-wrap">
           {node.children.map(child => (
@@ -140,11 +187,12 @@ const Box = ({node, marks}: {node: StructureNode; marks: Marks}) => {
       {...props}
       aria-expanded={folder ? open : undefined}
       className={cn(
-        "mb-1 cursor-default rounded border border-l-4 border-l-[hsl(var(--hue)_60%_50%)] px-1.5 py-0.5 outline-none",
+        // The browser skips laying out and painting boxes off-screen (it keeps their last size).
+        "mb-1 cursor-default rounded border border-l-4 border-l-[hsl(var(--hue)_60%_50%)] px-1.5 py-0.5 outline-none [contain-intrinsic-size:auto_1.75rem] [content-visibility:auto]",
         props["data-selection"] && "bg-primary/5",
         props["aria-selected"] && "ring-2 ring-ring",
       )}
-      style={hue(node.name)}
+      style={hue("node", node.name)}
     >
       <div className={cn("flex items-center gap-2", matchClass(id, marks))}>
         {folder && (
@@ -162,9 +210,11 @@ const Box = ({node, marks}: {node: StructureNode; marks: Marks}) => {
             {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
           </button>
         )}
+        <SelectionEnd node={node} marks={marks} at="start" />
         <span>{node.name}</span>
         {node.paramPreview != null && <span className="text-muted-foreground">{node.paramPreview}</span>}
         <MarkTags node={node} />
+        <SelectionEnd node={node} marks={marks} at="end" />
         <span className="ml-auto text-muted-foreground">
           {node.from}–{node.to}
         </span>
@@ -182,6 +232,14 @@ const Box = ({node, marks}: {node: StructureNode; marks: Marks}) => {
       )}
     </div>
   )
+}
+
+/** The boxes that hold content: what "collapse all" closes. A textblock's content is chips, not boxes. */
+const folders = (node: StructureNode, out: string[] = []) => {
+  if (!node.children.length) return out
+  out.push(itemId(node.path))
+  if (node.textPreview == null) for (const child of node.children) folders(child, out)
+  return out
 }
 
 /** Scrolls an item into the structure's scroller, not the page around an in-page dock. */
@@ -365,7 +423,7 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
           </Button>
         </p>
       )}
-      <div className="flex h-7 shrink-0 items-center gap-1 border-b px-2 text-xs">
+      <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-muted/40 px-2 text-xs">
         <input
           type="search"
           value={query}
@@ -391,6 +449,22 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
         <Button variant="ghost" size="icon-xs" aria-label="Next match" disabled={!matches.length} onClick={() => go(index + 1)}>
           <ChevronDownIcon />
         </Button>
+        <Tip label="Expand all">
+          <Button variant="ghost" size="icon-xs" aria-label="Expand all" onClick={() => setCollapsed(new Set())}>
+            <ChevronsUpDownIcon />
+          </Button>
+        </Tip>
+        <Tip label="Collapse all">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Collapse all"
+            // The document stays open: its blocks show.
+            onClick={() => doc && setCollapsed(new Set(folders(doc).filter(id => id != ROOT)))}
+          >
+            <ChevronsDownUpIcon />
+          </Button>
+        </Tip>
       </div>
       <SplitPane pane={<NodePane source={source} focused={focused == ROOT ? null : focused} />}>
         <div
@@ -415,7 +489,7 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
           {doc && <Box node={doc} marks={marks} />}
         </div>
       </SplitPane>
-      <NodeMenu store={store} editorId={editorId} anchor={menu} view="structure" />
+      <NodeMenu store={store} editorId={editorId} anchor={menu} />
     </div>
   )
 }

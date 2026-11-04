@@ -21,6 +21,8 @@ export const clock = (time: number) => {
 }
 const ms = (value: number | null) => (value == null ? "–" : value.toFixed(1))
 const slow = (value: number | null) => value != null && value > SLOW_MS
+/** Slow timings: 4.5:1 or more on the slow rows' tint, in both themes. */
+const slowText = "text-red-700 dark:text-red-300"
 export const isSlow = (row: LogRow) => slow(row.dispatchMs) || slow(row.flushMs)
 
 const flags = (row: LogRow) => [
@@ -58,21 +60,18 @@ const Row = ({row, start, selected}: {row: LogRow; start: number; selected: bool
         </Tag>
       ))}
     </span>
-    <Tip label="Effects">
-      <span>{row.effects || ""}</span>
-    </Tip>
-    <Tip label="Annotations">
-      <span>{row.annotations || ""}</span>
-    </Tip>
-    <Tip label="Dispatch, ms">
-      <span className={cn("text-right", slow(row.dispatchMs) && "text-destructive")}>{ms(row.dispatchMs)}</span>
-    </Tip>
-    <Tip label={flushTitle(row)}>
-      <span data-flush={row.flush ?? undefined} className={cn("text-right", slow(row.flushMs) && "text-destructive")}>
-        {ms(row.flushMs)}
-        {row.agentFlush && "*"}
-      </span>
-    </Tip>
+    {/* No tooltip per cell (a busy log re-renders its rows often): the column headers have them. */}
+    <span>{row.effects || ""}</span>
+    <span>{row.annotations || ""}</span>
+    <span className={cn("text-right", slow(row.dispatchMs) && slowText)}>{ms(row.dispatchMs)}</span>
+    <span
+      data-flush={row.flush ?? undefined}
+      aria-label={flushTitle(row)}
+      className={cn("text-right", slow(row.flushMs) && slowText)}
+    >
+      {ms(row.flushMs)}
+      {row.agentFlush && "*"}
+    </span>
   </div>
 )
 
@@ -209,10 +208,10 @@ const EntryView = ({
           "–"}
       </Field>
       <Field label="dispatch">
-        <span className={cn(slow(entry.dispatchMs) && "text-destructive")}>{ms(entry.dispatchMs)} ms</span>
+        <span className={cn(slow(entry.dispatchMs) && slowText)}>{ms(entry.dispatchMs)} ms</span>
       </Field>
       <Field label="flush">
-        <span className={cn(slow(entry.flushMs) && "text-destructive")}>{ms(entry.flushMs)} ms</span>
+        <span className={cn(slow(entry.flushMs) && slowText)}>{ms(entry.flushMs)} ms</span>
         {entry.flush != null && <span className="text-muted-foreground"> #{entry.flush}</span>}
         {entry.agentFlush && <span className="text-muted-foreground"> forced by DevTools</span>}
       </Field>
@@ -393,7 +392,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b px-2 text-xs">
+      <div className="flex h-7 shrink-0 items-center gap-2 border-b bg-muted/40 px-2 text-xs">
         <Button
           variant={view.recording ? "secondary" : "ghost"}
           size="xs"
@@ -417,7 +416,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
         <span className="text-muted-foreground" aria-live="polite">
           {rows.length} transaction{rows.length == 1 ? "" : "s"}
           {view.size > 0 && rows.length >= view.size && ` (the last ${view.size} kept)`}
-          {slowCount > 0 && <span className="text-destructive"> · {slowCount} over {SLOW_MS} ms</span>}
+          {slowCount > 0 && <span className={slowText}> · {slowCount} over {SLOW_MS} ms</span>}
         </span>
       </div>
       {view.error != null && (

@@ -1,5 +1,10 @@
 import {expect, it} from "vitest"
+import {Wordgard} from "wordgard/editor"
+import {basicSchema} from "wordgard/schema"
+import {GardState} from "wordgard/state"
+import {wordgardDevtools} from "../src/index.ts"
 import {preview, toSafe} from "../src/serialise.ts"
+import {ask, registry} from "./helpers.ts"
 
 it("copies values safely", () => {
   const cyclic: Record<string, unknown> = {a: 1}
@@ -31,4 +36,21 @@ it("walks an object whose toJSON needs arguments", () => {
     toJSON: (state: {facet: () => number}) => state.facet(),
   }
   expect(toSafe(value)).toEqual({depth: 2, toJSON: "[Function toJSON]"})
+})
+
+it("serialises the state, with the named fields that can", async () => {
+  const count = GardState.Field.define<number>({create: () => 3, update: v => v, toJSON: v => ({count: v})})
+  const plain = GardState.Field.define<number>({create: () => 4, update: v => v})
+  const wg = Wordgard.create({
+    parent: document.body,
+    doc: "<p>Hi</p>",
+    config: [basicSchema(), count, plain, wordgardDevtools({fields: {count, plain}})],
+  })
+  const json = await ask({type: "stateJSON", id: registry().editors.get(wg)?.id ?? 0})
+  expect(json).toEqual({
+    doc: {type: "Doc", content: [{type: "Paragraph", content: [{type: "Text", param: "Hi"}]}]},
+    selection: expect.objectContaining({type: "text", anchor: 1}),
+    count: {count: 3},
+  })
+  wg.dom.remove()
 })

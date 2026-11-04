@@ -1,7 +1,7 @@
 import type {AgentInfo, EditorInfo, Path, Push, Request, SelectionInfo} from "wordgard-devtools"
 import type {Transport} from "./transport.ts"
 
-export type View = "tree" | "structure" | "schema" | "fields" | "log"
+export type View = "structure" | "state" | "view" | "schema" | "fields" | "log"
 
 export type PanelState = {
   agent: AgentInfo | null
@@ -34,17 +34,17 @@ export type PanelStore = {
   onLogChanged: (listener: (id: number) => void) => () => void
   pick: (on: boolean) => void
   setView: (view: View) => void
-  /** A node to reveal in an editor's tree (a pick): taken once, by that editor's tree. */
+  /** A node to reveal in an editor's Structure (a pick): taken once, by that editor's Structure tab. */
   takeReveal: (id: number) => Path | null
   /** Shows a node type's card in the Schema tab (taken once with `takeTypeReveal`). */
   showType: (id: number, name: string) => void
   takeTypeReveal: (id: number) => string | null
-  /** Shows a node in the Tree or the Structure tab. */
-  showNode: (id: number, path: Path, view: "tree" | "structure") => void
+  /** Shows a node in the Structure tab. */
+  showNode: (id: number, path: Path) => void
   /** Shows the Log tab with an entry selected (taken once with `takeLogReveal`). */
   showLogEntry: (id: number, index: number) => void
   takeLogReveal: (id: number) => number | null
-  /** A reveal is waiting; the tree takes it with `takeReveal`, the log with `takeLogReveal`. */
+  /** A reveal is waiting: the Structure takes it with `takeReveal`, the Log with `takeLogReveal`, the Schema with `takeTypeReveal`. */
   onReveal: (listener: () => void) => () => void
   transport: Transport
   /** Subscribes to pushes and loads the editors (unless paused). Returns the stop function, which detaches. */
@@ -65,7 +65,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     notices: [],
     picking: false,
     paused: false,
-    view: "tree",
+    view: "structure",
   }
   const listeners = new Set<() => void>()
   const docListeners = new Set<(id: number) => void>()
@@ -117,6 +117,8 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   }
 
   const select = (id: number | null) => {
+    // Paused: nothing reaches the page.
+    if (state.paused) return Promise.resolve()
     const editor = state.editors.find(e => e.id == id)
     chosen = editor ? {id: editor.id, name: editor.name} : null
     return attach(id)
@@ -142,6 +144,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   }
 
   const pick = (on: boolean) => {
+    if (on && state.paused) return
     set({picking: on})
     // To every frame, through the transport: one pick ends picking everywhere.
     transport.send({type: "pick", on}).catch(fail)
@@ -175,6 +178,8 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       // Ends picking in the other frames too.
       pick(false)
       reveal = {id: push.id, path: push.path}
+      // Shown in the Structure, whichever tab was open.
+      set({view: "structure"})
       void select(push.id)
       for (const listener of revealListeners) listener()
     } else if (push.type == "stateChanged" && push.id == state.selected) {
@@ -191,16 +196,22 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   // The host's start, and pause, run this; its result undoes it.
   let started = false
   let stopRun: (() => void) | null = null
-  const activate = () => {
+  /** `resumed`: the tabs reload once the editor is attached again (updates were missed while paused). */
+  const activate = (resumed = false) => {
     run++
     running = true
+    const at = run
     let stopPushes = () => {}
     try {
       stopPushes = transport.onPush(onPush)
     } catch (e) {
       fail(e)
     }
-    void refreshEditors()
+    void refreshEditors().then(() => {
+      if (!resumed || !current(at)) return
+      docChanged = stateChanged = logChanged = configChanged = true
+      schedule()
+    })
     return () => {
       run++
       running = false
@@ -271,9 +282,9 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       typeReveal = null
       return name
     },
-    showNode: (id, path, view) => {
+    showNode: (id, path) => {
       reveal = {id, path}
-      set({view})
+      set({view: "structure"})
       for (const listener of revealListeners) listener()
     },
     showLogEntry: (id, index) => {
@@ -308,7 +319,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       set({paused: on})
       if (!started) return
       stopRun?.()
-      stopRun = on ? null : activate()
+      stopRun = on ? null : activate(true)
     },
   }
 }

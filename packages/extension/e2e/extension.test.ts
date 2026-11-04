@@ -68,10 +68,9 @@ it("lists every frame's editors and attaches the first", async () => {
   expect(await attached(demo)).toEqual(["plain", "left"])
 })
 
-it("shows the document tree, live", async () => {
+it("shows the document's structure, live", async () => {
   await panel.getByLabel("Editor").click()
   await panel.getByRole("option", {name: /plain/}).click()
-  await panel.locator("[data-path='1']").click()
   // basicSchema has no code mark: one text leaf up to the strong one.
   await panel.locator("[data-path='1.0']").getByText('"Created with Wordgard.create, named "').waitFor()
   await demo.locator("#plain wg-content").click()
@@ -80,19 +79,20 @@ it("shows the document tree, live", async () => {
   await panel.locator("[data-path='0']").getByText("Edited Plain Wordgard").waitFor()
 })
 
-it("draws the document's structure", async () => {
-  await panel.getByRole("tab", {name: "Structure"}).click()
+it("shows the state as JSON", async () => {
   const structure = panel.getByLabel("Document structure")
   await structure.locator("[data-path='1']").getByText("Paragraph").waitFor()
   await structure.locator("[data-path='1.1']").getByText('"plain"').waitFor()
-  await panel.getByRole("tab", {name: "Tree"}).click()
+  await panel.getByRole("tab", {name: "State"}).click()
+  await panel.getByRole("tree", {name: "State"}).locator("[data-line='$/doc/type']").getByText('"Doc"').waitFor()
+  await panel.getByRole("tab", {name: "Structure"}).click()
 })
 
 it("shows the schema", async () => {
   await panel.getByRole("tab", {name: "Schema"}).click()
   await panel.locator("[data-type='node-Paragraph']").getByText("inline: any", {exact: false}).waitFor()
   await panel.locator("[data-type='mark-Strong']").waitFor()
-  await panel.getByRole("tab", {name: "Tree"}).click()
+  await panel.getByRole("tab", {name: "Structure"}).click()
 })
 
 it("shows the state fields, a named one among them", async () => {
@@ -103,7 +103,7 @@ it("shows the state fields, a named one among them", async () => {
   await demo.keyboard.press("Control+End")
   await demo.keyboard.type(" more words")
   await fields.locator("[data-field='wordCount']").locator("[data-changes]").filter({hasText: /\d/}).waitFor()
-  await panel.getByRole("tab", {name: "Tree"}).click()
+  await panel.getByRole("tab", {name: "Structure"}).click()
 })
 
 it("switches to an editor in an iframe and follows it", async () => {
@@ -124,9 +124,9 @@ it("outlines a clicked row's node in the page", async () => {
   await panel.getByRole("option", {name: /right/}).click()
   await panel.locator("[data-path='0']").click()
   await demo.locator("[data-wordgard-devtools-overlay]").getByText("Paragraph").waitFor()
-  await panel.getByRole("tab", {name: "Structure"}).click()
+  await panel.getByRole("tab", {name: "State"}).click()
   await demo.locator("[data-wordgard-devtools-overlay]").waitFor({state: "detached"})
-  await panel.getByRole("tab", {name: "Tree"}).click()
+  await panel.getByRole("tab", {name: "Structure"}).click()
 })
 
 it("picks a node in an iframe's editor without moving its caret", async () => {
@@ -142,7 +142,7 @@ it("picks a node in an iframe's editor without moving its caret", async () => {
   await demo.frameLocator("iframe").getByText("An editor in an iframe.").click()
   await expect.poll(() => panel.getByLabel("Editor").textContent()).toContain("framed")
   // Playwright clicks the paragraph's centre, past its text: the paragraph is picked, and focused.
-  await expect.poll(() => panel.evaluate(() => document.activeElement?.getAttribute("data-path"))).toBe("0")
+  await panel.locator("[data-path='0'][aria-selected='true']").waitFor()
   expect(await panel.getByLabel("Pick a node in the page").getAttribute("aria-pressed")).toBe("false")
   expect(await caret()).toEqual(before)
 })
@@ -163,7 +163,7 @@ it("records the transaction log, with timing", async () => {
   await list.getByRole("option").filter({hasText: "input.type"}).click()
   await panel.getByLabel("Transaction").getByText("x", {exact: true}).waitFor()
   await panel.getByRole("button", {name: "Pause", exact: true}).click()
-  await panel.getByRole("tab", {name: "Tree"}).click()
+  await panel.getByRole("tab", {name: "Structure"}).click()
 })
 
 it("keeps the picked editor across a reload", async () => {

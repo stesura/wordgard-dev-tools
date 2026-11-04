@@ -198,11 +198,11 @@ it("switches tabs from the keyboard", async () => {
   })
   tabs[0]?.focus()
   await userEvent.keyboard("{ArrowRight}")
-  expect(shadow().activeElement?.textContent).toBe("Structure")
+  expect(shadow().activeElement?.textContent).toBe("State")
   await userEvent.keyboard("{Enter}")
   await until(() => tabs[1]?.getAttribute("aria-selected") == "true")
   // One tab stop: the selected tab.
-  expect(tabs.map(tab => tab.tabIndex)).toEqual([-1, 0, -1, -1, -1])
+  expect(tabs.map(tab => tab.tabIndex)).toEqual([-1, 0, -1, -1, -1, -1])
 })
 
 it("puts the title on its own row when docked at a side, and keeps every tab visible", async () => {
@@ -219,4 +219,49 @@ it("puts the title on its own row when docked at a side, and keeps every tab vis
   const dock = await until(() => shadow().querySelector<HTMLElement>("[role='region']"))
   const right = dock.getBoundingClientRect().right
   expect(tabs.every(tab => tab.getBoundingClientRect().right <= right + 0.5)).toBe(true)
+})
+
+it("disables the editor picker and pick while paused, and makes the content inert", async () => {
+  open("first", "<p>Alpha</p>")
+  mounted = mountDevtools()
+  await mounted.ready
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Pause the devtool']"))).click()
+  await until(() => shadow().textContent?.includes("The devtool is paused"))
+  expect(shadow().querySelector("[aria-label='Pick a node in the page']")).toBeNull()
+  expect(shadow().querySelector<HTMLElement>("[aria-label='Editor']")?.hasAttribute("data-disabled")).toBe(true)
+  expect(shadow().querySelector("[inert]")).not.toBeNull()
+})
+
+it("puts the reopen button in the chosen corner, as a cog when minimized", async () => {
+  open("first", "<p>Alpha</p>")
+  mounted = mountDevtools()
+  await mounted.ready
+  const choose = async (text: string) => {
+    ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Reopen button settings']"))).click()
+    const item = await until(() =>
+      [...shadow().querySelectorAll<HTMLElement>("[role='menuitemradio']")].find(element => element.textContent == text),
+    )
+    item.click()
+    await until(() => !shadow().querySelector("[role='menu']"))
+  }
+  await choose("Top left")
+  await choose("Minimized: a cog")
+  shadow().querySelector<HTMLElement>("[aria-label='Close']")?.click()
+  const reopen = await until(() => shadow().querySelector<HTMLElement>("[aria-label='Open Wordgard DevTools']"))
+  expect(reopen.textContent).toBe("")
+  expect(reopen.querySelector("svg")).not.toBeNull()
+  const place = reopen.getBoundingClientRect()
+  expect(place.top).toBeLessThan(40)
+  expect(place.left).toBeLessThan(40)
+  expect(JSON.parse(localStorage.getItem("wordgard-devtools:dock") ?? "{}")).toMatchObject({corner: "top-left", minimized: true})
+})
+
+it("shows the reopen button's tooltip", async () => {
+  open("first", "<p>Alpha</p>")
+  mounted = mountDevtools()
+  await mounted.ready
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Close']"))).click()
+  const reopen = await until(() => shadow().querySelector<HTMLElement>("[aria-label='Open Wordgard DevTools']"))
+  await userEvent.hover(reopen)
+  await until(() => [...shadow().querySelectorAll("[data-slot='tooltip-content']")].some(t => t.textContent == "Open Wordgard DevTools"))
 })

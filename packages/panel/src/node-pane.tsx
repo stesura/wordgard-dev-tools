@@ -3,6 +3,7 @@ import {Suspense, use, useDeferredValue, useSyncExternalStore, type ReactNode} f
 import type {Path, SelectionInfo} from "wordgard-devtools"
 import {Button} from "#components/ui/button"
 import {pathOf, type DetailSource} from "./detail-cache.ts"
+import {Tip} from "./tip.tsx"
 
 export const isPrefix = (prefix: Path, path: Path) => prefix.length <= path.length && prefix.every((n, i) => n == path[i])
 
@@ -10,7 +11,7 @@ const selectionType = (json: unknown) =>
   typeof json == "object" && json != null && "type" in json ? String(json.type) : "?"
 
 export const SelectionStrip = ({selection, onReveal}: {selection: SelectionInfo | null; onReveal: () => void}) => (
-  <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-3 border-b px-2 font-mono text-xs whitespace-nowrap" aria-label="Selection">
+  <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-3 border-b bg-muted/40 px-2 font-mono text-xs whitespace-nowrap" aria-label="Selection">
     <span className="font-sans font-medium">Selection</span>
     {selection ? (
       <>
@@ -24,9 +25,11 @@ export const SelectionStrip = ({selection, onReveal}: {selection: SelectionInfo 
           <span className="text-muted-foreground">head</span> {selection.head}
         </span>
         {selection.empty && <span className="text-muted-foreground">empty</span>}
-        <Button variant="ghost" size="xs" className="ml-auto" onClick={onReveal}>
-          <CrosshairIcon /> Reveal
-        </Button>
+        <Tip label="Show the node holding the selection's head">
+          <Button variant="ghost" size="xs" className="ml-auto" onClick={onReveal}>
+            <CrosshairIcon /> Reveal
+          </Button>
+        </Tip>
       </>
     ) : (
       <span className="text-muted-foreground">No selection</span>

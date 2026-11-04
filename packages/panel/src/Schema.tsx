@@ -1,4 +1,5 @@
 import {cn} from "cn"
+import {XIcon} from "lucide-react"
 import {useCallback, useRef, useState, useSyncExternalStore, type ReactNode} from "react"
 import type {SchemaMarkType, SchemaNodeType, SchemaParam} from "wordgard-devtools"
 import {Tag} from "#components/ui/badge"
@@ -6,7 +7,9 @@ import {Button} from "#components/ui/button"
 import {json} from "./node-pane.tsx"
 import {createSchemaSource} from "./schema-source.ts"
 import type {PanelStore} from "./store.ts"
-import {hue, scrollInto, typeColour} from "./Structure.tsx"
+import {Tip} from "./tip.tsx"
+import {hue, markColour, typeColour} from "./colours.ts"
+import {scrollInto} from "./Structure.tsx"
 
 type Kind = "node" | "mark"
 type Go = (kind: Kind, name: string) => void
@@ -33,9 +36,13 @@ const Links = ({kind, names, onGo}: {kind: Kind; names: string[]; onGo: Go}) =>
         <button
           key={name}
           type="button"
-          className={cn("cursor-pointer hover:underline", typeColour)}
-          style={hue(name)}
-          onClick={() => onGo(kind, name)}
+          className={cn("cursor-pointer rounded hover:underline", kind == "mark" ? cn(markColour, "px-1") : typeColour)}
+          style={hue(kind, name)}
+          onClick={event => {
+            // The target card is the one ringed, not the one holding the link.
+            event.stopPropagation()
+            onGo(kind, name)
+          }}
         >
           {name}
         </button>
@@ -53,12 +60,30 @@ const Param = ({param}: {param: SchemaParam}) =>
     </Line>
   )
 
-const Card = ({kind, name, tags, shape, children}: {kind: Kind; name: string; tags: string[]; shape: string; children: ReactNode}) => (
+const Card = ({
+  kind,
+  name,
+  tags,
+  shape,
+  selected,
+  children,
+}: {
+  kind: Kind
+  name: string
+  tags: string[]
+  shape: string
+  selected: boolean
+  children: ReactNode
+}) => (
   <section
     data-type={`${kind}-${name}`}
     aria-label={`${name} ${kind}`}
-    className="mb-1.5 rounded border border-l-4 border-l-[hsl(var(--hue)_60%_50%)] px-2 py-1"
-    style={hue(name)}
+    aria-current={selected || undefined}
+    className={cn(
+      "mb-1.5 rounded border border-l-4 border-l-[hsl(var(--hue)_60%_50%)] px-2 py-1",
+      selected && "ring-2 ring-ring",
+    )}
+    style={hue(kind, name)}
   >
     <div className="flex flex-wrap items-center gap-1.5">
       <span className="font-semibold">{name}</span>
@@ -71,8 +96,8 @@ const Card = ({kind, name, tags, shape, children}: {kind: Kind; name: string; ta
 
 const nodeTags = (type: SchemaNodeType) => [type.kind, type.inline ? "inline" : "block", ...type.flags]
 
-const NodeCard = ({type, onGo}: {type: SchemaNodeType; onGo: Go}) => (
-  <Card kind="node" name={type.name} tags={nodeTags(type)} shape={type.shape}>
+const NodeCard = ({type, selected, onGo}: {type: SchemaNodeType; selected: boolean; onGo: Go}) => (
+  <Card kind="node" name={type.name} tags={nodeTags(type)} shape={type.shape} selected={selected}>
     {type.groups.length > 0 && <Line label="groups">{type.groups.join(", ")}</Line>}
     {type.roles.length > 0 && <Line label="roles">{type.roles.join(", ")}</Line>}
     {type.content != null && (
@@ -92,8 +117,14 @@ const NodeCard = ({type, onGo}: {type: SchemaNodeType; onGo: Go}) => (
   </Card>
 )
 
-const MarkCard = ({type, onGo}: {type: SchemaMarkType; onGo: Go}) => (
-  <Card kind="mark" name={type.name} tags={[...type.flags, ...(type.rank == null ? [] : [`rank ${type.rank}`])]} shape={type.shape}>
+const MarkCard = ({type, selected, onGo}: {type: SchemaMarkType; selected: boolean; onGo: Go}) => (
+  <Card
+    kind="mark"
+    name={type.name}
+    tags={[...type.flags, ...(type.rank == null ? [] : [`rank ${type.rank}`])]}
+    shape={type.shape}
+    selected={selected}
+  >
     {type.target != null && (
       <Line label="target">
         {type.target} <span className="text-muted-foreground">(spec)</span>
@@ -132,18 +163,34 @@ const Toggle = ({pressed, onClick, children}: {pressed: boolean; onClick: () => 
   </button>
 )
 
+/** Clears a row of filters. */
+const Clear = ({label, onClick}: {label: string; onClick: () => void}) => (
+  <Tip label={label}>
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="flex size-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground [&_svg]:size-3.5"
+    >
+      <XIcon />
+    </button>
+  </Tip>
+)
+
 /** A section's heading with its tag filters: a type shows when it has every pressed tag. */
 const Heading = ({
   title,
   tags,
   pressed,
   onToggle,
+  onClear,
   children,
 }: {
   title: string
   tags: string[]
   pressed: ReadonlySet<string>
   onToggle: (tag: string) => void
+  onClear: () => void
   children?: ReactNode
 }) => (
   <div className="mb-1 flex flex-wrap items-center gap-1 font-sans">
@@ -153,6 +200,7 @@ const Heading = ({
         {tag}
       </Toggle>
     ))}
+    {pressed.size > 0 && <Clear label={`Clear the ${title.toLowerCase()} filters`} onClick={onClear} />}
     {children}
   </div>
 )
@@ -170,6 +218,8 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
   const [nodeFilter, setNodeFilter] = useState(none)
   const [markFilter, setMarkFilter] = useState(none)
   const [byRank, setByRank] = useState(false)
+  // The card clicked or shown last (a "show type" from the Structure): ringed.
+  const [selectedCard, setSelectedCard] = useState<string | null>(null)
   const scroller = useRef<HTMLDivElement | null>(null)
 
   // Loads while its tab is shown: on showing (when the configuration changed meanwhile) and on
@@ -211,8 +261,9 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
     [store, editorId, source],
   )
 
-  // Clears the filters so the card is there, then scrolls to it once drawn.
+  // Clears the filters so the card is there, rings it, then scrolls to it once drawn.
   const go: Go = (kind, name) => {
+    setSelectedCard(`${kind}-${name}`)
     setQuery("")
     setShown("all")
     setNodeFilter(none)
@@ -246,7 +297,7 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
           </Button>
         </p>
       )}
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b px-2 text-xs">
+      <div className="flex h-7 shrink-0 items-center gap-2 border-b bg-muted/40 px-2 text-xs">
         <input
           type="search"
           value={query}
@@ -266,20 +317,29 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
             <Toggle pressed={shown == "marks"} onClick={() => show("marks")}>
               {schema.marks.length} marks
             </Toggle>
+            {shown != "all" && <Clear label="Show nodes and marks" onClick={() => setShown("all")} />}
           </span>
         )}
       </div>
-      <div ref={container} className="min-h-0 flex-1 overflow-auto p-2 font-mono text-xs">
+      <div
+        ref={container}
+        className="min-h-0 flex-1 overflow-auto p-2 font-mono text-xs"
+        onClick={event => {
+          const card = event.target instanceof Element ? event.target.closest("[data-type]") : null
+          if (card) setSelectedCard(card.getAttribute("data-type"))
+        }}
+      >
         {shown != "marks" && (
-          <section aria-label="Nodes" className="mb-2">
+          <section aria-label="Nodes" className="mb-6">
             <Heading
               title="Nodes"
               tags={tagsOf(allNodes, nodeTags)}
               pressed={nodeFilter}
               onToggle={tag => setNodeFilter(filter => toggled(filter, tag))}
+              onClear={() => setNodeFilter(none)}
             />
             {nodes.map(type => (
-              <NodeCard key={type.name} type={type} onGo={go} />
+              <NodeCard key={type.name} type={type} selected={selectedCard == `node-${type.name}`} onGo={go} />
             ))}
             {schema && !nodes.length && <p className="font-sans text-muted-foreground">No node types match.</p>}
           </section>
@@ -291,6 +351,7 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
               tags={tagsOf(allMarks, type => type.flags)}
               pressed={markFilter}
               onToggle={tag => setMarkFilter(filter => toggled(filter, tag))}
+              onClear={() => setMarkFilter(none)}
             >
               <span className="ml-auto text-muted-foreground">order</span>
               <Toggle pressed={!byRank} onClick={() => setByRank(false)}>
@@ -301,7 +362,7 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
               </Toggle>
             </Heading>
             {marks.map(type => (
-              <MarkCard key={type.name} type={type} onGo={go} />
+              <MarkCard key={type.name} type={type} selected={selectedCard == `mark-${type.name}`} onGo={go} />
             ))}
             {schema && !marks.length && <p className="font-sans text-muted-foreground">No mark types match.</p>}
           </section>

@@ -67,6 +67,15 @@ const nodeRects = (wg: Wordgard, path: Path): DOMRect[] => {
   return [...range.getClientRects()].filter(rect => rect.width || rect.height)
 }
 
+const domRects = (target: Node): DOMRect[] => {
+  // Redrawn since: the outline goes (`follow` hides it on the throw).
+  if (!target.isConnected) throw new Error("That element is gone")
+  if (target instanceof Element) return [target.getBoundingClientRect()]
+  const range = document.createRange()
+  range.selectNodeContents(target)
+  return [...range.getClientRects()].filter(rect => rect.width || rect.height)
+}
+
 /** The element showing the node: its own, or, for text, the element holding its start. */
 const nodeElement = (wg: Wordgard, path: Path): Element => {
   if (!path.length) return wg.contentDOM
@@ -83,6 +92,8 @@ export type Inspector = {
   pick: (on: boolean) => void
   /** Scrolls the node into view: its editor's scroller and the page, without a transaction. */
   scrollIntoView: (entry: Entry, path: Path) => void
+  /** Outlines a DOM node of an editor's view (the View tab): an element's box, a text's line boxes. */
+  outlineDOM: (target: Node, label: string) => void
   /** Ends picking and hides the overlay (the panel went away). */
   stop: () => void
 }
@@ -90,8 +101,9 @@ export type Inspector = {
 export const createInspector = (registry: Registry, push: (message: Push) => void): Inspector => {
   // Outside every editor's contentDOM, the only part Wordgard's DOM observer watches.
   let overlay: HTMLElement | null = null
-  // Who asked for the outline: a tree row's hover (`highlight`) or the pointer while picking.
-  let shown: {wg: Wordgard; path: Path; name: string; by: "highlight" | "pick"} | null = null
+  // Who asked for the outline: a click on a node in the panel (`highlight`) or the pointer while picking.
+  // `rects` measures again when the page scrolls or resizes.
+  let shown: {rects: () => DOMRect[]; name: string; by: "highlight" | "pick"} | null = null
 
   const render = (rects: DOMRect[], name: string) => {
     overlay ??= document.createElement("div")
@@ -138,16 +150,18 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
   }
 
   /** Throws (nodeDOM/domAtPos on a disconnected or flushing editor) after hiding the outline. */
-  const show = (wg: Wordgard, path: Path, by: "highlight" | "pick") => {
+  const outline = (rects: () => DOMRect[], name: string, by: "highlight" | "pick") => {
     try {
-      const name = path.length ? (locate(wg.state.doc, path)?.node.name ?? "?") : "Document"
-      render(nodeRects(wg, path), name)
-      shown = {wg, path, name, by}
+      render(rects(), name)
+      shown = {rects, name, by}
     } catch (e) {
       hide()
       throw e
     }
   }
+
+  const show = (wg: Wordgard, path: Path, by: "highlight" | "pick") =>
+    outline(() => nodeRects(wg, path), path.length ? (locate(wg.state.doc, path)?.node.name ?? "?") : "Document", by)
 
   // From the page's events (scrolling, the pointer while picking): reads the agent made.
   const tryShow = (wg: Wordgard, path: Path, by: "highlight" | "pick") => {
@@ -160,7 +174,13 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
 
   // Keeps the overlay on its node while the page scrolls or resizes.
   const follow = () => {
-    if (shown) tryShow(shown.wg, shown.path, shown.by)
+    if (!shown) return
+    const {rects, name, by} = shown
+    try {
+      byAgent(() => outline(rects, name, by))
+    } catch {
+      // The editor went away, or is mid-flush: the outline is gone.
+    }
   }
   let following = false
   const setFollowing = (on: boolean) => {
@@ -204,7 +224,7 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
   const onMove = (event: Event) => {
     const entry = editorOf(event)
     if (entry && event instanceof MouseEvent) tryShow(entry.wg, byAgent(() => resolve(entry, event)), "pick")
-    // Off the editors, only the picker's own outline goes: a tree row's hover stays.
+    // Off the editors, only the picker's own outline goes: a clicked node's stays.
     else if (shown?.by == "pick") hide()
   }
 
@@ -226,9 +246,27 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
 
   const swallowed = ["pointerdown", "mousedown", "mouseup", "pointerup", "dblclick", "contextmenu"]
 
+  // A crosshair over the editors' content while picking: a stylesheet adopted by the document and
+  // by each shadow root holding an editor (no attribute on the editor's DOM, which Wordgard owns).
+  let cursor: {sheet: CSSStyleSheet; roots: (Document | ShadowRoot)[]} | null = null
+  const setCursor = (on: boolean) => {
+    if (cursor) {
+      for (const root of cursor.roots) root.adoptedStyleSheets = root.adoptedStyleSheets.filter(s => s != cursor?.sheet)
+      cursor = null
+    }
+    if (!on) return
+    const sheet = new CSSStyleSheet()
+    sheet.replaceSync("wg-content, wg-content * { cursor: crosshair !important; }")
+    const roots = new Set<Document | ShadowRoot>([document])
+    for (const {wg} of registry.editors.values()) if (wg.root instanceof ShadowRoot) roots.add(wg.root)
+    for (const root of roots) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet]
+    cursor = {sheet, roots: [...roots]}
+  }
+
   const end = () => {
     if (!picking) return false
     picking = false
+    setCursor(false)
     for (const type of swallowed) listen(false, type, swallow, {capture: true})
     listen(false, "mousemove", onMove, {capture: true})
     listen(false, "click", onClick, {capture: true})
@@ -247,6 +285,7 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
     }
     if (picking) return
     picking = true
+    setCursor(true)
     for (const type of swallowed) listen(true, type, swallow, {capture: true})
     listen(true, "mousemove", onMove, {capture: true})
     listen(true, "click", onClick, {capture: true})
@@ -265,6 +304,10 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
       setFollowing(true)
     },
     pick,
+    outlineDOM: (target, label) => {
+      outline(() => domRects(target), label, "highlight")
+      setFollowing(true)
+    },
     scrollIntoView: (entry, path) => {
       nodeElement(entry.wg, path).scrollIntoView({block: "center", inline: "nearest"})
     },

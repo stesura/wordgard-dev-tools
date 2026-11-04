@@ -135,7 +135,7 @@ it("doesn't load while another tab is shown", async () => {
   const editor = await setup(transport)
   ;(await until(() => button("Record"))).click()
   await until(() => button("Pause"))
-  ;(await until(() => tab("Tree"))).click()
+  ;(await until(() => tab("State"))).click()
   sent.length = 0
   type(editor, "a")
   await new Promise(resolve => setTimeout(resolve, 100))

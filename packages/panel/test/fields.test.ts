@@ -90,7 +90,7 @@ it("links a change to its transaction in the log", async () => {
 it("stops tracking when another tab is shown", async () => {
   await setup()
   await until(() => shadow().textContent?.includes("Tracking changes"))
-  ;(await until(() => tab("Tree"))).click()
+  ;(await until(() => tab("State"))).click()
   await new Promise(resolve => setTimeout(resolve, 50))
   const id = [...(window.__WORDGARD_DEVTOOLS__?.editors.values() ?? [])][0]?.id ?? 0
   const reply = await window.__WORDGARD_DEVTOOLS__?.agent?.request({type: "fields", id})

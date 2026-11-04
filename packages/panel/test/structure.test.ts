@@ -2,6 +2,7 @@ import {afterEach, expect, it} from "vitest"
 import {userEvent} from "vitest/browser"
 import {Leaf} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
+import {GardSelection} from "wordgard/state"
 import {basicSchema} from "wordgard/schema"
 import {wordgardDevtools} from "wordgard-devtools"
 import {inPageTransport, mountDevtools, type MountedDevtools, type Transport} from "../src/index.ts"
@@ -38,8 +39,6 @@ const shadow = () => {
 
 const structure = () => shadow().querySelector<HTMLElement>("[aria-label='Document structure']")
 const box = (path: string) => structure()?.querySelector<HTMLElement>(`[data-path='${path}']`)
-const treeRow = (path: string) =>
-  shadow().querySelector<HTMLElement>(`[role='tree'][aria-label='Document'] [data-path='${path}']`)
 const tab = (name: string) =>
   [...shadow().querySelectorAll<HTMLElement>("[role='tab']")].find(element => element.textContent == name)
 const pane = () => shadow().querySelector<HTMLElement>("[data-slot='tabs-content']:not([hidden]) [aria-label='Node']")
@@ -64,7 +63,7 @@ const setup = async (transport?: Transport) => {
   wg = editor
   mounted = mountDevtools({transport})
   await mounted.ready
-  await until(() => treeRow("1"))
+  await until(() => box("1"))
   return editor
 }
 
@@ -102,7 +101,7 @@ it("outlines a clicked box's node in the page and shows it, not a hovered one", 
   await until(() => pane()?.textContent?.includes('text"bold"'))
   expect(strong.className).toContain("ring-2")
   // Gone with the tab.
-  ;(await until(() => tab("Tree"))).click()
+  ;(await until(() => tab("State"))).click()
   await until(() => !document.querySelector("[data-wordgard-devtools-overlay]"))
 })
 
@@ -116,41 +115,40 @@ it("marks the boxes holding the selection", async () => {
   expect(box("")?.dataset.selection).toBeUndefined()
 })
 
-it("reveals a pick in the shown tab", async () => {
+it("shows a pick in the Structure, whichever tab is open", async () => {
   const editor = await setup()
-  await showStructure()
+  ;(await until(() => tab("State"))).click()
   ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Pick a node in the page']"))).click()
   const strong = editor.contentDOM.querySelector("strong")
   if (!strong) throw new Error("No strong element")
   await userEvent.click(strong)
+  await until(() => tab("Structure")?.getAttribute("aria-selected") == "true")
   await until(() => box("1.1")?.className.includes("ring-2"))
   await until(() => pane()?.textContent?.includes('text"bold"'))
-  // The tree, hidden, didn't take it: nothing expanded there.
-  ;(await until(() => tab("Tree"))).click()
-  await until(() => treeRow("1"))
-  expect(treeRow("1")?.getAttribute("aria-expanded")).toBe("false")
 })
 
-it("keeps the tree's expanded rows across tab switches", async () => {
+it("keeps its collapsed boxes across tab switches", async () => {
   await setup()
-  treeRow("1")?.click()
-  await until(() => treeRow("1.0"))
-  await showStructure()
-  ;(await until(() => tab("Tree"))).click()
-  // Rows render once the shown scroller is measured again.
-  await until(() => treeRow("1.0"))
-  expect(treeRow("1")?.getAttribute("aria-expanded")).toBe("true")
+  box("1")?.querySelector<HTMLButtonElement>("button[aria-label='Collapse']")?.click()
+  await until(() => !box("1.0"))
+  ;(await until(() => tab("State"))).click()
+  ;(await until(() => tab("Structure"))).click()
+  await until(() => box("1"))
+  expect(box("1.0")).toBeNull()
+  expect(box("1")?.getAttribute("aria-expanded")).toBe("false")
 })
 
 it("loads the structure only while its tab is shown", async () => {
   const {transport, counts} = counting()
   const editor = await setup(transport)
+  const loaded = counts.structure
+  ;(await until(() => tab("State"))).click()
   editor.dispatch({changes: {from: 1, insert: [Leaf.text("A ")]}})
-  await until(() => treeRow("0")?.textContent?.includes("A Title"))
-  expect(counts.structure).toBe(0)
+  await new Promise(resolve => setTimeout(resolve, 100))
+  expect(counts.structure).toBe(loaded)
   await showStructure()
-  expect(counts.structure).toBe(1)
-  expect(box("0")?.textContent).toContain("0–9")
+  await until(() => box("0")?.textContent?.includes("0–9"))
+  expect(counts.structure).toBe(loaded + 1)
 })
 
 const searchBox = () => shadow().querySelector<HTMLInputElement>("[aria-label='Search the structure']")
@@ -232,4 +230,68 @@ it("collapses and expands boxes, by their chevron and with the arrow keys", asyn
   // A reveal opens the boxes on the way.
   await userEvent.keyboard("{ArrowRight}")
   await until(() => box("1.0"))
+})
+
+it("lets the browser skip off-screen boxes, tints marks and edges text chips", async () => {
+  await setup()
+  await showStructure()
+  const paragraph = await until(() => box("1"))
+  expect(getComputedStyle(paragraph).contentVisibility).toBe("auto")
+  const strong = await until(() => box("1.1"))
+  const mark = [...strong.querySelectorAll<HTMLElement>("[data-slot='badge']")].find(b => b.textContent == "Strong")
+  expect(mark?.style.getPropertyValue("--hue")).not.toBe("")
+  expect(getComputedStyle(strong).borderRightWidth).toBe("2px")
+})
+
+// In the Structure tab's panel: the State has buttons of the same names.
+const structureButton = (label: string) =>
+  structure()?.closest("[role='tabpanel']")?.querySelector<HTMLButtonElement>(`[aria-label='${label}']`)
+
+it("expands and collapses every box at once", async () => {
+  await setup()
+  await showStructure()
+  structureButton("Collapse all")?.click()
+  // Every box closed but the document: its blocks show, their content doesn't.
+  await until(() => !box("1.1"))
+  expect(box("1")?.getAttribute("aria-expanded")).toBe("false")
+  expect(box("")?.getAttribute("aria-expanded")).toBe("true")
+  structureButton("Expand all")?.click()
+  await until(() => box("1.1"))
+})
+
+it("marks where the selection starts and ends, each its own way", async () => {
+  const editor = await setup()
+  await showStructure()
+  // From "Title" (3) to "bold" (16), backwards: the start is still the earlier position.
+  editor.dispatch({selection: {anchor: 16, head: 3}})
+  const start = await until(() => box("0.0")?.querySelector("[data-selection-end='start']"))
+  expect(start.getAttribute("aria-label")).toBe("Start of selection - pos 3")
+  expect(box("1.1")?.querySelector("[data-selection-end='end']")?.getAttribute("aria-label")).toBe("End of selection - pos 16")
+  editor.dispatch({selection: {anchor: 9}})
+  await until(() => box("1.0")?.querySelector("[aria-label='Cursor - pos 9']"))
+  expect(shadow().querySelector("[data-selection-end='end']")).toBeNull()
+})
+
+it("marks a node selection on the node itself", async () => {
+  const editor = await setup()
+  await showStructure()
+  const heading = editor.state.doc.content[0]
+  if (!heading) throw new Error("No heading")
+  editor.dispatch({selection: GardSelection.node(0, heading)})
+  const mark = await until(() => box("0")?.querySelector("[data-selection-end='node']"))
+  expect(mark.getAttribute("aria-label")).toBe("Selected node - pos 0–7")
+  expect(box("0")?.dataset.selection).toBe("innermost")
+  // Not on the document holding it.
+  expect(box("")?.querySelector(":scope > div:first-child [data-selection-end]")).toBeNull()
+})
+
+it("shows what changed while paused once resumed", async () => {
+  const editor = await setup()
+  await showStructure()
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Pause the devtool']"))).click()
+  await until(() => shadow().textContent?.includes("The devtool is paused"))
+  editor.dispatch({changes: {from: 8, insert: [Leaf.text("Later ")]}})
+  editor.flush()
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Resume the devtool']"))).click()
+  await until(() => box("1.0")?.textContent?.includes("Later Alpha"))
 })

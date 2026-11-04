@@ -1,4 +1,4 @@
-import {BookTypeIcon, ClipboardCopyIcon, CrosshairIcon, ListTreeIcon, ScanIcon, TerminalIcon} from "lucide-react"
+import {BookTypeIcon, ClipboardCopyIcon, CrosshairIcon, ScanIcon, TerminalIcon} from "lucide-react"
 import {useSyncExternalStore, type KeyboardEvent, type MouseEvent} from "react"
 import type {Path} from "wordgard-devtools"
 import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger} from "#components/ui/context-menu"
@@ -68,7 +68,7 @@ export const createNodeMenuAnchor = (focus: (row: HTMLElement, path: Path) => vo
 }
 
 // Through a textarea when the Clipboard API is refused (a DevTools panel isn't always allowed it).
-const copy = async (text: string) => {
+export const copy = async (text: string) => {
   try {
     await navigator.clipboard.writeText(text)
   } catch {
@@ -81,22 +81,17 @@ const copy = async (text: string) => {
   }
 }
 
-const views = {tree: "Tree", structure: "Structure"}
-
 export const NodeMenu = ({
   store,
   editorId,
   anchor,
-  view,
 }: {
   store: PanelStore
   editorId: number
   anchor: NodeMenuAnchor
-  view: "tree" | "structure"
 }) => {
   const target = useSyncExternalStore(anchor.subscribe, anchor.get)
   const path = target?.path ?? []
-  const other = view == "tree" ? "structure" : "tree"
   const copyJSON = async () => {
     const node = await store.transport.send({type: "node", id: editorId, path})
     await copy(JSON.stringify(node.json, null, 2))
@@ -112,9 +107,6 @@ export const NodeMenu = ({
           onClick={() => store.transport.send({type: "scrollIntoView", id: editorId, path}).catch(() => {})}
         >
           <ScanIcon /> Scroll into view in the page
-        </ContextMenuItem>
-        <ContextMenuItem className="text-xs" onClick={() => store.showNode(editorId, path, other)}>
-          <ListTreeIcon /> Show in {views[other]}
         </ContextMenuItem>
         <ContextMenuItem
           className="text-xs"

@@ -48,6 +48,8 @@ export type SelectionInfo = {
   /** Innermost node holding the head: its plot, or its text leaf. */
   headPath: Path
   anchorPath: Path
+  /** A node selection's node; null for other selections. */
+  nodePath: Path | null
 }
 
 export type EditorInfo = {
@@ -209,18 +211,59 @@ export type FieldDetail = FieldInfo & {
   history: FieldChange[]
 }
 
+/** A DOM node of the editor's content, mapped back to the document where it draws a node. */
+export type ViewNode = {
+  kind: "element" | "text"
+  /** Elements: the tag, lower-case. */
+  tag: string | null
+  /** Elements: the attributes, values truncated. */
+  attrs: [string, string][]
+  /** Text: its text, truncated. */
+  text: string | null
+  /** The document node this element draws. */
+  node: {name: string; path: Path; from: number; to: number} | null
+  /** Text: the position before it. */
+  pos: number | null
+  /** Uneditable and drawing no node: a widget, decoration or React chrome. */
+  chrome: boolean
+  children: ViewNode[]
+}
+
+export type ViewInfo = {
+  status: {
+    connected: boolean
+    editable: boolean
+    focusable: boolean
+    focused: boolean
+    composing: boolean
+    compositionStarted: boolean | null
+    /** "Wordgard", or a subclass (react-wordgard's). */
+    kind: string
+    root: "document" | "shadow root"
+    themeClasses: string
+    /** Where the selection's head is drawn, in the page's viewport. */
+    head: {left: number; top: number; bottom: number} | null
+  }
+  /** The content element (`contentDOM`). */
+  dom: ViewNode
+}
+
 type Empty = Record<never, never>
 
 export type Requests = {
   listEditors: Empty
   /** Attach the panel to an editor, or detach it with `null`. */
   select: {id: number | null}
-  /** The children of each path; `null` for a path that doesn't resolve. */
-  children: {id: number; paths: readonly Path[]}
+  /** `GardState.toJSON`: the document and the selection, plus the named fields that serialise. */
+  stateJSON: {id: number}
   node: {id: number; path: Path}
   structure: {id: number}
   /** The state's schema: node and mark types. */
   schema: {id: number}
+  /** The editor's view: its status and its content's DOM. */
+  view: {id: number}
+  /** Outlines (in the page) or logs (in the page's console) a DOM node of `view`, by its child indices. */
+  viewElement: {id: number; path: readonly number[]; action: "outline" | "log"}
   selection: {id: number}
   fields: {id: number}
   field: {id: number; index: number}
@@ -252,10 +295,12 @@ export type Results = {
     notices?: string[]
   }
   select: null
-  children: (TreeNode[] | null)[]
+  stateJSON: unknown
   node: NodeDetail
   structure: StructureNode
   schema: SchemaInfo
+  view: ViewInfo
+  viewElement: null
   selection: SelectionInfo
   fields: FieldsInfo
   field: FieldDetail

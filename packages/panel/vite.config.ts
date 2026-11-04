@@ -25,8 +25,6 @@ export default defineConfig({
       "@base-ui/react/select",
       "@base-ui/react/tabs",
       "@base-ui/react/tooltip",
-      "@headless-tree/core",
-      "@headless-tree/react",
       "@tanstack/react-virtual",
       "class-variance-authority",
       "cn",

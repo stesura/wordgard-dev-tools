@@ -1,4 +1,4 @@
-import {afterEach, it, vi} from "vitest"
+import {afterEach, expect, it, vi} from "vitest"
 import {userEvent} from "vitest/browser"
 import {Wordgard} from "wordgard/editor"
 import {basicSchema} from "wordgard/schema"
@@ -37,8 +37,6 @@ const shadow = () => {
 
 const tab = (name: string) =>
   [...shadow().querySelectorAll<HTMLElement>("[role='tab']")].find(element => element.textContent == name)
-const treeRow = (path: string) =>
-  shadow().querySelector<HTMLElement>(`[role='tree'][aria-label='Document'] [data-path='${path}']`)
 const box = (path: string) =>
   shadow().querySelector<HTMLElement>(`[aria-label='Document structure'] [data-path='${path}']`)
 const item = (text: string) =>
@@ -55,25 +53,21 @@ const setup = async (transport?: Transport) => {
   wg = Wordgard.create({parent: document.body, doc, config: [basicSchema(), wordgardDevtools({name: "m"})]})
   mounted = mountDevtools({transport})
   await mounted.ready
-  return until(() => treeRow("1"))
+  return until(() => box("1"))
 }
 
-it("opens on a tree row and shows its node in the Structure", async () => {
+it("opens on a box, and from the keyboard on the focused one", async () => {
   rightClick(await setup())
-  ;(await until(() => item("Show in Structure"))).click()
-  await until(() => tab("Structure")?.getAttribute("aria-selected") == "true")
-  await until(() => box("1")?.getAttribute("aria-selected") == "true")
-})
-
-it("opens on a structure box from the keyboard and shows its node in the Tree", async () => {
-  await setup()
-  ;(await until(() => tab("Structure"))).click()
+  await until(() => item("Scroll into view in the page"))
+  expect(item("Show Paragraph type in Schema")).toBeDefined()
+  await userEvent.keyboard("{Escape}")
+  await until(() => !item("Scroll into view in the page"))
   const target = await until(() => box("2"))
   target.click()
   await userEvent.keyboard("{Shift>}{F10}{/Shift}")
-  ;(await until(() => item("Show in Tree"))).click()
-  await until(() => tab("Tree")?.getAttribute("aria-selected") == "true")
-  await until(() => treeRow("2") && shadow().activeElement == treeRow("2"))
+  await until(() => item("Show Paragraph type in Schema"))
+  await userEvent.keyboard("{Escape}")
+  await until(() => shadow().activeElement == box("2"))
 })
 
 it("scrolls the node into view and copies its path and JSON", async () => {

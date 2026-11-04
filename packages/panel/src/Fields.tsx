@@ -1,6 +1,8 @@
 import {cn} from "cn"
+import {InfoIcon} from "lucide-react"
 import {Suspense, use, useCallback, useDeferredValue, useState, useSyncExternalStore, type KeyboardEvent} from "react"
 import type {FieldChange} from "wordgard-devtools"
+import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
 import {createFieldsSource, type FieldsSource} from "./fields-source.ts"
 import {clock} from "./Log.tsx"
@@ -66,6 +68,8 @@ const FieldView = ({
     </div>
   )
 }
+
+const COLUMNS = "grid grid-cols-[8rem_minmax(0,1fr)_4rem_10rem] items-center gap-x-3"
 
 /** The editor's state fields: values, last change, history linked to the log. Mounted per editor. */
 export const Fields = ({store, editorId}: {store: PanelStore; editorId: number}) => {
@@ -154,10 +158,23 @@ export const Fields = ({store, editorId}: {store: PanelStore; editorId: number})
           </Button>
         </p>
       )}
-      <p className="flex h-7 shrink-0 items-center border-b px-2 text-xs text-muted-foreground">
-        {info?.tracking ? "Tracking changes" : "Not tracking changes"} while this tab is shown or the log records.
-        Name fields with <code className="mx-1 font-mono">wordgardDevtools({"{fields: {name: field}}"})</code>.
-      </p>
+      <div className="flex h-7 shrink-0 items-center gap-2 border-b bg-muted/40 px-2 text-xs">
+        <Tag className={cn(info?.tracking && "bg-green-500/15 text-green-800 dark:text-green-300")}>
+          {info?.tracking ? "Tracking changes" : "Not tracking changes"}
+        </Tag>
+        <Tip
+          label={
+            <span className="block max-w-72">
+              Changes are tracked while this tab is shown or the log records. Unnamed fields show as "field #n": name them
+              with <code className="font-mono">wordgardDevtools({"{fields: {name: field}}"})</code>.
+            </span>
+          }
+        >
+          <button type="button" aria-label="About the fields" className="flex text-muted-foreground hover:text-foreground [&_svg]:size-3.5">
+            <InfoIcon />
+          </button>
+        </Tip>
+      </div>
       <SplitPane pane={pane}>
         <div
           ref={container}
@@ -169,6 +186,14 @@ export const Fields = ({store, editorId}: {store: PanelStore; editorId: number})
           className="min-h-0 min-w-0 flex-1 overflow-auto font-mono text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           {info && !fields.length && <p className="p-2 font-sans text-muted-foreground">No state fields found.</p>}
+          {fields.length > 0 && (
+            <div aria-hidden="true" className={cn(COLUMNS, "sticky top-0 z-10 border-b bg-background px-3 py-1 font-sans text-muted-foreground")}>
+              <span>Field</span>
+              <span>Value</span>
+              <span className="text-right">Changes</span>
+              <span>Last change</span>
+            </div>
+          )}
           {fields.map(field => (
             <div
               key={field.index}
@@ -178,17 +203,24 @@ export const Fields = ({store, editorId}: {store: PanelStore; editorId: number})
               data-field={field.name}
               onClick={() => setSelected(field.index)}
               className={cn(
-                "grid cursor-default grid-cols-[8rem_1fr_3rem_9rem] items-center gap-x-2 px-2 py-0.5 whitespace-nowrap",
-                field.index == selected && "bg-accent",
+                COLUMNS,
+                "mx-1.5 mt-1.5 cursor-default rounded-md border px-1.5 py-1.5 whitespace-nowrap",
+                field.index == selected && "border-ring bg-accent",
               )}
             >
-              <span className={cn("truncate", !field.named && "text-muted-foreground")}>{field.name}</span>
+              <span className="min-w-0">
+                <Tag className={cn("max-w-full truncate", field.named && "text-foreground")}>{field.name}</Tag>
+              </span>
               <span className={cn("truncate", field.preview == null && "text-muted-foreground")}>{field.preview ?? "–"}</span>
-              <Tip label="Changes seen">
-                <span data-changes className="text-right text-muted-foreground">
-                  {field.changes || ""}
-                </span>
-              </Tip>
+              {field.changes > 0 ? (
+                <Tip label="Changes seen">
+                  <span data-changes className="text-right text-muted-foreground">
+                    {field.changes}
+                  </span>
+                </Tip>
+              ) : (
+                <span />
+              )}
               <span>{field.last && <When change={field.last} onLog={onLog} />}</span>
             </div>
           ))}

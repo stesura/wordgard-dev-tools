@@ -181,7 +181,7 @@ it("tells every panel when picking stops without a pick", async () => {
   expect(await cancelled).toEqual({type: "pickCancelled"})
 })
 
-it("keeps a tree row's outline while the pointer moves off the editors in pick mode", async () => {
+it("keeps a clicked node's outline while the pointer moves off the editors in pick mode", async () => {
   const wg = open(wordgardDevtools())
   const button = document.createElement("button")
   button.textContent = "panel"
@@ -211,4 +211,18 @@ it("scrolls a node into view in the page, without a transaction", async () => {
   expect(inView(wg.nodeDOM(7))).toBe(true)
   expect(transactions).toEqual([])
   window.scrollTo(0, 0)
+})
+
+it("shows a crosshair over the editors while picking, and the editor's own cursor after", async () => {
+  const wg = open(wordgardDevtools())
+  const before = getComputedStyle(wg.contentDOM).cursor
+  await ask({type: "pick", on: true})
+  expect(getComputedStyle(wg.contentDOM).cursor).toBe("crosshair")
+  const strong = wg.contentDOM.querySelector("strong")
+  if (!strong) throw new Error("No strong element")
+  expect(getComputedStyle(strong).cursor).toBe("crosshair")
+  // Not over the rest of the page.
+  expect(getComputedStyle(document.body).cursor).not.toBe("crosshair")
+  await ask({type: "pick", on: false})
+  expect(getComputedStyle(wg.contentDOM).cursor).toBe(before)
 })

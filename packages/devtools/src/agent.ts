@@ -15,6 +15,7 @@ import type * as Fields from "./fields.ts"
 import type * as Inspect from "./inspect.ts"
 import type * as Log from "./log.ts"
 import type * as Schema from "./schema.ts"
+import type * as View from "./view.ts"
 import {byAgent} from "./reads.ts"
 import type * as Serialisers from "./serialise.ts"
 import {VERSION} from "./version.ts"
@@ -38,6 +39,7 @@ const createHandlers = (
   registry: Registry,
   s: typeof Serialisers,
   schema: typeof Schema,
+  view: typeof View,
   inspector: Inspect.Inspector,
   recorder: Log.Recorder,
   tracker: Fields.FieldTracker,
@@ -57,13 +59,17 @@ const createHandlers = (
       select(client, id)
       return null
     },
-    children: ({id, paths}) => {
-      const {doc} = entry(id).wg.state
-      return paths.map(path => s.children(doc, path))
-    },
+    stateJSON: ({id}) => s.stateJSON(entry(id)),
     node: ({id, path}) => s.node(entry(id).wg.state.doc, path),
     structure: ({id}) => s.structure(entry(id).wg.state.doc),
     schema: ({id}) => schema.schemaInfo(entry(id).wg.state.schema),
+    view: ({id}) => view.viewInfo(entry(id).wg),
+    viewElement: ({id, path, action}) => {
+      const target = view.viewNode(entry(id).wg, path)
+      if (action == "outline") inspector.outlineDOM(target, view.viewLabel(target))
+      else console.log(`[wordgard-devtools] the editor's <${view.viewLabel(target)}>`, target)
+      return null
+    },
     selection: ({id}) => s.selection(entry(id).wg.state),
     fields: ({id}) => tracker.list(entry(id)),
     field: ({id, index}) => tracker.detail(entry(id), index),
@@ -154,13 +160,13 @@ export const createAgent = (registry: Registry): Agent => {
 
   // Serialisers load on the first request: pages that never open the panel skip them.
   const loadHandlers = () =>
-    (handlers ??= Promise.all([import("./serialise.ts"), import("./inspect.ts"), import("./log.ts"), import("./schema.ts"), import("./fields.ts")]).then(
-      ([s, inspect, log, schema, fields]) => {
+    (handlers ??= Promise.all([import("./serialise.ts"), import("./inspect.ts"), import("./log.ts"), import("./schema.ts"), import("./fields.ts"), import("./view.ts")]).then(
+      ([s, inspect, log, schema, fields, view]) => {
         inspector = inspect.createInspector(registry, push)
         const logged = log.createRecorder(registry, push)
         recorder = logged
         tracker = fields.createFieldTracker(registry, logged.indexOf)
-        return createHandlers(registry, s, schema, inspector, logged, tracker, select)
+        return createHandlers(registry, s, schema, view, inspector, logged, tracker, select)
       },
       e => {
         handlers = null

@@ -16,10 +16,11 @@ import {
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "#components/ui/select"
 import {Tooltip, TooltipContent, TooltipTrigger} from "#components/ui/tooltip"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "#components/ui/tabs"
-import {DocTree} from "./DocTree.tsx"
 import {Log} from "./Log.tsx"
 import {Fields} from "./Fields.tsx"
 import {Schema} from "./Schema.tsx"
+import {State} from "./State.tsx"
+import {View as ViewTab} from "./View.tsx"
 import type {PanelStore, View} from "./store.ts"
 import {Structure} from "./Structure.tsx"
 import type {ThemeChoice, ThemeStore} from "./theme.ts"
@@ -28,7 +29,7 @@ const editorLabel = (editor: EditorInfo) =>
   `${editor.name} · #${editor.id}` + (editor.frame ? ` · ${editor.frame}` : "")
 
 const EditorPicker = ({store}: {store: PanelStore}) => {
-  const {editors, selected} = useSyncExternalStore(store.subscribe, store.get)
+  const {editors, selected, paused} = useSyncExternalStore(store.subscribe, store.get)
   const items = editors.map(editor => ({value: editor.id, label: editorLabel(editor)}))
   return (
     <Select
@@ -39,7 +40,7 @@ const EditorPicker = ({store}: {store: PanelStore}) => {
       onValueChange={(id, details) => {
         if (id != null && details.reason != "none") void store.select(id)
       }}
-      disabled={!editors.length}
+      disabled={!editors.length || paused}
     >
       <SelectTrigger size="sm" aria-label="Editor" className="min-w-40">
         <SelectValue placeholder="No editors" />
@@ -59,7 +60,7 @@ const PauseButton = ({store}: {store: PanelStore}) => {
   const {paused} = useSyncExternalStore(store.subscribe, store.get)
   return (
     <IconButton label={paused ? "Resume the devtool" : "Pause the devtool"} pressed={paused} onClick={() => store.pause(!paused)}>
-      {paused ? <PlayIcon /> : <PauseIcon />}
+      {paused ? <PlayIcon /> : <PauseIcon className="fill-current" />}
     </IconButton>
   )
 }
@@ -79,8 +80,8 @@ const PausedOverlay = ({store}: {store: PanelStore}) => {
 }
 
 const PickButton = ({store}: {store: PanelStore}) => {
-  const {picking, editors} = useSyncExternalStore(store.subscribe, store.get)
-  if (!editors.length) return null
+  const {picking, editors, paused} = useSyncExternalStore(store.subscribe, store.get)
+  if (!editors.length || paused) return null
   return (
     <IconButton label="Pick a node in the page" pressed={picking} onClick={() => store.pick(!picking)}>
       <MousePointerClickIcon className={cn(picking && "text-primary")} />
@@ -128,7 +129,7 @@ export const ChoiceMenu = <T extends string>({
             }}
           >
             {choices.map(choice => (
-              <DropdownMenuRadioItem key={choice.value} value={choice.value} className="text-xs">
+              <DropdownMenuRadioItem key={choice.value} value={choice.value} closeOnClick className="text-xs">
                 {choice.icon}
                 {choice.label}
               </DropdownMenuRadioItem>
@@ -193,7 +194,10 @@ const Notices = ({store}: {store: PanelStore}) => {
   )
 }
 
-const isView = (value: unknown): value is View => value == "tree" || value == "structure" || value == "schema" || value == "fields" || value == "log"
+const tabClass =
+  "h-6 flex-none px-2.5 text-xs text-muted-foreground hover:text-foreground data-active:border-border data-active:bg-background data-active:text-foreground"
+
+const isView = (value: unknown): value is View => value == "structure" || value == "state" || value == "view" || value == "schema" || value == "fields" || value == "log"
 
 const Body = ({store}: {store: PanelStore}) => {
   const {editors, selected, view} = useSyncExternalStore(store.subscribe, store.get)
@@ -205,7 +209,7 @@ const Body = ({store}: {store: PanelStore}) => {
     )
   }
   if (selected == null) return null
-  // The tabs stay mounted (the tree keeps its expanded rows); per editor, so switching starts afresh.
+  // The tabs stay mounted (each keeps what is collapsed and focused); per editor, so switching starts afresh.
   return (
     <Tabs
       value={view}
@@ -214,32 +218,37 @@ const Body = ({store}: {store: PanelStore}) => {
       }}
       className="min-h-0 flex-1 gap-0"
     >
-      {/* Wraps rather than hiding tabs when narrow. */}
+      {/* Filled tabs on the bar's grey; the active one on the content's background. Wraps rather than hiding tabs. */}
       <TabsList
-        variant="line"
-        className="h-auto min-h-7 w-full shrink-0 flex-wrap justify-start rounded-none border-b px-1 group-data-horizontal/tabs:h-auto"
+        className="h-auto min-h-8 w-full shrink-0 flex-wrap justify-start gap-0.5 rounded-none border-b bg-muted px-1 py-1 group-data-horizontal/tabs:h-auto"
       >
-        <TabsTrigger value="tree" className="h-6 flex-none px-2 text-xs">
-          Tree
-        </TabsTrigger>
-        <TabsTrigger value="structure" className="h-6 flex-none px-2 text-xs">
+        <TabsTrigger value="structure" className={tabClass}>
           Structure
         </TabsTrigger>
-        <TabsTrigger value="schema" className="h-6 flex-none px-2 text-xs">
+        <TabsTrigger value="state" className={tabClass}>
+          State
+        </TabsTrigger>
+        <TabsTrigger value="view" className={tabClass}>
+          View
+        </TabsTrigger>
+        <TabsTrigger value="schema" className={tabClass}>
           Schema
         </TabsTrigger>
-        <TabsTrigger value="fields" className="h-6 flex-none px-2 text-xs">
+        <TabsTrigger value="fields" className={tabClass}>
           Fields
         </TabsTrigger>
-        <TabsTrigger value="log" className="h-6 flex-none px-2 text-xs">
+        <TabsTrigger value="log" className={tabClass}>
           Log
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="tree" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
-        <DocTree key={selected} store={store} editorId={selected} />
-      </TabsContent>
       <TabsContent value="structure" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
         <Structure key={selected} store={store} editorId={selected} />
+      </TabsContent>
+      <TabsContent value="state" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
+        <State key={selected} store={store} editorId={selected} />
+      </TabsContent>
+      <TabsContent value="view" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
+        <ViewTab key={selected} store={store} editorId={selected} />
       </TabsContent>
       <TabsContent value="schema" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
         <Schema key={selected} store={store} editorId={selected} />
@@ -268,7 +277,7 @@ const TITLE = "Wordgard DevTools"
 
 export const Panel = ({store, theme, actions, titleRow, className}: PanelProps) => {
   const {dark} = useSyncExternalStore(theme.subscribe, theme.get)
-  const {editors} = useSyncExternalStore(store.subscribe, store.get)
+  const {editors, paused} = useSyncExternalStore(store.subscribe, store.get)
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   return (
     <PortalContainer value={root}>
@@ -281,7 +290,7 @@ export const Panel = ({store, theme, actions, titleRow, className}: PanelProps) 
         )}
       >
         {titleRow && <div className="shrink-0 border-b bg-muted px-2 py-1 font-semibold">{TITLE}</div>}
-        <header className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-2 border-b px-2">
+        <header className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-2 border-b bg-muted px-2">
           {!titleRow && <span className="font-semibold">{TITLE}</span>}
           <EditorPicker store={store} />
           <PickButton store={store} />
@@ -296,7 +305,10 @@ export const Panel = ({store, theme, actions, titleRow, className}: PanelProps) 
         </header>
         <Notices store={store} />
         <main className="relative flex min-h-0 flex-1 flex-col">
-          <Body store={store} />
+          {/* Out of reach while paused: nothing under the overlay is live. */}
+          <div inert={paused} className="flex min-h-0 flex-1 flex-col">
+            <Body store={store} />
+          </div>
           <PausedOverlay store={store} />
         </main>
       </div>

@@ -1,5 +1,5 @@
 import {afterEach, expect, it} from "vitest"
-import {userEvent} from "vitest/browser"
+import {page, userEvent} from "vitest/browser"
 import {Wordgard} from "wordgard/editor"
 import {basicSchema} from "wordgard/schema"
 import {wordgardDevtools} from "wordgard-devtools"
@@ -47,4 +47,24 @@ it("resizes the side pane, which never collapses, and keeps its size", async () 
   await until(() => size() > 0 && size() <= (vertical ? 81 : 201))
   expect(size()).toBeGreaterThanOrEqual(vertical ? 79 : 199)
   await until(() => localStorage.getItem("wordgard-devtools:pane"))
+})
+
+it("keeps a wide tab's content mounted when tabs switch", async () => {
+  await page.viewport(1200, 800)
+  try {
+    wg = Wordgard.create({parent: document.body, doc: "<p>Hi</p>", config: [basicSchema(), wordgardDevtools()]})
+    mounted = mountDevtools()
+    await mounted.ready
+    const tab = (name: string) => [...shadow().querySelectorAll<HTMLElement>("[role='tab']")].find(e => e.textContent == name)
+    const structure = await until(() => shadow().querySelector<HTMLElement>("[aria-label='Document structure']"))
+    // Side by side: the handle is a vertical line.
+    expect(shadow().querySelector("[data-slot='resizable-handle']")?.getAttribute("aria-orientation")).toBe("vertical")
+    tab("State")?.click()
+    await until(() => shadow().querySelector("[aria-label='State'] [data-line]"))
+    tab("Structure")?.click()
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(shadow().querySelector("[aria-label='Document structure']")).toBe(structure)
+  } finally {
+    await page.viewport(414, 896)
+  }
 })

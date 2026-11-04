@@ -59,3 +59,5 @@ When you implement a plan that is in /docs or any large bit of work that modifie
    - the final check results;
    - a short commit message and a short description;
    - if there is a next step, a handoff prompt for the next agent to take over.
+
+## Don't ever say "co-authored by Claude"

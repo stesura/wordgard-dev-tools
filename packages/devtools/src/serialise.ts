@@ -1,5 +1,5 @@
 import type {Node as DocNode, Plot} from "wordgard/doc"
-import type {GardState} from "wordgard/state"
+import {GardSelection, type GardState} from "wordgard/state"
 import type {EditorInfo, NodeDetail, Path, SelectionInfo, StructureNode, TreeNode} from "./protocol.ts"
 import type {Entry} from "./registry.ts"
 
@@ -57,6 +57,24 @@ export const preview = (value: unknown): string | null => {
   return truncate(JSON.stringify(toSafe(value, 3)) ?? String(value))
 }
 
+/**
+ * `GardState.toJSON`, with the fields named by `wordgardDevtools({fields})` added one at a time:
+ * Wordgard's throws for a field whose spec has no `toJSON`, which is left out.
+ */
+export const stateJSON = ({wg, fields = {}}: Entry): unknown => {
+  const {state} = wg
+  const json: Record<string, unknown> = {...state.toJSON()}
+  for (const [name, field] of Object.entries(fields)) {
+    try {
+      const one: unknown = state.toJSON({[name]: field})
+      if (typeof one == "object" && one != null && name in one) json[name] = Reflect.get(one, name)
+    } catch {
+      // No toJSON in its spec.
+    }
+  }
+  return toSafe(json, 256)
+}
+
 export const editorInfo = ({id, name, attached, recording}: Entry): EditorInfo => ({id, name, attached, recording})
 
 // The document's content starts at 0, a plot's after its opening token.
@@ -97,19 +115,6 @@ export const treeNode = (node: DocNode, path: Path, from: number): TreeNode => {
   }
 }
 
-export const children = (doc: Plot.Doc, path: Path): TreeNode[] | null => {
-  const found = locate(doc, path)
-  if (!found) return null
-  const {node, from} = found
-  if (!node.isPlot) return []
-  let pos = contentStart(path, from)
-  return node.content.map((child, index) => {
-    const at = pos
-    pos += child.length
-    return treeNode(child, [...path, index], at)
-  })
-}
-
 const nest = (node: DocNode, path: Path, from: number): StructureNode => {
   let pos = contentStart(path, from)
   const text = node.isText && typeof node.param == "string" ? {text: node.param} : {}
@@ -143,6 +148,9 @@ export const node = (doc: Plot.Doc, path: Path): NodeDetail => {
   }
 }
 
+/** The path of the node starting at `pos`. */
+export const pathFrom = (doc: Plot.Doc, pos: number): Path => [...pathAt(doc, pos), doc.resolve(pos).index]
+
 /** The innermost node holding `pos`: its plot, or the text leaf it falls in. */
 export const pathAt = (doc: Plot.Doc, pos: number): Path => {
   const resolved = doc.resolve(pos)
@@ -167,5 +175,6 @@ export const selection = (state: GardState): SelectionInfo => {
     json: toSafe(state.selection.toJSON(state)),
     headPath: pathAt(state.doc, head),
     anchorPath: pathAt(state.doc, anchor),
+    nodePath: state.selection instanceof GardSelection.Node ? pathFrom(state.doc, from) : null,
   }
 }

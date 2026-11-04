@@ -122,10 +122,12 @@ export const createFramesTransport = (send: (frameId: number, message: ToBridge)
       if (target) await ask(target.frameId, {type: "select", id: target.id})
       return null
     },
-    children: ({id, paths}) => routed<"children">(id, page => ({type: "children", id: page, paths})),
+    stateJSON: ({id}) => routed<"stateJSON">(id, page => ({type: "stateJSON", id: page})),
     node: ({id, path}) => routed<"node">(id, page => ({type: "node", id: page, path})),
     structure: ({id}) => routed<"structure">(id, page => ({type: "structure", id: page})),
     schema: ({id}) => routed<"schema">(id, page => ({type: "schema", id: page})),
+    view: ({id}) => routed<"view">(id, page => ({type: "view", id: page})),
+    viewElement: ({id, path, action}) => routed<"viewElement">(id, page => ({type: "viewElement", id: page, path, action})),
     selection: ({id}) => routed<"selection">(id, page => ({type: "selection", id: page})),
     fields: ({id}) => routed<"fields">(id, page => ({type: "fields", id: page})),
     field: ({id, index}) => routed<"field">(id, page => ({type: "field", id: page, index})),

@@ -38,7 +38,11 @@ export const SplitPane = ({children, pane}: {children: ReactNode; pane: ReactNod
   const paneSize = useRef(0)
   const measure = useCallback((element: HTMLDivElement | null) => {
     if (!element) return
-    const observer = new ResizeObserver(() => setOrientation(element.clientWidth >= WIDE ? "horizontal" : "vertical"))
+    const observer = new ResizeObserver(() => {
+      // A hidden tab measures 0: keep its layout (flipping would remount its content).
+      if (!element.clientWidth) return
+      setOrientation(element.clientWidth >= WIDE ? "horizontal" : "vertical")
+    })
     observer.observe(element)
     return () => observer.disconnect()
   }, [])

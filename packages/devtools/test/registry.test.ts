@@ -4,7 +4,7 @@ import {Wordgard} from "wordgard/editor"
 import {blockquote} from "wordgard/schema"
 import {GardState} from "wordgard/state"
 import pkg from "../package.json" with {type: "json"}
-import {PROTOCOL, SOURCE, VERSION, mismatch, wordgardDevtools} from "../src/index.ts"
+import {PROTOCOL, SOURCE, VERSION, mismatch, wordgardDevtools, type StructureNode} from "../src/index.ts"
 import {agent, ask, editor, nextMessage, post, pushes, registry} from "./helpers.ts"
 
 const editors: Wordgard[] = []
@@ -20,6 +20,9 @@ afterEach(() => {
 })
 
 const names = () => [...registry().editors.values()].map(e => e.name)
+
+/** A structure node without its nesting. */
+const shallow = ({children: _, text: __, ...node}: StructureNode) => node
 
 describe("registry", () => {
   it("registers an editor while it is connected", () => {
@@ -144,10 +147,12 @@ describe("agent", () => {
     await ask({type: "select", id: null})
   })
 
-  it("serialises children shallowly", async () => {
+  it("serialises nodes shallowly", async () => {
     const wg = open(wordgardDevtools())
     const id = registry().editors.get(wg)?.id ?? 0
-    const [top, paragraph, text, missing] = await ask({type: "children", id, paths: [[], [1], [1, 0], [5]]})
+    const doc = await ask({type: "structure", id})
+    const top = doc.children.map(shallow)
+    const paragraph = doc.children[1]?.children.map(shallow)
     expect(top).toEqual([
       {path: [0], name: "Heading", from: 0, to: 7, childCount: 1, marks: [], paramPreview: "1", textPreview: "Title"},
       {path: [1], name: "Paragraph", from: 7, to: 20, childCount: 2, marks: [], paramPreview: null, textPreview: "Hello world"},
@@ -156,15 +161,14 @@ describe("agent", () => {
       [[1, 0], 8, 14, "Hello ", []],
       [[1, 1], 14, 19, "world", [{name: "Strong", preview: null}]],
     ])
-    expect(text).toEqual([])
-    expect(missing).toBeNull()
+    expect(doc.children[1]?.children[0]?.children).toEqual([])
   })
 
   it("truncates previews and sends the full value on node()", async () => {
     const long = "x".repeat(200)
     const wg = open(wordgardDevtools(), `<p>${long}</p>`)
     const id = registry().editors.get(wg)?.id ?? 0
-    const [[leaf]] = [(await ask({type: "children", id, paths: [[0]]}))[0] ?? []]
+    const leaf = (await ask({type: "structure", id})).children[0]?.children[0]
     expect(leaf?.textPreview).toHaveLength(80)
     expect(leaf?.textPreview?.endsWith("…")).toBe(true)
     const detail = await ask({type: "node", id, path: [0, 0]})
@@ -201,7 +205,9 @@ describe("agent", () => {
   it("counts positions through nested plots", async () => {
     const wg = open([wordgardDevtools(), blockquote()], "<blockquote><p>Quoted <em>text</em></p></blockquote><p>After</p>")
     const id = registry().editors.get(wg)?.id ?? 0
-    const [top, inner] = await ask({type: "children", id, paths: [[], [0, 0]]})
+    const doc = await ask({type: "structure", id})
+    const top = doc.children
+    const inner = doc.children[0]?.children[0]?.children
     expect(top?.map(n => [n.name, n.from, n.to])).toEqual([
       ["Blockquote", 0, 15],
       ["Paragraph", 15, 22],

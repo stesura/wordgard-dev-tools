@@ -22,11 +22,13 @@ const fakeAgent = (ids: number[], delay = 20) => {
       editors = editors.map(e => ({...e, attached: e.id == id}))
       return null
     },
-    children: () => [[]],
-    selection: () => ({anchor: 0, head: 0, from: 0, to: 0, empty: true, json: null, headPath: [], anchorPath: []}),
+    stateJSON: unsupported,
+    selection: () => ({anchor: 0, head: 0, from: 0, to: 0, empty: true, json: null, headPath: [], anchorPath: [], nodePath: null}),
     node: unsupported,
     structure: unsupported,
     schema: unsupported,
+    view: unsupported,
+    viewElement: unsupported,
     fields: unsupported,
     field: unsupported,
     watchFields: unsupported,

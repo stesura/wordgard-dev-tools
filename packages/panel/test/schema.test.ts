@@ -103,3 +103,27 @@ it("shows nodes or marks only, filters them by tag, and orders marks by rank", a
   toggle(marks, "inclusive")?.click()
   await until(() => !card("mark-Link"))
 })
+
+it("rings the card a link or a click lands on", async () => {
+  await setup()
+  ;[...(card("mark-Strong")?.querySelectorAll("button") ?? [])].find(b => b.textContent == "Text")?.click()
+  await until(() => card("node-Text")?.className.includes("ring-2"))
+  expect(card("mark-Strong")?.className).not.toContain("ring-2")
+  card("node-Paragraph")?.click()
+  await until(() => card("node-Paragraph")?.className.includes("ring-2"))
+  expect(card("node-Text")?.className).not.toContain("ring-2")
+})
+
+it("clears the filters with their ×", async () => {
+  await setup()
+  toggle(shadow(), "3 marks")?.click()
+  await until(() => !section("Nodes"))
+  shadow().querySelector<HTMLButtonElement>("[aria-label='Show nodes and marks']")?.click()
+  await until(() => section("Nodes"))
+  const nodes = await until(() => section("Nodes"))
+  toggle(nodes, "textblock")?.click()
+  await until(() => !card("node-Text"))
+  nodes.querySelector<HTMLButtonElement>("[aria-label='Clear the nodes filters']")?.click()
+  await until(() => card("node-Text"))
+  expect(nodes.querySelector("[aria-label='Clear the nodes filters']")).toBeNull()
+})
