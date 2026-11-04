@@ -1,0 +1,27 @@
+{
+  "name": "wordgard-devtools",
+  "version": "0.0.0",
+  "description": "Page side of Wordgard DevTools: the editor registry and the agent",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "wordgard": "~0.6.2"
+  },
+  "devDependencies": {
+    "wordgard": "file:../../../wordgard"
+  }
+}

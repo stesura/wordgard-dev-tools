@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# wordgard and @stesura/react-wordgard are local path dependencies on ../wordgard and
+# ../react-wordgard. CI fills those folders from their npm releases.
+env:
+  WORDGARD_VERSION: 0.6.2
+  REACT_WORDGARD_VERSION: 0.1.0
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: wordgard-devtools
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Sibling packages
+        run: |
+          fetch() {
+            mkdir -p "$2"
+            npm pack "$1" --pack-destination "$RUNNER_TEMP" --silent > "$RUNNER_TEMP/$2.name"
+            tar -xzf "$RUNNER_TEMP/$(cat "$RUNNER_TEMP/$2.name")" -C "$2" --strip-components=1
+            (cd "$2" && npm install --omit=dev --ignore-scripts --no-package-lock --no-audit --no-fund)
+          }
+          fetch "wordgard@$WORDGARD_VERSION" wordgard
+          fetch "@stesura/react-wordgard@$REACT_WORDGARD_VERSION" react-wordgard
+      - name: Install
+        working-directory: wordgard-devtools
+        run: npm ci
+      - name: Playwright
+        working-directory: wordgard-devtools
+        run: npx playwright install --with-deps chromium
+      - name: Typecheck
+        working-directory: wordgard-devtools
+        run: npm run typecheck
+      - name: Test
+        working-directory: wordgard-devtools
+        run: npm test
+      - name: Build
+        working-directory: wordgard-devtools
+        run: npm run build
