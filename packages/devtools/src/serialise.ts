@@ -5,6 +5,8 @@ import type {Entry} from "./registry.ts"
 
 export const PREVIEW_LENGTH = 80
 const DEPTH = 6
+/** Nodes longer than this (in positions) don't send their JSON. */
+export const JSON_LIMIT = 10_000
 
 export const truncate = (text: string, max = PREVIEW_LENGTH) =>
   text.length > max ? text.slice(0, max - 1) + "…" : text
@@ -106,6 +108,8 @@ export const node = (doc: Plot.Doc, path: Path): NodeDetail => {
     param: toSafe(node.tag.param),
     markValues: node.marks.map(mark => ({name: mark.name, value: toSafe(mark.value)})),
     text: node.isText && typeof node.param == "string" ? node.param : null,
+    // Each nesting level is an object and its content array.
+    json: node.length <= JSON_LIMIT ? toSafe(node.toJSON(), 128) : null,
   }
 }
 

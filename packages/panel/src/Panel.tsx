@@ -6,7 +6,8 @@ import {PortalContainer} from "#components/portal"
 import {Button} from "#components/ui/button"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "#components/ui/select"
 import {Tooltip, TooltipContent, TooltipTrigger} from "#components/ui/tooltip"
-import type {PanelStore, Summary} from "./store.ts"
+import {DocTree} from "./DocTree.tsx"
+import type {PanelStore} from "./store.ts"
 import {nextTheme, type ThemeChoice, type ThemeStore} from "./theme.ts"
 
 const editorLabel = (editor: EditorInfo) =>
@@ -64,51 +65,29 @@ export const IconButton = ({label, onClick, children}: {label: string; onClick: 
   </Tooltip>
 )
 
-const SummaryView = ({summary}: {summary: Summary}) => (
-  <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
-    <section aria-label="Document">
-      <h2 className="mb-1 font-medium text-muted-foreground">Document</h2>
-      <ul className="font-mono text-xs">
-        {summary.top.map(node => (
-          <li key={node.path.join(".")} className="flex gap-2 truncate py-0.5">
-            <span className="text-foreground">{node.name}</span>
-            {node.paramPreview != null && <span className="text-muted-foreground">{node.paramPreview}</span>}
-            <span className="text-muted-foreground">
-              {node.from}–{node.to}
-            </span>
-            {node.textPreview != null && <span className="truncate text-muted-foreground">{node.textPreview}</span>}
-          </li>
-        ))}
-      </ul>
-    </section>
-    <section aria-label="Selection">
-      <h2 className="mb-1 font-medium text-muted-foreground">Selection</h2>
-      <pre className="font-mono text-xs whitespace-pre-wrap">{JSON.stringify(summary.selection.json, null, 2)}</pre>
-    </section>
-  </div>
-)
+const Notices = ({store}: {store: PanelStore}) => {
+  const {error, notices} = useSyncExternalStore(store.subscribe, store.get)
+  return [error, ...notices].map(
+    (text, index) =>
+      text && (
+        <p key={index} role="alert" className="border-b px-2 py-1 text-destructive">
+          {text}
+        </p>
+      ),
+  )
+}
 
 const Body = ({store}: {store: PanelStore}) => {
-  const {editors, summary, error, notices} = useSyncExternalStore(store.subscribe, store.get)
-  return (
-    <>
-      {[error, ...notices].map(
-        (text, index) =>
-          text && (
-            <p key={index} role="alert" className="mb-2 text-destructive">
-              {text}
-            </p>
-          ),
-      )}
-      {!editors.length ? (
-        <p className="text-muted-foreground">
-          No editors. Add <code className="font-mono">wordgardDevtools()</code> to an editor's configuration.
-        </p>
-      ) : (
-        summary && <SummaryView summary={summary} />
-      )}
-    </>
-  )
+  const {editors, selected} = useSyncExternalStore(store.subscribe, store.get)
+  if (!editors.length) {
+    return (
+      <p className="p-2 text-muted-foreground">
+        No editors. Add <code className="font-mono">wordgardDevtools()</code> to an editor's configuration.
+      </p>
+    )
+  }
+  // A tree per editor: switching starts a fresh one.
+  return selected != null && <DocTree key={selected} store={store} editorId={selected} />
 }
 
 export type PanelProps = {
@@ -149,7 +128,8 @@ export const Panel = ({store, theme, actions, className}: PanelProps) => {
             {actions}
           </div>
         </header>
-        <main className="min-h-0 flex-1 overflow-auto p-2">
+        <Notices store={store} />
+        <main className="flex min-h-0 flex-1 flex-col">
           <Body store={store} />
         </main>
       </div>

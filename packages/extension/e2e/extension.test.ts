@@ -69,6 +69,18 @@ it("lists every frame's editors and attaches the first", async () => {
   expect(await attached(demo)).toEqual(["plain", "left"])
 })
 
+it("shows the document tree, live", async () => {
+  await panel.getByLabel("Editor").click()
+  await panel.getByRole("option", {name: /plain/}).click()
+  await panel.locator("[data-path='1']").click()
+  // basicSchema has no code mark: one text leaf up to the strong one.
+  await panel.locator("[data-path='1.0']").getByText('"Created with Wordgard.create, named "').waitFor()
+  await demo.locator("#plain wg-content").click()
+  await demo.keyboard.press("Control+Home")
+  await demo.keyboard.type("Edited ")
+  await panel.locator("[data-path='0']").getByText("Edited Plain Wordgard").waitFor()
+})
+
 it("switches to an editor in an iframe and follows it", async () => {
   await panel.getByLabel("Editor").click()
   await panel.getByRole("option", {name: /framed/}).click()

@@ -6,3 +6,4 @@ web-ext.config.ts
 *.log
 .DS_Store
 __screenshots__
+.vitest

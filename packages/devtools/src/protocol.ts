@@ -26,6 +26,8 @@ export type NodeDetail = TreeNode & {
   markValues: {name: string; value: unknown}[]
   /** A text leaf's full text. */
   text: string | null
+  /** `node.toJSON()`, or null for a node too large to send (the document, usually). */
+  json: unknown
 }
 
 export type SelectionInfo = {

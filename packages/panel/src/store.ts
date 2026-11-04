@@ -1,13 +1,12 @@
-import type {AgentInfo, EditorInfo, Push, SelectionInfo, TreeNode} from "wordgard-devtools"
+import type {AgentInfo, EditorInfo, Push, SelectionInfo} from "wordgard-devtools"
 import type {Transport} from "./transport.ts"
-
-export type Summary = {id: number; top: TreeNode[]; selection: SelectionInfo}
 
 export type PanelState = {
   agent: AgentInfo | null
   editors: EditorInfo[]
   selected: number | null
-  summary: Summary | null
+  /** The selected editor's selection. */
+  selection: {id: number; info: SelectionInfo} | null
   error: string | null
   /** Problems with some frames, from the transport. */
   notices: string[]
@@ -17,20 +16,24 @@ export type PanelStore = {
   get: () => PanelState
   subscribe: (listener: () => void) => () => void
   select: (id: number | null) => Promise<void>
+  /** The selected editor's document changed (coalesced per frame). */
+  onDocChanged: (listener: (id: number) => void) => () => void
+  transport: Transport
   /** Subscribes to pushes and loads the editors. Returns the stop function, which detaches. */
   start: () => () => void
 }
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
+export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 export const createPanelStore = (transport: Transport): PanelStore => {
-  let state: PanelState = {agent: null, editors: [], selected: null, summary: null, error: null, notices: []}
+  let state: PanelState = {agent: null, editors: [], selected: null, selection: null, error: null, notices: []}
   const listeners = new Set<() => void>()
+  const docListeners = new Set<(id: number) => void>()
   const set = (patch: Partial<PanelState>) => {
     state = {...state, ...patch}
     for (const listener of listeners) listener()
   }
-  const fail = (e: unknown) => set({error: message(e)})
+  const fail = (e: unknown) => set({error: errorMessage(e)})
 
   // Bumped by start and stop: replies for an earlier run are dropped, so a stopped store
   // can't re-attach an editor.
@@ -41,31 +44,26 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   // a remount (a new instance) is matched by name.
   let chosen: {id: number; name: string} | null = null
 
-  // Replies can arrive out of order: only the latest summary request lands.
-  let summaryRun = 0
-  const loadSummary = async () => {
+  // Replies can arrive out of order: only the latest selection request lands.
+  let selectionRun = 0
+  const loadSelection = async () => {
     const at = run
-    const mine = ++summaryRun
+    const mine = ++selectionRun
     const id = state.selected
     if (id == null) {
-      set({summary: null})
+      set({selection: null})
       return
     }
-    const [top, selection] = await Promise.all([
-      transport.send({type: "children", id, paths: [[]]}),
-      transport.send({type: "selection", id}),
-    ])
-    if (current(at) && mine == summaryRun && id == state.selected) {
-      set({summary: {id, top: top[0] ?? [], selection}, error: null})
-    }
+    const info = await transport.send({type: "selection", id})
+    if (current(at) && mine == selectionRun && id == state.selected) set({selection: {id, info}, error: null})
   }
 
   const attach = async (id: number | null) => {
     const at = run
-    set({selected: id, summary: state.summary?.id == id ? state.summary : null})
+    set({selected: id, selection: state.selection?.id == id ? state.selection : null})
     try {
       await transport.send({type: "select", id})
-      if (current(at)) await loadSummary()
+      if (current(at)) await loadSelection()
     } catch (e) {
       if (current(at)) fail(e)
     }
@@ -98,12 +96,17 @@ export const createPanelStore = (transport: Transport): PanelStore => {
 
   // Coalesced per frame: a burst of updates refetches once.
   let frame: number | null = null
+  let docChanged = false
   const onPush = (push: Push) => {
     if (push.type == "editorsChanged") void refreshEditors()
-    else if (push.type == "stateChanged" && push.id == state.selected && frame == null) {
-      frame = requestAnimationFrame(() => {
+    else if (push.type == "stateChanged" && push.id == state.selected) {
+      docChanged ||= push.docChanged
+      frame ??= requestAnimationFrame(() => {
         frame = null
-        loadSummary().catch(fail)
+        const id = state.selected
+        if (docChanged && id != null) for (const listener of docListeners) listener(id)
+        docChanged = false
+        loadSelection().catch(fail)
       })
     }
   }
@@ -117,6 +120,13 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       }
     },
     select,
+    onDocChanged: listener => {
+      docListeners.add(listener)
+      return () => {
+        docListeners.delete(listener)
+      }
+    },
+    transport,
     start: () => {
       run++
       running = true
@@ -133,6 +143,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
         stopPushes()
         if (frame != null) cancelAnimationFrame(frame)
         frame = null
+        docChanged = false
         transport.send({type: "select", id: null}).catch(() => {})
       }
     },

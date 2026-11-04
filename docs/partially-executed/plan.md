@@ -1,8 +1,8 @@
 # Wordgard DevTools — plan
 
-Status: PARTIALLY EXECUTED. Phases 0, 1, 2 and 2b done on 2026-11-04, see
-[Implementation notes](#implementation-notes-phases-0-2-2026-11-04) and
-[2b's](#implementation-notes-phase-2b-2026-11-04). Drafted 2026-11-04, revised
+Status: PARTIALLY EXECUTED. Phases 0, 1, 2, 2b and 3 done on 2026-11-04, see the implementation
+notes for [0-2](#implementation-notes-phases-0-2-2026-11-04),
+[2b](#implementation-notes-phase-2b-2026-11-04) and [3](#implementation-notes-phase-3-2026-11-04). Drafted 2026-11-04, revised
 after a Fable review the same day, see [Review](#review-2026-11-04).
 
 A browser DevTools panel for [Wordgard](../../../wordgard) editors, the counterpart of
@@ -271,7 +271,7 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
    Docked in the demo.
 2b. **Executed.** Extension shell: on-demand injection, bridge, `chrome.runtime` transport, frames, protocol
    handshake, DevTools theme. Can run after any later phase.
-3. Doc tree and selection.
+3. **Executed.** Doc tree and selection.
 4. Element picker.
 5. Transaction log and timing.
 6. `$wg` / `$tr`.
@@ -445,3 +445,54 @@ built demo in Chromium, now in CI). A Fable audit followed; its accepted finding
 - Not exercised by tests: a service-worker restart, a bfcache restore, an injection failure in a
   real browser (the transport's handling is unit-tested).
 - CI has still not run.
+
+## Implementation notes: phase 3 (2026-11-04)
+
+Checks at the end: `npm run typecheck`; `npm test` (devtools 25, panel 23, extension 11, two
+consecutive clean runs); `npm run build`; e2e 5 tests (a live-tree step added). Two Fable audits:
+the first found the tree's cache broken (below), the second checked the rewrite.
+
+### How it works
+
+- `packages/panel/src/doc-source.ts` owns the tree's data, per editor: each loaded level is tagged
+  with the document version. Levels requested while rendering are batched into one `children`
+  request per tick. On a document change (pushes coalesced per animation frame) it refetches every
+  expanded level in one request and drops every other cached level, which load again when
+  expanded. Replies for an older version are dropped. Loads never reject: a failure shows
+  "Couldn't load the tree" with Retry, keeps the previous rows, and isn't retried by rendering for
+  2 s.
+- `packages/panel/src/DocTree.tsx`: headless-tree with its **synchronous** loader over the source
+  (`syncDataLoaderFeature`, `hotkeysCoreFeature`, `searchFeature`), expanded and focused items as
+  React state, rows virtualized with `@tanstack/react-virtual` at a fixed 20 px. Levels that no
+  longer resolve collapse; a focused node that's gone hands focus to its nearest remaining
+  ancestor. The selection strip shows type, anchor and head, with Reveal (expands down to the head
+  and focuses it). Rows holding the anchor or the head are marked. The side pane shows the focused
+  node's `node()` detail (name, path, from–to, param or text, marks, JSON) through Suspense and
+  `use()`, deferred so it doesn't flash while the next one loads.
+- `node()` replies gained `json` (`toJSON()`, null for nodes longer than 10 000 positions: the
+  document, usually).
+
+### Deviations and things that didn't hold up
+
+- **headless-tree's async loader** (`asyncDataLoaderFeature`, as planned) keeps its own cache,
+  which can't be versioned: collapsed levels kept stale children forever, a deleted-then-replaced
+  level stayed empty, and one failed request left the tree "loading" for good. Replaced by the sync
+  loader over our own versioned source.
+- **Search** covers loaded rows only. Its input mounts about 20 ms after the key that opens it
+  (React gives updates from native listeners in a shadow root default priority); keys typed faster
+  than that go to the tree. Human typing doesn't hit it; the test types at 50 ms per key.
+- **Selection marking** marks the nodes holding the anchor and the head, not every node between
+  them in a range. A caret at a text leaf's edge resolves to its paragraph (`Pos.inText` is 0), so
+  the innermost marker moves between leaf and paragraph as the caret crosses leaf boundaries.
+- **Path ids**: an insert before the focused node makes the side pane show whatever node is at
+  that path now. Inherent to path ids (plan, "Item id = … + path").
+- A refresh that removes the focused node can show "No node at path" for one frame before focus
+  moves.
+
+### Open points
+
+- The 2 s retry delay for failed levels isn't covered by a test.
+
+Out of scope: very large documents (thousands of top-level nodes). Every refresh resends each
+expanded level whole, about 1.6 MB per frame of typing for 10 000 paragraphs over the extension.
+The panel is for developers troubleshooting, not for documents that size.

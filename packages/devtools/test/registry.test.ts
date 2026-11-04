@@ -166,6 +166,9 @@ describe("agent", () => {
     const detail = await ask({type: "node", id, path: [0, 0]})
     expect(detail.text).toBe(long)
     expect(detail.name).toBe("Text")
+    expect(detail.json).toEqual({type: "Text", param: long})
+    const paragraph = await ask({type: "node", id, path: [0]})
+    expect(paragraph.json).toEqual({type: "Paragraph", content: [{type: "Text", param: long}]})
   })
 
   it("serialises the selection with the paths holding it", async () => {
