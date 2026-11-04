@@ -102,7 +102,7 @@ it("shows the state fields, a named one among them", async () => {
   await demo.locator("#plain wg-content").click()
   await demo.keyboard.press("Control+End")
   await demo.keyboard.type(" more words")
-  await fields.locator("[data-field='wordCount']").getByTitle("Changes seen").filter({hasText: /\d/}).waitFor()
+  await fields.locator("[data-field='wordCount']").locator("[data-changes]").filter({hasText: /\d/}).waitFor()
   await panel.getByRole("tab", {name: "Tree"}).click()
 })
 
@@ -119,13 +119,14 @@ it("switches to an editor in an iframe and follows it", async () => {
   await panel.getByText(/Typed/).waitFor()
 })
 
-it("outlines a hovered row's node in the page", async () => {
+it("outlines a clicked row's node in the page", async () => {
   await panel.getByLabel("Editor").click()
   await panel.getByRole("option", {name: /right/}).click()
-  await panel.locator("[data-path='0']").hover()
+  await panel.locator("[data-path='0']").click()
   await demo.locator("[data-wordgard-devtools-overlay]").getByText("Paragraph").waitFor()
-  await panel.getByText("Wordgard", {exact: true}).hover()
+  await panel.getByRole("tab", {name: "Structure"}).click()
   await demo.locator("[data-wordgard-devtools-overlay]").waitFor({state: "detached"})
+  await panel.getByRole("tab", {name: "Tree"}).click()
 })
 
 it("picks a node in an iframe's editor without moving its caret", async () => {
@@ -152,16 +153,16 @@ it("records the transaction log, with timing", async () => {
   await panel.getByText("Left editor.").waitFor()
   await panel.getByRole("tab", {name: "Log"}).click()
   await panel.getByRole("button", {name: "Record"}).click()
-  await panel.getByRole("button", {name: "Pause"}).waitFor()
+  await panel.getByRole("button", {name: "Pause", exact: true}).waitFor()
   await demo.locator("#left wg-content").click()
   await demo.keyboard.type("x")
   const list = panel.getByRole("listbox", {name: "Transactions"})
   await list.getByText("input.type").waitFor()
   // Drawn: the flush's timing is in.
-  await list.locator("[title^='Flush #']").first().waitFor()
+  await list.locator("[data-flush]").first().waitFor()
   await list.getByRole("option").filter({hasText: "input.type"}).click()
   await panel.getByLabel("Transaction").getByText("x", {exact: true}).waitFor()
-  await panel.getByRole("button", {name: "Pause"}).click()
+  await panel.getByRole("button", {name: "Pause", exact: true}).click()
   await panel.getByRole("tab", {name: "Tree"}).click()
 })
 

@@ -50,14 +50,20 @@ const setup = async () => {
   return {first, second}
 }
 
-it("outlines a row's node in the page while hovered", async () => {
+it("outlines a clicked row's node in the page, not a hovered one", async () => {
   const {first} = await setup()
   await userEvent.hover(await until(() => row("0")))
+  await new Promise(resolve => setTimeout(resolve, 50))
+  expect(overlay()).toBeNull()
+  ;(await until(() => row("0"))).click()
   await until(() => overlay()?.textContent == "Paragraph")
   const paragraph = first.nodeDOM(0)
   expect(overlay()?.firstElementChild?.getBoundingClientRect().top).toBe(paragraph?.getBoundingClientRect().top)
-  // Leaving the tree hides it.
+  // It stays while the pointer leaves, and goes with the tab.
   await userEvent.hover(first.contentDOM)
+  await new Promise(resolve => setTimeout(resolve, 50))
+  expect(overlay()).not.toBeNull()
+  shadow().querySelectorAll<HTMLElement>("[role='tab']")[1]?.click()
   await until(() => !overlay())
 })
 

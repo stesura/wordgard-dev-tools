@@ -237,6 +237,8 @@ export type Requests = {
   pick: {on: boolean}
   /** Scrolls the node into view in the page (its editor and the page around). */
   scrollIntoView: {id: number; path: Path}
+  /** Logs the node itself in the page's console. */
+  logNode: {id: number; path: Path}
   setConsole: {id: number; index?: number}
   repro: {id: number}
 }
@@ -265,6 +267,7 @@ export type Results = {
   highlight: null
   pick: null
   scrollIntoView: null
+  logNode: null
   setConsole: null
   repro: string
 }

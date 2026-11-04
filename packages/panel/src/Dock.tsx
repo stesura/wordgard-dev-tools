@@ -1,14 +1,14 @@
 import {cn} from "cn"
 import {
-  ChevronDownIcon,
   PanelBottomIcon,
   PanelLeftIcon,
   PanelRightIcon,
   PanelTopIcon,
+  XIcon,
 } from "lucide-react"
 import {useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent} from "react"
 import {Button} from "#components/ui/button"
-import {IconButton, Panel} from "./Panel.tsx"
+import {ChoiceMenu, IconButton, Panel, type Choice} from "./Panel.tsx"
 import type {PanelStore} from "./store.ts"
 import type {ThemeStore} from "./theme.ts"
 
@@ -60,14 +60,12 @@ const placement: Record<DockSide, {dock: string; handle: string; grow: (dx: numb
   left: {dock: "inset-y-0 left-0 border-r", handle: "inset-y-0 -right-1 w-2 cursor-col-resize", grow: dx => dx},
 }
 
-const sideIcons: Record<DockSide, typeof PanelBottomIcon> = {
-  bottom: PanelBottomIcon,
-  right: PanelRightIcon,
-  top: PanelTopIcon,
-  left: PanelLeftIcon,
-}
-
-const nextSide = (side: DockSide) => SIDES[(SIDES.indexOf(side) + 1) % SIDES.length] ?? "bottom"
+const sides: Choice<DockSide>[] = [
+  {value: "bottom", label: "Bottom", icon: <PanelBottomIcon />},
+  {value: "right", label: "Right", icon: <PanelRightIcon />},
+  {value: "top", label: "Top", icon: <PanelTopIcon />},
+  {value: "left", label: "Left", icon: <PanelLeftIcon />},
+]
 
 // The keys that grow the dock, per side (the others shrink it).
 const growKeys: Record<DockSide, [grow: string, shrink: string]> = {
@@ -99,8 +97,8 @@ export const Dock = ({store, theme, initial, setActive}: DockProps) => {
     saveLayout({side, size, collapsed: value})
   }
 
-  const move = () => {
-    const next = nextSide(side)
+  const move = (next: DockSide) => {
+    if (next == side) return
     // Each axis starts at its own default: a height makes a poor width.
     const nextSize = vertical(next) == vertical(side) ? size : clamp(next, DEFAULT_SIZE[vertical(next) ? "vertical" : "horizontal"])
     setSide(next)
@@ -149,7 +147,6 @@ export const Dock = ({store, theme, initial, setActive}: DockProps) => {
     )
   }
 
-  const SideIcon = sideIcons[nextSide(side)]
   return (
     <div
       className={cn("fixed z-2147483647 flex flex-col shadow-lg", place.dock)}
@@ -175,13 +172,12 @@ export const Dock = ({store, theme, initial, setActive}: DockProps) => {
         store={store}
         theme={theme}
         className="min-h-0 flex-1"
+        titleRow={!vertical(side)}
         actions={
           <>
-            <IconButton label={`Dock to the ${nextSide(side)}`} onClick={move}>
-              <SideIcon />
-            </IconButton>
-            <IconButton label="Collapse" onClick={() => collapse(true)}>
-              <ChevronDownIcon />
+            <ChoiceMenu label="Dock" value={side} choices={sides} onChange={move} />
+            <IconButton label="Close" onClick={() => collapse(true)}>
+              <XIcon />
             </IconButton>
           </>
         }

@@ -10,7 +10,8 @@ const selectionType = (json: unknown) =>
   typeof json == "object" && json != null && "type" in json ? String(json.type) : "?"
 
 export const SelectionStrip = ({selection, onReveal}: {selection: SelectionInfo | null; onReveal: () => void}) => (
-  <div className="flex h-7 shrink-0 items-center gap-3 border-b px-2 font-mono text-xs" aria-label="Selection">
+  <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-3 border-b px-2 font-mono text-xs whitespace-nowrap" aria-label="Selection">
+    <span className="font-sans font-medium">Selection</span>
     {selection ? (
       <>
         <span>
@@ -78,7 +79,7 @@ export const NodePane = ({source, focused}: {source: DetailSource; focused: stri
   return (
     <aside
       aria-label="Node"
-      className="h-48 w-full shrink-0 overflow-auto border-t p-2 @2xl:h-auto @2xl:w-80 @2xl:border-t-0 @2xl:border-l"
+      className="h-full overflow-auto p-2"
     >
       {id == null ? (
         <p className="text-muted-foreground">Focus a node to see it here.</p>

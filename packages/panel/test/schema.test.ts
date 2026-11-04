@@ -72,3 +72,34 @@ it("reloads when the configuration changes", async () => {
   wg?.dispatch({effects: GardState.appendConfig.of(GardState.schemaElement.of(Callout))})
   await until(() => card("node-Callout"))
 })
+
+const section = (name: string) => shadow().querySelector<HTMLElement>(`section[aria-label='${name}']`)
+const toggle = (scope: ParentNode, text: string) =>
+  [...scope.querySelectorAll<HTMLButtonElement>("button[aria-pressed]")].find(b => b.textContent == text)
+
+it("shows nodes or marks only, filters them by tag, and orders marks by rank", async () => {
+  await setup()
+  toggle(shadow(), "3 marks")?.click()
+  await until(() => !section("Nodes") && section("Marks"))
+  toggle(shadow(), "3 marks")?.click()
+  await until(() => section("Nodes") && section("Marks"))
+
+  const nodes = await until(() => section("Nodes"))
+  toggle(nodes, "textblock")?.click()
+  await until(() => !card("node-Text"))
+  expect([...nodes.querySelectorAll("[data-type^='node-']")].map(c => c.getAttribute("data-type"))).toEqual([
+    "node-Paragraph",
+    "node-Heading",
+  ])
+  toggle(nodes, "defining")?.click()
+  await until(() => !card("node-Paragraph") && card("node-Heading"))
+
+  const marks = await until(() => section("Marks"))
+  const order = () => [...marks.querySelectorAll("[data-type^='mark-']")].map(c => c.getAttribute("data-type"))
+  expect(order()).toEqual(["mark-Strong", "mark-Emphasis", "mark-Link"])
+  toggle(marks, "rank")?.click()
+  await until(() => order()[0] == "mark-Link")
+  expect(order()).toEqual(["mark-Link", "mark-Emphasis", "mark-Strong"])
+  toggle(marks, "inclusive")?.click()
+  await until(() => !card("mark-Link"))
+})

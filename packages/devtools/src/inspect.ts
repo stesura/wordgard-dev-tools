@@ -96,7 +96,8 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
   const render = (rects: DOMRect[], name: string) => {
     overlay ??= document.createElement("div")
     overlay.setAttribute(OVERLAY, "")
-    style(overlay, {position: "fixed", inset: "0", "pointer-events": "none", "z-index": "2147483647"})
+    // One below the in-page panel's dock (2147483647): the outline passes under it.
+    style(overlay, {position: "fixed", inset: "0", "pointer-events": "none", "z-index": "2147483646"})
     overlay.replaceChildren(
       ...rects.map(rect => {
         const box = document.createElement("div")

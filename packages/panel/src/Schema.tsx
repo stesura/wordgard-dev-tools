@@ -1,6 +1,7 @@
 import {cn} from "cn"
 import {useCallback, useRef, useState, useSyncExternalStore, type ReactNode} from "react"
 import type {SchemaMarkType, SchemaNodeType, SchemaParam} from "wordgard-devtools"
+import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
 import {json} from "./node-pane.tsx"
 import {createSchemaSource} from "./schema-source.ts"
@@ -19,9 +20,9 @@ const Line = ({label, children}: {label: string; children: ReactNode}) => (
 
 const Tags = ({items}: {items: string[]}) =>
   items.map(item => (
-    <span key={item} className="rounded bg-muted px-1 text-muted-foreground">
+    <Tag key={item}>
       {item}
-    </span>
+    </Tag>
   ))
 
 /** Type names, each a link to its card. */
@@ -68,8 +69,10 @@ const Card = ({kind, name, tags, shape, children}: {kind: Kind; name: string; ta
   </section>
 )
 
+const nodeTags = (type: SchemaNodeType) => [type.kind, type.inline ? "inline" : "block", ...type.flags]
+
 const NodeCard = ({type, onGo}: {type: SchemaNodeType; onGo: Go}) => (
-  <Card kind="node" name={type.name} tags={[type.kind, type.inline ? "inline" : "block", ...type.flags]} shape={type.shape}>
+  <Card kind="node" name={type.name} tags={nodeTags(type)} shape={type.shape}>
     {type.groups.length > 0 && <Line label="groups">{type.groups.join(", ")}</Line>}
     {type.roles.length > 0 && <Line label="roles">{type.roles.join(", ")}</Line>}
     {type.content != null && (
@@ -105,12 +108,68 @@ const MarkCard = ({type, onGo}: {type: SchemaMarkType; onGo: Go}) => (
 
 const matches = (name: string, query: string) => name.toLowerCase().includes(query.toLowerCase())
 
+/** Every tag the types carry, in first-seen order. */
+const tagsOf = <T,>(types: T[], tags: (type: T) => string[]) => [...new Set(types.flatMap(tags))]
+
+const toggled = (set: ReadonlySet<string>, tag: string) => {
+  const next = new Set(set)
+  if (!next.delete(tag)) next.add(tag)
+  return next
+}
+
+/** A toggle in a row of filters. */
+const Toggle = ({pressed, onClick, children}: {pressed: boolean; onClick: () => void; children: ReactNode}) => (
+  <button
+    type="button"
+    aria-pressed={pressed}
+    onClick={onClick}
+    className={cn(
+      "h-5 cursor-pointer rounded px-1.5 text-xs",
+      pressed ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground",
+    )}
+  >
+    {children}
+  </button>
+)
+
+/** A section's heading with its tag filters: a type shows when it has every pressed tag. */
+const Heading = ({
+  title,
+  tags,
+  pressed,
+  onToggle,
+  children,
+}: {
+  title: string
+  tags: string[]
+  pressed: ReadonlySet<string>
+  onToggle: (tag: string) => void
+  children?: ReactNode
+}) => (
+  <div className="mb-1 flex flex-wrap items-center gap-1 font-sans">
+    <h3 className="mr-1 text-muted-foreground">{title}</h3>
+    {tags.map(tag => (
+      <Toggle key={tag} pressed={pressed.has(tag)} onClick={() => onToggle(tag)}>
+        {tag}
+      </Toggle>
+    ))}
+    {children}
+  </div>
+)
+
+type Shown = "all" | "nodes" | "marks"
+const none: ReadonlySet<string> = new Set()
+
 /** The editor's node and mark types. Mounted per editor. */
 export const Schema = ({store, editorId}: {store: PanelStore; editorId: number}) => {
   const [source] = useState(() => createSchemaSource(store.transport, editorId))
   const schema = useSyncExternalStore(source.subscribe, source.schema)
   const error = useSyncExternalStore(source.subscribe, source.error)
   const [query, setQuery] = useState("")
+  const [shown, setShown] = useState<Shown>("all")
+  const [nodeFilter, setNodeFilter] = useState(none)
+  const [markFilter, setMarkFilter] = useState(none)
+  const [byRank, setByRank] = useState(false)
   const scroller = useRef<HTMLDivElement | null>(null)
 
   // Loads while its tab is shown: on showing (when the configuration changed meanwhile) and on
@@ -133,19 +192,31 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
       const stopStore = store.subscribe(() => {
         if (shown() && stale) load()
       })
+      // A context menu's "show type": once the schema is in, the card is scrolled to.
+      const takeReveal = () => {
+        if (!shown()) return
+        const name = store.takeTypeReveal(editorId)
+        if (name) void source.ready().then(() => go("node", name))
+      }
+      const stopReveal = store.onReveal(takeReveal)
       if (shown()) load()
+      takeReveal()
       return () => {
         stopConfig()
         stopStore()
+        stopReveal()
         scroller.current = null
       }
     },
     [store, editorId, source],
   )
 
-  // Clears the filter so the card is there, then scrolls to it once drawn.
+  // Clears the filters so the card is there, then scrolls to it once drawn.
   const go: Go = (kind, name) => {
     setQuery("")
+    setShown("all")
+    setNodeFilter(none)
+    setMarkFilter(none)
     requestAnimationFrame(() => {
       const container = scroller.current
       const card = container?.querySelector(`[data-type='${kind}-${CSS.escape(name)}']`)
@@ -153,8 +224,17 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
     })
   }
 
-  const nodes = schema?.nodes.filter(type => matches(type.name, query)) ?? []
-  const marks = schema?.marks.filter(type => matches(type.name, query)) ?? []
+  const allNodes = schema?.nodes ?? []
+  const allMarks = schema?.marks ?? []
+  const nodes = allNodes.filter(type => matches(type.name, query) && nodeTags(type).filter(tag => nodeFilter.has(tag)).length == nodeFilter.size)
+  const filteredMarks = allMarks.filter(
+    type => matches(type.name, query) && type.flags.filter(tag => markFilter.has(tag)).length == markFilter.size,
+  )
+  // By rank, unranked last; otherwise in the schema's order.
+  const marks = byRank
+    ? filteredMarks.toSorted((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity))
+    : filteredMarks
+  const show = (which: Shown) => setShown(shown == which ? "all" : which)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -179,22 +259,53 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
           className="h-6 min-w-0 flex-1 bg-transparent outline-none"
         />
         {schema && (
-          <span className="shrink-0 text-muted-foreground">
-            {schema.nodes.length} nodes · {schema.marks.length} marks · doc {schema.doc}
-            {schema.lineBreak != null && ` · line break ${schema.lineBreak}`}
+          <span className="flex shrink-0 gap-1">
+            <Toggle pressed={shown == "nodes"} onClick={() => show("nodes")}>
+              {schema.nodes.length} nodes
+            </Toggle>
+            <Toggle pressed={shown == "marks"} onClick={() => show("marks")}>
+              {schema.marks.length} marks
+            </Toggle>
           </span>
         )}
       </div>
       <div ref={container} className="min-h-0 flex-1 overflow-auto p-2 font-mono text-xs">
-        <h3 className="mb-1 font-sans text-muted-foreground">Nodes</h3>
-        {nodes.map(type => (
-          <NodeCard key={type.name} type={type} onGo={go} />
-        ))}
-        <h3 className="mt-2 mb-1 font-sans text-muted-foreground">Marks</h3>
-        {marks.map(type => (
-          <MarkCard key={type.name} type={type} onGo={go} />
-        ))}
-        {schema && !nodes.length && !marks.length && <p className="font-sans text-muted-foreground">No types match.</p>}
+        {shown != "marks" && (
+          <section aria-label="Nodes" className="mb-2">
+            <Heading
+              title="Nodes"
+              tags={tagsOf(allNodes, nodeTags)}
+              pressed={nodeFilter}
+              onToggle={tag => setNodeFilter(filter => toggled(filter, tag))}
+            />
+            {nodes.map(type => (
+              <NodeCard key={type.name} type={type} onGo={go} />
+            ))}
+            {schema && !nodes.length && <p className="font-sans text-muted-foreground">No node types match.</p>}
+          </section>
+        )}
+        {shown != "nodes" && (
+          <section aria-label="Marks">
+            <Heading
+              title="Marks"
+              tags={tagsOf(allMarks, type => type.flags)}
+              pressed={markFilter}
+              onToggle={tag => setMarkFilter(filter => toggled(filter, tag))}
+            >
+              <span className="ml-auto text-muted-foreground">order</span>
+              <Toggle pressed={!byRank} onClick={() => setByRank(false)}>
+                schema
+              </Toggle>
+              <Toggle pressed={byRank} onClick={() => setByRank(true)}>
+                rank
+              </Toggle>
+            </Heading>
+            {marks.map(type => (
+              <MarkCard key={type.name} type={type} onGo={go} />
+            ))}
+            {schema && !marks.length && <p className="font-sans text-muted-foreground">No mark types match.</p>}
+          </section>
+        )}
       </div>
     </div>
   )

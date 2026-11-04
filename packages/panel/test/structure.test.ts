@@ -91,14 +91,19 @@ it("follows the document", async () => {
   expect(box("2")?.textContent).toContain("23–29")
 })
 
-it("outlines a hovered box's node in the page and shows a clicked one", async () => {
+it("outlines a clicked box's node in the page and shows it, not a hovered one", async () => {
   await setup()
   const strong = await showStructure()
   await userEvent.hover(strong)
-  await until(() => document.querySelector("[data-wordgard-devtools-overlay]")?.textContent == "Text")
+  await new Promise(resolve => setTimeout(resolve, 50))
+  expect(document.querySelector("[data-wordgard-devtools-overlay]")).toBeNull()
   strong.click()
+  await until(() => document.querySelector("[data-wordgard-devtools-overlay]")?.textContent == "Text")
   await until(() => pane()?.textContent?.includes('text"bold"'))
   expect(strong.className).toContain("ring-2")
+  // Gone with the tab.
+  ;(await until(() => tab("Tree"))).click()
+  await until(() => !document.querySelector("[data-wordgard-devtools-overlay]"))
 })
 
 it("marks the boxes holding the selection", async () => {
@@ -209,3 +214,22 @@ it("reveals a pick in another editor once its structure has loaded", async () =>
   }
 })
 
+
+it("collapses and expands boxes, by their chevron and with the arrow keys", async () => {
+  await setup()
+  await showStructure()
+  const paragraph = await until(() => box("1"))
+  expect(paragraph.getAttribute("aria-expanded")).toBe("true")
+  paragraph.querySelector<HTMLButtonElement>("button[aria-label='Collapse']")?.click()
+  await until(() => !box("1.0"))
+  expect(box("1")?.getAttribute("aria-expanded")).toBe("false")
+  // Right opens it again; Left closes it.
+  box("1")?.click()
+  await userEvent.keyboard("{ArrowRight}")
+  await until(() => box("1.0"))
+  await userEvent.keyboard("{ArrowLeft}")
+  await until(() => !box("1.0"))
+  // A reveal opens the boxes on the way.
+  await userEvent.keyboard("{ArrowRight}")
+  await until(() => box("1.0"))
+})

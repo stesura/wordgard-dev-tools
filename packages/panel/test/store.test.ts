@@ -31,6 +31,7 @@ const fakeAgent = (ids: number[], delay = 20) => {
     field: unsupported,
     watchFields: unsupported,
     scrollIntoView: unsupported,
+    logNode: unsupported,
     record: unsupported,
     clear: unsupported,
     log: unsupported,
@@ -149,5 +150,27 @@ it("leaves pick mode when picking ends elsewhere", async () => {
   await settle()
   expect(store.get()).toMatchObject({picking: false, selected: 2})
   expect(store.takeReveal(2)).toEqual([0, 1])
+  stop()
+})
+
+it("detaches while paused, and attaches again on resume", async () => {
+  const agent = fakeAgent([1, 2])
+  const store = createPanelStore(agent.transport)
+  const stop = store.start()
+  await settle()
+  expect(agent.attached()).toEqual([1])
+  store.pause(true)
+  await settle()
+  expect(store.get().paused).toBe(true)
+  expect(agent.attached()).toEqual([])
+  // No pushes while paused: an editor list change goes unseen.
+  agent.sent.length = 0
+  agent.add(3)
+  await settle()
+  expect(agent.sent).toEqual([])
+  store.pause(false)
+  await settle()
+  expect(agent.attached()).toEqual([1])
+  expect(store.get().editors.map(e => e.id)).toEqual([1, 2, 3])
   stop()
 })

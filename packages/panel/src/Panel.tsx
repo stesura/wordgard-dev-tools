@@ -1,9 +1,18 @@
 import {cn} from "cn"
-import {MonitorIcon, MoonIcon, MousePointerClickIcon, SunIcon} from "lucide-react"
+import {MonitorIcon, MoonIcon, MousePointerClickIcon, PauseIcon, PlayIcon, SunIcon} from "lucide-react"
 import {useState, useSyncExternalStore, type ReactNode} from "react"
 import type {EditorInfo} from "wordgard-devtools"
 import {PortalContainer} from "#components/portal"
 import {Button} from "#components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "#components/ui/dropdown-menu"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "#components/ui/select"
 import {Tooltip, TooltipContent, TooltipTrigger} from "#components/ui/tooltip"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "#components/ui/tabs"
@@ -13,7 +22,7 @@ import {Fields} from "./Fields.tsx"
 import {Schema} from "./Schema.tsx"
 import type {PanelStore, View} from "./store.ts"
 import {Structure} from "./Structure.tsx"
-import {nextTheme, type ThemeChoice, type ThemeStore} from "./theme.ts"
+import type {ThemeChoice, ThemeStore} from "./theme.ts"
 
 const editorLabel = (editor: EditorInfo) =>
   `${editor.name} · #${editor.id}` + (editor.frame ? ` · ${editor.frame}` : "")
@@ -46,6 +55,29 @@ const EditorPicker = ({store}: {store: PanelStore}) => {
   )
 }
 
+const PauseButton = ({store}: {store: PanelStore}) => {
+  const {paused} = useSyncExternalStore(store.subscribe, store.get)
+  return (
+    <IconButton label={paused ? "Resume the devtool" : "Pause the devtool"} pressed={paused} onClick={() => store.pause(!paused)}>
+      {paused ? <PlayIcon /> : <PauseIcon />}
+    </IconButton>
+  )
+}
+
+/** Over the panel while paused: nothing it shows is live. */
+const PausedOverlay = ({store}: {store: PanelStore}) => {
+  const {paused} = useSyncExternalStore(store.subscribe, store.get)
+  if (!paused) return null
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-[1px]">
+      <Button variant="outline" onClick={() => store.pause(false)}>
+        <PlayIcon />
+        The devtool is paused
+      </Button>
+    </div>
+  )
+}
+
 const PickButton = ({store}: {store: PanelStore}) => {
   const {picking, editors} = useSyncExternalStore(store.subscribe, store.get)
   if (!editors.length) return null
@@ -56,19 +88,67 @@ const PickButton = ({store}: {store: PanelStore}) => {
   )
 }
 
-const themeIcons: Record<ThemeChoice, ReactNode> = {
-  system: <MonitorIcon />,
-  light: <SunIcon />,
-  dark: <MoonIcon />,
+export type Choice<T> = {value: T; label: string; icon: ReactNode}
+
+/** An icon button opening a menu of choices, the current one checked. */
+export const ChoiceMenu = <T extends string>({
+  label,
+  value,
+  choices,
+  onChange,
+}: {
+  label: string
+  value: T
+  choices: Choice<T>[]
+  onChange: (value: T) => void
+}) => {
+  const current = choices.find(choice => choice.value == value)
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-xs" aria-label={`${label}: ${current?.label ?? value}`} />}
+            />
+          }
+        >
+          {current?.icon}
+        </TooltipTrigger>
+        <TooltipContent side="top">{label}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" className="w-auto">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{label}</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={value}
+            onValueChange={next => {
+              const found = choices.find(choice => choice.value == next)
+              if (found) onChange(found.value)
+            }}
+          >
+            {choices.map(choice => (
+              <DropdownMenuRadioItem key={choice.value} value={choice.value} className="text-xs">
+                {choice.icon}
+                {choice.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
-const ThemeToggle = ({theme}: {theme: ThemeStore}) => {
+const themes: Choice<ThemeChoice>[] = [
+  {value: "system", label: "System", icon: <MonitorIcon />},
+  {value: "light", label: "Light", icon: <SunIcon />},
+  {value: "dark", label: "Dark", icon: <MoonIcon />},
+]
+
+const ThemeMenu = ({theme}: {theme: ThemeStore}) => {
   const {choice} = useSyncExternalStore(theme.subscribe, theme.get)
-  return (
-    <IconButton label={`Theme: ${choice}`} onClick={() => theme.set(nextTheme[choice])}>
-      {themeIcons[choice]}
-    </IconButton>
-  )
+  return <ChoiceMenu label="Theme" value={choice} choices={themes} onChange={theme.set} />
 }
 
 export const IconButton = ({
@@ -134,20 +214,24 @@ const Body = ({store}: {store: PanelStore}) => {
       }}
       className="min-h-0 flex-1 gap-0"
     >
-      <TabsList variant="line" className="h-7 w-full shrink-0 justify-start rounded-none border-b px-1">
-        <TabsTrigger value="tree" className="flex-none px-2 text-xs">
+      {/* Wraps rather than hiding tabs when narrow. */}
+      <TabsList
+        variant="line"
+        className="h-auto min-h-7 w-full shrink-0 flex-wrap justify-start rounded-none border-b px-1 group-data-horizontal/tabs:h-auto"
+      >
+        <TabsTrigger value="tree" className="h-6 flex-none px-2 text-xs">
           Tree
         </TabsTrigger>
-        <TabsTrigger value="structure" className="flex-none px-2 text-xs">
+        <TabsTrigger value="structure" className="h-6 flex-none px-2 text-xs">
           Structure
         </TabsTrigger>
-        <TabsTrigger value="schema" className="flex-none px-2 text-xs">
+        <TabsTrigger value="schema" className="h-6 flex-none px-2 text-xs">
           Schema
         </TabsTrigger>
-        <TabsTrigger value="fields" className="flex-none px-2 text-xs">
+        <TabsTrigger value="fields" className="h-6 flex-none px-2 text-xs">
           Fields
         </TabsTrigger>
-        <TabsTrigger value="log" className="flex-none px-2 text-xs">
+        <TabsTrigger value="log" className="h-6 flex-none px-2 text-xs">
           Log
         </TabsTrigger>
       </TabsList>
@@ -175,10 +259,14 @@ export type PanelProps = {
   theme: ThemeStore
   /** Extra toolbar buttons, at its end (the dock's collapse button). */
   actions?: ReactNode
+  /** The title on a row of its own (the dock on the left or right, where the toolbar is narrow). */
+  titleRow?: boolean
   className?: string
 }
 
-export const Panel = ({store, theme, actions, className}: PanelProps) => {
+const TITLE = "Wordgard DevTools"
+
+export const Panel = ({store, theme, actions, titleRow, className}: PanelProps) => {
   const {dark} = useSyncExternalStore(theme.subscribe, theme.get)
   const {editors} = useSyncExternalStore(store.subscribe, store.get)
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
@@ -192,21 +280,24 @@ export const Panel = ({store, theme, actions, className}: PanelProps) => {
           className,
         )}
       >
+        {titleRow && <div className="shrink-0 border-b bg-muted px-2 py-1 font-semibold">{TITLE}</div>}
         <header className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-2 border-b px-2">
-          <span className="font-semibold">Wordgard</span>
+          {!titleRow && <span className="font-semibold">{TITLE}</span>}
           <EditorPicker store={store} />
           <PickButton store={store} />
+          <PauseButton store={store} />
           <span className="text-xs text-muted-foreground">
             {editors.length} editor{editors.length == 1 ? "" : "s"}
           </span>
           <div className="ml-auto flex items-center gap-1">
-            <ThemeToggle theme={theme} />
+            <ThemeMenu theme={theme} />
             {actions}
           </div>
         </header>
         <Notices store={store} />
-        <main className="flex min-h-0 flex-1 flex-col">
+        <main className="relative flex min-h-0 flex-1 flex-col">
           <Body store={store} />
+          <PausedOverlay store={store} />
         </main>
       </div>
     </PortalContainer>

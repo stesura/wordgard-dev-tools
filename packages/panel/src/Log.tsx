@@ -3,10 +3,13 @@ import {cn} from "cn"
 import {BanIcon, CircleIcon, PauseIcon} from "lucide-react"
 import {Suspense, use, useCallback, useDeferredValue, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode} from "react"
 import {SLOW_MS, type LogEntryDetail, type LogRow} from "wordgard-devtools"
+import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
 import {createLogSource, type LogSource} from "./log-source.ts"
 import {Field, json} from "./node-pane.tsx"
 import type {PanelStore} from "./store.ts"
+import {Tip} from "./tip.tsx"
+import {SplitPane} from "./split-pane.tsx"
 
 const ROW = 20
 const COLUMNS = "grid grid-cols-[3rem_6.5rem_minmax(5rem,1fr)_4.5rem_2rem_2rem_3.5rem_3.5rem] gap-x-2"
@@ -50,35 +53,59 @@ const Row = ({row, start, selected}: {row: LogRow; start: number; selected: bool
     <span className="truncate">{row.userEvent ?? <span className="text-muted-foreground">–</span>}</span>
     <span className="flex gap-1">
       {flags(row).map(flag => (
-        <span key={flag} className="rounded bg-muted px-1 text-muted-foreground">
+        <Tag key={flag}>
           {flag}
-        </span>
+        </Tag>
       ))}
     </span>
-    <span title="Effects">{row.effects || ""}</span>
-    <span title="Annotations">{row.annotations || ""}</span>
-    <span title="Dispatch, ms" className={cn("text-right", slow(row.dispatchMs) && "text-destructive")}>
-      {ms(row.dispatchMs)}
-    </span>
-    <span title={flushTitle(row)} className={cn("text-right", slow(row.flushMs) && "text-destructive")}>
-      {ms(row.flushMs)}
-      {row.agentFlush && "*"}
-    </span>
+    <Tip label="Effects">
+      <span>{row.effects || ""}</span>
+    </Tip>
+    <Tip label="Annotations">
+      <span>{row.annotations || ""}</span>
+    </Tip>
+    <Tip label="Dispatch, ms">
+      <span className={cn("text-right", slow(row.dispatchMs) && "text-destructive")}>{ms(row.dispatchMs)}</span>
+    </Tip>
+    <Tip label={flushTitle(row)}>
+      <span data-flush={row.flush ?? undefined} className={cn("text-right", slow(row.flushMs) && "text-destructive")}>
+        {ms(row.flushMs)}
+        {row.agentFlush && "*"}
+      </span>
+    </Tip>
   </div>
 )
 
 // Square root: a 1 ms update still shows, and two frames' budget fills the strip.
 const barHeight = (total: number) => Math.max(6, Math.min(100, Math.sqrt(total / (2 * SLOW_MS)) * 100))
 
-/** One bar per entry, its height the update's time (dispatch and flush); the line is a frame's budget. */
-const Timeline = ({rows, selected, onSelect}: {rows: LogRow[]; selected: number | null; onSelect: (index: number) => void}) => (
-  <div aria-hidden="true" className="h-10 shrink-0 border-b px-2 py-1">
+const barOf = (target: EventTarget) => {
+  const index = target instanceof Element ? target.getAttribute("data-bar") : null
+  return index == null ? null : Number(index)
+}
+
+/**
+ * One bar per entry, its height the update's time (dispatch and flush); the line is a frame's
+ * budget. The hovered bar's times show in a corner (one readout, not a tooltip per bar).
+ */
+const Timeline = ({rows, selected, onSelect}: {rows: LogRow[]; selected: number | null; onSelect: (index: number) => void}) => {
+  const [hovered, setHovered] = useState<number | null>(null)
+  const shown = rows.find(row => row.index == hovered)
+  return (
+  <div aria-hidden="true" className="relative h-10 shrink-0 border-b px-2 py-1">
+    {shown && (
+      <span className="pointer-events-none absolute top-0.5 right-2 z-10 rounded bg-popover px-1 font-mono text-[11px] text-popover-foreground shadow-sm">
+        #{shown.index} · dispatch {ms(shown.dispatchMs)} ms · flush {ms(shown.flushMs)} ms
+      </span>
+    )}
     <div
       className="relative flex h-full items-end gap-px overflow-hidden"
       onClick={event => {
-        const index = event.target instanceof Element ? event.target.getAttribute("data-bar") : null
-        if (index != null) onSelect(Number(index))
+        const index = barOf(event.target)
+        if (index != null) onSelect(index)
       }}
+      onPointerOver={event => setHovered(barOf(event.target))}
+      onPointerLeave={() => setHovered(null)}
     >
       <div
         className="pointer-events-none absolute inset-x-0 border-t border-dashed border-destructive/50"
@@ -88,7 +115,6 @@ const Timeline = ({rows, selected, onSelect}: {rows: LogRow[]; selected: number 
         <div
           key={row.index}
           data-bar={row.index}
-          title={`#${row.index}: dispatch ${ms(row.dispatchMs)} ms, flush ${ms(row.flushMs)} ms`}
           className={cn(
             "max-w-2 min-w-px flex-1 cursor-pointer rounded-t-sm",
             isSlow(row) ? "bg-destructive" : "bg-primary/60",
@@ -99,7 +125,8 @@ const Timeline = ({rows, selected, onSelect}: {rows: LogRow[]; selected: number 
       ))}
     </div>
   </div>
-)
+  )
+}
 
 const Section = ({title, children}: {title: string; children: ReactNode}) => (
   <>
@@ -219,7 +246,7 @@ const EntryPane = ({source, row}: {source: LogSource; row: LogRow | null}) => {
   return (
     <aside
       aria-label="Transaction"
-      className="h-48 w-full shrink-0 overflow-auto border-t p-2 @2xl:h-auto @2xl:w-96 @2xl:border-t-0 @2xl:border-l"
+      className="h-full overflow-auto p-2"
     >
       {shown == null ? (
         <p className="text-muted-foreground">Select a transaction to see it here.</p>
@@ -244,13 +271,16 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
   const view = useSyncExternalStore(source.subscribe, source.get)
   const [selected, setSelected] = useState<number | null>(null)
   const scroller = useRef<HTMLDivElement | null>(null)
+  // State, not only a ref: the list may mount a render after this component (the split pane
+  // measures first), and the virtualizer reads its element when this component renders.
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const {rows} = view
   const rowCount = rows.length
 
   // The column header is a sticky row at the top of the scroller.
   const virtualizer = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => scroller.current,
+    getScrollElement: () => scrollElement,
     estimateSize: () => ROW,
     overscan: 20,
     scrollMargin: ROW,
@@ -288,6 +318,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
   const container = useCallback(
     (element: HTMLDivElement | null) => {
       scroller.current = element
+      setScrollElement(element)
       if (!element) return
       const shown = () => store.get().view == "log"
       let stale = true
@@ -398,7 +429,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
         </p>
       )}
       <Timeline rows={rows} selected={selected} onSelect={select} />
-      <div className="flex min-h-0 flex-1 flex-col @2xl:flex-row">
+      <SplitPane pane={<EntryPane source={source} row={selectedRow} />}>
         <div
           ref={container}
           role="listbox"
@@ -421,14 +452,18 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
               <span>time</span>
               <span>userEvent</span>
               <span>changed</span>
-              <span title="Effects">eff</span>
-              <span title="Annotations">ann</span>
-              <span className="text-right" title="Dispatch, ms">
-                disp
-              </span>
-              <span className="text-right" title="Flush, ms; * forced by DevTools">
-                flush
-              </span>
+              <Tip label="Effects">
+                <span>eff</span>
+              </Tip>
+              <Tip label="Annotations">
+                <span>ann</span>
+              </Tip>
+              <Tip label="Dispatch, ms">
+                <span className="text-right">disp</span>
+              </Tip>
+              <Tip label="Flush, ms; * forced by DevTools">
+                <span className="text-right">flush</span>
+              </Tip>
             </div>
             {!rows.length && view.loaded && (
               <p className="p-2 text-xs text-muted-foreground">
@@ -445,8 +480,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
             </div>
           </div>
         </div>
-        <EntryPane source={source} row={selectedRow} />
-      </div>
+      </SplitPane>
     </div>
   )
 }

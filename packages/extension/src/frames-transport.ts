@@ -141,6 +141,7 @@ export const createFramesTransport = (send: (frameId: number, message: ToBridge)
       return null
     },
     scrollIntoView: ({id, path}) => routed<"scrollIntoView">(id, page => ({type: "scrollIntoView", id: page, path})),
+    logNode: ({id, path}) => routed<"logNode">(id, page => ({type: "logNode", id: page, path})),
     setConsole: ({id, index}) => routed<"setConsole">(id, page => ({type: "setConsole", id: page, index})),
     repro: ({id}) => routed<"repro">(id, page => ({type: "repro", id: page})),
     pick: async ({on}) => {

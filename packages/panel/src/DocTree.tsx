@@ -5,10 +5,13 @@ import {cn} from "cn"
 import {ChevronDownIcon, ChevronRightIcon, LoaderIcon} from "lucide-react"
 import {useCallback, useRef, useState, useSyncExternalStore} from "react"
 import type {Path, SelectionInfo, TreeNode} from "wordgard-devtools"
+import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
 import {ROOT, itemId, parentOf, pathOf} from "./detail-cache.ts"
 import {createDocSource} from "./doc-source.ts"
+import {NodeMenu, createNodeMenuAnchor} from "./node-menu.tsx"
 import {NodePane, SelectionStrip, isPrefix, json} from "./node-pane.tsx"
+import {SplitPane} from "./split-pane.tsx"
 import type {PanelStore} from "./store.ts"
 
 const ROW = 20
@@ -35,13 +38,11 @@ const Row = ({
   start,
   selection,
   loading,
-  onHover,
 }: {
   item: ItemInstance<TreeNode>
   start: number
   selection: SelectionInfo | null
   loading: boolean
-  onHover: (path: Path) => void
 }) => {
   const node = item.getItemData()
   const holds = selection != null && (isPrefix(node.path, selection.headPath) || isPrefix(node.path, selection.anchorPath))
@@ -51,7 +52,7 @@ const Row = ({
     <div
       {...item.getProps()}
       data-path={node.path.join(".")}
-      onPointerEnter={() => onHover(node.path)}
+      data-name={node.name}
       data-selection={innermost ? "innermost" : holds ? "holds" : undefined}
       className={cn(
         "absolute inset-x-0 top-0 flex cursor-default items-center gap-1.5 pr-2 font-mono text-xs whitespace-nowrap outline-none",
@@ -81,10 +82,10 @@ const Row = ({
         </>
       )}
       {node.marks.map(mark => (
-        <span key={mark.name} className="rounded bg-muted px-1 text-muted-foreground">
+        <Tag key={mark.name}>
           {mark.name}
           {mark.preview != null && `=${mark.preview}`}
-        </span>
+        </Tag>
       ))}
       <span className="ml-auto shrink-0 pl-2 text-muted-foreground">
         {node.from}–{node.to}
@@ -103,9 +104,19 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
   const info = selection?.id == editorId ? selection.info : null
   const error = useSyncExternalStore(source.subscribe, source.error)
   const scroller = useRef<HTMLDivElement | null>(null)
+  // State, not only a ref: the list may mount a render after this component (the split pane
+  // measures first), and the virtualizer reads its element when this component renders.
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   // Controlled, so a refresh can collapse and refocus through React state.
   const [expandedItems, setExpandedItems] = useState<string[]>([])
   const [focusedItem, setFocusedItem] = useState<string | null>(null)
+  // The row a context menu opens on takes focus.
+  const [menu] = useState(() =>
+    createNodeMenuAnchor((row, path) => {
+      setFocusedItem(itemId(path))
+      row.focus({preventScroll: true})
+    }),
+  )
 
   // Rows are virtualized at a fixed height: scroll by index, the row may not be in the DOM.
   const scrollToRow = useCallback((index: number) => {
@@ -136,7 +147,7 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
   const items = tree.getItems()
   const virtualizer = useVirtualizer({
     count: items.length,
-    getScrollElement: () => scroller.current,
+    getScrollElement: () => scrollElement,
     estimateSize: () => ROW,
     overscan: 20,
   })
@@ -180,17 +191,27 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
     [source, tree, scrollToRow],
   )
 
-  const highlight = (path: Path | null) => {
-    store.transport.send({type: "highlight", id: editorId, path}).catch(() => {})
-  }
+  // A clicked row's node is outlined in the page until another is clicked, or the tab or editor changes.
+  const outlined = useRef(false)
+  const highlight = useCallback(
+    (path: Path | null) => {
+      if (!path && !outlined.current) return
+      outlined.current = path != null
+      store.transport.send({type: "highlight", id: editorId, path}).catch(() => {})
+    },
+    [store, editorId],
+  )
 
   // The tree's container: headless-tree's ref, plus the source, document-change and reveal subscriptions.
   const container = useCallback(
     (element: HTMLDivElement | null) => {
       scroller.current = element
+      setScrollElement(element)
       tree.registerElement(element)
       if (!element) return
       const stopSource = source.subscribe(() => tree.rebuildTree())
+      // Levels may have loaded before this subscription (the split pane mounts the list a render late).
+      tree.rebuildTree()
       const stopDoc = store.onDocChanged(id => {
         if (id == editorId) void refresh()
       })
@@ -201,8 +222,13 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
         if (path) void reveal(path)
       }
       const stopReveal = store.onReveal(takeReveal)
+      const stopView = store.subscribe(() => {
+        if (store.get().view != "tree") highlight(null)
+      })
       takeReveal()
       return () => {
+        stopView()
+        highlight(null)
         stopSource()
         stopDoc()
         stopReveal()
@@ -210,7 +236,7 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
         tree.registerElement(null)
       }
     },
-    [store, editorId, refresh, reveal, source, tree],
+    [store, editorId, refresh, reveal, source, tree, highlight],
   )
 
   return (
@@ -224,7 +250,7 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
           </Button>
         </p>
       )}
-      <div className="flex min-h-0 flex-1 flex-col @2xl:flex-row">
+      <SplitPane pane={<NodePane source={source} focused={focusedItem} />}>
         <div className="flex min-w-0 flex-1 flex-col">
           {tree.isSearchOpen() && (
             <input
@@ -240,7 +266,13 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
           <div
             {...tree.getContainerProps("Document")}
             ref={container}
-            onPointerLeave={() => highlight(null)}
+            onContextMenu={menu.onContextMenu}
+            onKeyDownCapture={menu.onKeyDown}
+            // Capture: the rows' own click handlers (focus, expand) stay headless-tree's.
+            onClickCapture={event => {
+              const path = event.target instanceof Element ? event.target.closest("[data-path]")?.getAttribute("data-path") : null
+              if (path != null) highlight(path ? path.split(".").map(Number) : [])
+            }}
             className="relative min-h-0 flex-1 overflow-auto outline-none"
           >
             <div style={{height: virtualizer.getTotalSize()}}>
@@ -254,7 +286,6 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
                       start={row.start}
                       selection={info}
                       loading={source.loading(item.getId())}
-                      onHover={highlight}
                     />
                   )
                 )
@@ -262,8 +293,8 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
             </div>
           </div>
         </div>
-        <NodePane source={source} focused={focusedItem} />
-      </div>
+      </SplitPane>
+      <NodeMenu store={store} editorId={editorId} anchor={menu} view="tree" />
     </div>
   )
 }

@@ -84,7 +84,7 @@ it("records transactions while recording, with their timing", async () => {
   expect(first?.textContent).toContain("doc")
   expect(second?.textContent).toContain("sel")
   // The flush's timing comes in after the rows.
-  await until(() => rows()[0]?.querySelector("[title^='Flush #']"))
+  await until(() => rows()[0]?.querySelector("[data-flush]"))
 
   button("Pause")?.click()
   await until(() => button("Record"))
@@ -115,7 +115,7 @@ it("loads only the rows it lacks, and clears", async () => {
   await until(() => button("Pause"))
   type(editor, "a")
   editor.flush()
-  await until(() => rows().length == 1 && rows()[0]?.querySelector("[title^='Flush #']"))
+  await until(() => rows().length == 1 && rows()[0]?.querySelector("[data-flush]"))
   sent.length = 0
   type(editor, "b")
   await until(() => rows().length == 2)

@@ -6,23 +6,26 @@ import {createFieldsSource, type FieldsSource} from "./fields-source.ts"
 import {clock} from "./Log.tsx"
 import {Field as Line, json} from "./node-pane.tsx"
 import type {PanelStore} from "./store.ts"
+import {SplitPane} from "./split-pane.tsx"
+import {Tip} from "./tip.tsx"
 
 /** A change's time, and its transaction in the log as a link. */
 const When = ({change, onLog}: {change: FieldChange; onLog: (index: number) => void}) => (
   <span className="flex gap-2">
     <span className="text-muted-foreground">{clock(change.time)}</span>
     {change.log != null && (
-      <button
-        type="button"
-        className="cursor-pointer text-primary hover:underline"
-        title="Show the transaction in the log"
-        onClick={event => {
-          event.stopPropagation()
-          if (change.log != null) onLog(change.log)
-        }}
-      >
-        #{change.log}
-      </button>
+      <Tip label="Show the transaction in the log">
+        <button
+          type="button"
+          className="cursor-pointer text-primary hover:underline"
+          onClick={event => {
+            event.stopPropagation()
+            if (change.log != null) onLog(change.log)
+          }}
+        >
+          #{change.log}
+        </button>
+      </Tip>
     )}
   </span>
 )
@@ -129,6 +132,18 @@ export const Fields = ({store, editorId}: {store: PanelStore; editorId: number})
     if (next) setSelected(next.index)
   }
 
+  const pane = (
+    <aside aria-label="Field" className="h-full overflow-auto p-2">
+      {shownIndex == null ? (
+        <p className="text-muted-foreground">Select a field to see it here.</p>
+      ) : (
+        <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
+          <FieldView source={source} index={shownIndex} version={version} onLog={onLog} />
+        </Suspense>
+      )}
+    </aside>
+  )
+
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
       {error != null && (
@@ -143,7 +158,7 @@ export const Fields = ({store, editorId}: {store: PanelStore; editorId: number})
         {info?.tracking ? "Tracking changes" : "Not tracking changes"} while this tab is shown or the log records.
         Name fields with <code className="mx-1 font-mono">wordgardDevtools({"{fields: {name: field}}"})</code>.
       </p>
-      <div className="flex min-h-0 flex-1 flex-col @2xl:flex-row">
+      <SplitPane pane={pane}>
         <div
           ref={container}
           role="listbox"
@@ -169,26 +184,16 @@ export const Fields = ({store, editorId}: {store: PanelStore; editorId: number})
             >
               <span className={cn("truncate", !field.named && "text-muted-foreground")}>{field.name}</span>
               <span className={cn("truncate", field.preview == null && "text-muted-foreground")}>{field.preview ?? "–"}</span>
-              <span className="text-right text-muted-foreground" title="Changes seen">
-                {field.changes || ""}
-              </span>
+              <Tip label="Changes seen">
+                <span data-changes className="text-right text-muted-foreground">
+                  {field.changes || ""}
+                </span>
+              </Tip>
               <span>{field.last && <When change={field.last} onLog={onLog} />}</span>
             </div>
           ))}
         </div>
-        <aside
-          aria-label="Field"
-          className="h-48 w-full shrink-0 overflow-auto border-t p-2 @2xl:h-auto @2xl:w-96 @2xl:border-t-0 @2xl:border-l"
-        >
-          {shownIndex == null ? (
-            <p className="text-muted-foreground">Select a field to see it here.</p>
-          ) : (
-            <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
-              <FieldView source={source} index={shownIndex} version={version} onLog={onLog} />
-            </Suspense>
-          )}
-        </aside>
-      </div>
+      </SplitPane>
     </div>
   )
 }

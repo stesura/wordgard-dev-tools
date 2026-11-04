@@ -18,6 +18,10 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       "@base-ui/react/button",
+      "@base-ui/react/context-menu",
+      "@base-ui/react/menu",
+      "@base-ui/react/merge-props",
+      "@base-ui/react/use-render",
       "@base-ui/react/select",
       "@base-ui/react/tabs",
       "@base-ui/react/tooltip",
@@ -29,6 +33,7 @@ export default defineConfig({
       "lucide-react",
       "react",
       "react-dom/client",
+      "react-resizable-panels",
       "wordgard/doc",
       "wordgard/editor",
       "wordgard/history",

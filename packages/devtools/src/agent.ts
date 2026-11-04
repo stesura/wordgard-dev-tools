@@ -98,6 +98,12 @@ const createHandlers = (
       inspector.scrollIntoView(entry(id), path)
       return null
     },
+    logNode: ({id, path}) => {
+      const found = s.locate(entry(id).wg.state.doc, path)
+      if (!found) throw new Error(`No node at path [${path.join(", ")}]`)
+      console.log(`[wordgard-devtools] ${found.node.name} at [${path.join(", ")}], ${found.from}–${found.from + found.node.length}`, found.node)
+      return null
+    },
     setConsole: notYet(6),
     repro: notYet(7),
   }

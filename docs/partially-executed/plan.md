@@ -756,6 +756,43 @@ Rejected:
 
 Nothing found in phase 5's reworked timer.
 
+### Also done at the user's request (2026-11-04)
+
+- The Tree tab outlines a node in the page when its row is clicked, not hovered (phase 4 had
+  hover). The outline stays until another row is clicked, the tab changes or the editor does. The
+  Structure tab still outlines on hover.
+- The toolbar's dock-side and theme buttons, which cycled, are dropdown menus (shadcn's Dropdown Menu
+  on Base UI's Menu, radio items): `ChoiceMenu` in `Panel.tsx`.
+- Tree rows and Structure boxes have a context menu (right-click, Shift+F10 or the ContextMenu
+  key): scroll into view in the page, show in the other tab (`store.showNode`), copy JSON, copy
+  path. As in Stesura's editor (`editor-react/src/floating-menus/context-menu`), one menu per view
+  opens through a hidden trigger, so no menu root or trigger wraps the rows; the row it opens on
+  takes focus, and gets it back when the menu closes. `node-menu.tsx`.
+- Flags, marks and tags use shadcn's Badge (a compact `Tag`). The Base UI components come from the
+  scratch project, converted to arrow functions, their popups portalled into the panel's root.
+- The side pane (node, transaction, field) is resizable (shadcn's Resizable, react-resizable-panels
+  4) and can't collapse: `split-pane.tsx`, side by side from 672 px wide, stacked below. Its size is
+  kept per orientation, for every tab and editor (`localStorage` `wordgard-devtools:pane`). The
+  virtualized lists now hold their scroll element in state, and the tree rebuilds when it
+  subscribes: the split pane mounts the list a render late.
+- The Structure tab outlines on click too (not hover). Its boxes holding blocks collapse (chevron;
+  ArrowRight opens, ArrowLeft closes; a reveal opens the boxes on the way).
+- The page outline sits one z-index below the in-page dock, so it passes under the panel.
+- The selection strip is labelled "Selection" and wraps when narrow.
+- Schema tab: "n nodes" and "m marks" are toggles showing one kind only; each section filters by
+  tag (a type shows with every pressed tag: plot, block, textblock, defining, canBeEmpty, …;
+  inclusive, spanning, element, …); marks order by schema or by rank. The document and line break
+  names are gone from the header.
+- The row context menu gained "Show <type> type in Schema" (`store.showType`) and "Log to the
+  page's console" (new `logNode` request: the agent logs the node object).
+- The title reads "Wordgard DevTools"; docked left or right, it sits on its own tinted row. Tabs
+  wrap instead of being cut off.
+- `title` attributes became shadcn tooltips (`tip.tsx`); the timeline shows the hovered bar's times
+  in a corner instead of a tooltip per bar.
+- The dock's collapse button is a Close button (it still leaves the reopen button). A Pause button
+  (`store.pause`) stops the panel as closing does: no pushes, no editor attached, so the plugins'
+  listeners only check their flags; an overlay with a play button resumes.
+
 ### Open points
 
 - Field indices can shift on a reconfigure that adds or removes a field: the selected field may

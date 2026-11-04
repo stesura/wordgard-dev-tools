@@ -1,4 +1,5 @@
 import {afterEach, expect, it} from "vitest"
+import {userEvent} from "vitest/browser"
 import {Leaf} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
 import {basicSchema} from "wordgard/schema"
@@ -88,7 +89,7 @@ it("collapses to a button and detaches", async () => {
   mounted = mountDevtools()
   await mounted.ready
   await until(() => entryOf(a)?.attached)
-  const collapse = await until(() => shadow().querySelector<HTMLElement>("[aria-label='Collapse']"))
+  const collapse = await until(() => shadow().querySelector<HTMLElement>("[aria-label='Close']"))
   collapse.click()
   const expand = await until(() =>
     [...shadow().querySelectorAll("button")].find(button => button.textContent == "Wordgard DevTools"),
@@ -130,6 +131,28 @@ it("follows the picked editor through a remount", async () => {
   expect(entryOf(again)?.attached).toBe(true)
 })
 
+/** Through the Dock menu. */
+const dockTo = async (side: string) => {
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label^='Dock: ']"))).click()
+  const item = await until(() =>
+    [...shadow().querySelectorAll<HTMLElement>("[role='menuitemradio']")].find(element => element.textContent == side),
+  )
+  item.click()
+}
+
+it("switches the theme from its menu", async () => {
+  open("first", "<p>Alpha</p>")
+  mounted = mountDevtools()
+  await mounted.ready
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label^='Theme: ']"))).click()
+  const dark = await until(() =>
+    [...shadow().querySelectorAll<HTMLElement>("[role='menuitemradio']")].find(element => element.textContent == "Dark"),
+  )
+  dark.click()
+  await until(() => shadow().querySelector("[aria-label='Theme: Dark']"))
+  expect(shadow().querySelector(".dark")).not.toBeNull()
+})
+
 it("docks on any side, and remembers it", async () => {
   open("first", "<p>Alpha</p>")
   mounted = mountDevtools()
@@ -137,15 +160,63 @@ it("docks on any side, and remembers it", async () => {
   const dock = await until(() => shadow().querySelector<HTMLElement>("[role='region']"))
   expect(dock.dataset.side).toBe("bottom")
   expect(shadow().textContent).not.toContain("protocol")
-  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Dock to the right']"))).click()
+  await dockTo("Right")
   const right = await until(() => shadow().querySelector<HTMLElement>("[data-side='right']"))
   expect(right.getBoundingClientRect().right).toBe(window.innerWidth)
   // 420 px, or the viewport less 40 when narrower.
   const width = Math.min(420, window.innerWidth - 40)
   expect(right.style.width).toBe(`${width}px`)
   expect(JSON.parse(localStorage.getItem("wordgard-devtools:dock") ?? "{}")).toMatchObject({side: "right", size: width})
-  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Dock to the top']"))).click()
+  await dockTo("Top")
   const top = await until(() => shadow().querySelector<HTMLElement>("[data-side='top']"))
   expect(top.getBoundingClientRect().top).toBe(0)
 })
 
+
+it("pauses: the editor is detached and the panel shows it, until resumed", async () => {
+  const editor = open("first", "<p>Alpha</p>")
+  mounted = mountDevtools()
+  await mounted.ready
+  await until(() => entryOf(editor)?.attached)
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Pause the devtool']"))).click()
+  await until(() => !entryOf(editor)?.attached)
+  const resume = await until(() =>
+    [...shadow().querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent?.includes("The devtool is paused")),
+  )
+  resume.click()
+  await until(() => entryOf(editor)?.attached)
+  expect(shadow().textContent).not.toContain("The devtool is paused")
+})
+
+it("switches tabs from the keyboard", async () => {
+  open("first", "<p>Alpha</p>")
+  mounted = mountDevtools()
+  await mounted.ready
+  const tabs = await until(() => {
+    const found = [...shadow().querySelectorAll<HTMLElement>("[role='tab']")]
+    return found.length > 0 && found
+  })
+  tabs[0]?.focus()
+  await userEvent.keyboard("{ArrowRight}")
+  expect(shadow().activeElement?.textContent).toBe("Structure")
+  await userEvent.keyboard("{Enter}")
+  await until(() => tabs[1]?.getAttribute("aria-selected") == "true")
+  // One tab stop: the selected tab.
+  expect(tabs.map(tab => tab.tabIndex)).toEqual([-1, 0, -1, -1, -1])
+})
+
+it("puts the title on its own row when docked at a side, and keeps every tab visible", async () => {
+  open("first", "<p>Alpha</p>")
+  localStorage.setItem("wordgard-devtools:dock", JSON.stringify({side: "right", size: 260, collapsed: false}))
+  mounted = mountDevtools()
+  await mounted.ready
+  const title = await until(() => [...shadow().querySelectorAll("div")].find(d => d.textContent == "Wordgard DevTools"))
+  expect(title.className).toContain("bg-muted")
+  const tabs = await until(() => {
+    const found = [...shadow().querySelectorAll<HTMLElement>("[role='tab']")]
+    return found.length > 0 && found
+  })
+  const dock = await until(() => shadow().querySelector<HTMLElement>("[role='region']"))
+  const right = dock.getBoundingClientRect().right
+  expect(tabs.every(tab => tab.getBoundingClientRect().right <= right + 0.5)).toBe(true)
+})

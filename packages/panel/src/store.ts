@@ -14,6 +14,8 @@ export type PanelState = {
   notices: string[]
   /** Pick mode: the next click on an editor in the page selects its node. */
   picking: boolean
+  /** Paused by the user: no pushes, no editor attached, so the page's plugins do nothing. */
+  paused: boolean
   /** The tab shown for the selected editor. */
   view: View
 }
@@ -34,14 +36,21 @@ export type PanelStore = {
   setView: (view: View) => void
   /** A node to reveal in an editor's tree (a pick): taken once, by that editor's tree. */
   takeReveal: (id: number) => Path | null
+  /** Shows a node type's card in the Schema tab (taken once with `takeTypeReveal`). */
+  showType: (id: number, name: string) => void
+  takeTypeReveal: (id: number) => string | null
+  /** Shows a node in the Tree or the Structure tab. */
+  showNode: (id: number, path: Path, view: "tree" | "structure") => void
   /** Shows the Log tab with an entry selected (taken once with `takeLogReveal`). */
   showLogEntry: (id: number, index: number) => void
   takeLogReveal: (id: number) => number | null
   /** A reveal is waiting; the tree takes it with `takeReveal`, the log with `takeLogReveal`. */
   onReveal: (listener: () => void) => () => void
   transport: Transport
-  /** Subscribes to pushes and loads the editors. Returns the stop function, which detaches. */
+  /** Subscribes to pushes and loads the editors (unless paused). Returns the stop function, which detaches. */
   start: () => () => void
+  /** Pausing detaches as stopping does; resuming starts again. */
+  pause: (on: boolean) => void
 }
 
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -55,6 +64,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     error: null,
     notices: [],
     picking: false,
+    paused: false,
     view: "tree",
   }
   const listeners = new Set<() => void>()
@@ -65,6 +75,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   const revealListeners = new Set<() => void>()
   let reveal: {id: number; path: Path} | null = null
   let logReveal: {id: number; index: number} | null = null
+  let typeReveal: {id: number; name: string} | null = null
   const set = (patch: Partial<PanelState>) => {
     state = {...state, ...patch}
     for (const listener of listeners) listener()
@@ -177,6 +188,37 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     }
   }
 
+  // The host's start, and pause, run this; its result undoes it.
+  let started = false
+  let stopRun: (() => void) | null = null
+  const activate = () => {
+    run++
+    running = true
+    let stopPushes = () => {}
+    try {
+      stopPushes = transport.onPush(onPush)
+    } catch (e) {
+      fail(e)
+    }
+    void refreshEditors()
+    return () => {
+      run++
+      running = false
+      stopPushes()
+      if (frame != null) cancelAnimationFrame(frame)
+      frame = null
+      docChanged = stateChanged = logChanged = configChanged = false
+      if (state.picking) set({picking: false})
+      for (const request of [
+        {type: "pick", on: false},
+        {type: "highlight", id: 0, path: null},
+        {type: "select", id: null},
+      ] satisfies Request[]) {
+        transport.send(request).catch(() => {})
+      }
+    }
+  }
+
   return {
     get: () => state,
     subscribe: listener => {
@@ -218,6 +260,22 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       reveal = null
       return path
     },
+    showType: (id, name) => {
+      typeReveal = {id, name}
+      set({view: "schema"})
+      for (const listener of revealListeners) listener()
+    },
+    takeTypeReveal: id => {
+      if (typeReveal?.id != id) return null
+      const {name} = typeReveal
+      typeReveal = null
+      return name
+    },
+    showNode: (id, path, view) => {
+      reveal = {id, path}
+      set({view})
+      for (const listener of revealListeners) listener()
+    },
     showLogEntry: (id, index) => {
       logReveal = {id, index}
       set({view: "log"})
@@ -237,31 +295,21 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     },
     transport,
     start: () => {
-      run++
-      running = true
-      let stopPushes = () => {}
-      try {
-        stopPushes = transport.onPush(onPush)
-      } catch (e) {
-        fail(e)
-      }
-      void refreshEditors()
+      started = true
+      if (!state.paused) stopRun = activate()
       return () => {
-        run++
-        running = false
-        stopPushes()
-        if (frame != null) cancelAnimationFrame(frame)
-        frame = null
-        docChanged = stateChanged = logChanged = configChanged = false
-        if (state.picking) set({picking: false})
-        for (const request of [
-          {type: "pick", on: false},
-          {type: "highlight", id: 0, path: null},
-          {type: "select", id: null},
-        ] satisfies Request[]) {
-          transport.send(request).catch(() => {})
-        }
+        started = false
+        stopRun?.()
+        stopRun = null
       }
+    },
+    pause: on => {
+      if (on == state.paused) return
+      set({paused: on})
+      if (!started) return
+      stopRun?.()
+      stopRun = on ? null : activate()
     },
   }
 }
+
