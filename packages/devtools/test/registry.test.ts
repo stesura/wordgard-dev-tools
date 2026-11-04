@@ -201,9 +201,9 @@ describe("agent", () => {
     const id = registry().editors.get(wg)?.id ?? 0
     expect(await agent().request({type: "selection", id: 999})).toEqual({ok: false, error: "No editor with id 999"})
     expect(await agent().request({type: "node", id, path: [9]})).toEqual({ok: false, error: "No node at path [9]"})
-    expect(await agent().request({type: "pick", on: true})).toEqual({
+    expect(await agent().request({type: "repro", id})).toEqual({
       ok: false,
-      error: "Not implemented yet (plan phase 4)",
+      error: "Not implemented yet (plan phase 7)",
     })
   })
 })

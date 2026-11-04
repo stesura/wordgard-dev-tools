@@ -94,6 +94,33 @@ it("switches to an editor in an iframe and follows it", async () => {
   await panel.getByText(/Typed/).waitFor()
 })
 
+it("outlines a hovered row's node in the page", async () => {
+  await panel.getByLabel("Editor").click()
+  await panel.getByRole("option", {name: /right/}).click()
+  await panel.locator("[data-path='0']").hover()
+  await demo.locator("[data-wordgard-devtools-overlay]").getByText("Paragraph").waitFor()
+  await panel.getByText("Wordgard", {exact: true}).hover()
+  await demo.locator("[data-wordgard-devtools-overlay]").waitFor({state: "detached"})
+})
+
+it("picks a node in an iframe's editor without moving its caret", async () => {
+  const frame = demo.frames()[1]
+  if (!frame) throw new Error("No iframe")
+  const caret = () =>
+    frame.evaluate(() => {
+      const wg = [...(window.__WORDGARD_DEVTOOLS__?.editors.values() ?? [])][0]?.wg
+      return wg && [wg.state.selection.anchor, wg.state.selection.head]
+    })
+  const before = await caret()
+  await panel.getByLabel("Pick a node in the page").click()
+  await demo.frameLocator("iframe").getByText("An editor in an iframe.").click()
+  await expect.poll(() => panel.getByLabel("Editor").textContent()).toContain("framed")
+  // Playwright clicks the paragraph's centre, past its text: the paragraph is picked, and focused.
+  await expect.poll(() => panel.evaluate(() => document.activeElement?.getAttribute("data-path"))).toBe("0")
+  expect(await panel.getByLabel("Pick a node in the page").getAttribute("aria-pressed")).toBe("false")
+  expect(await caret()).toEqual(before)
+})
+
 it("keeps the picked editor across a reload", async () => {
   await panel.getByLabel("Editor").click()
   await panel.getByRole("option", {name: /right/}).click()

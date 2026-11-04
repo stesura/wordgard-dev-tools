@@ -1,8 +1,9 @@
 # Wordgard DevTools — plan
 
-Status: PARTIALLY EXECUTED. Phases 0, 1, 2, 2b and 3 done on 2026-11-04, see the implementation
+Status: PARTIALLY EXECUTED. Phases 0, 1, 2, 2b, 3 and 4 done on 2026-11-04, see the implementation
 notes for [0-2](#implementation-notes-phases-0-2-2026-11-04),
-[2b](#implementation-notes-phase-2b-2026-11-04) and [3](#implementation-notes-phase-3-2026-11-04). Drafted 2026-11-04, revised
+[2b](#implementation-notes-phase-2b-2026-11-04), [3](#implementation-notes-phase-3-2026-11-04) and
+[4](#implementation-notes-phase-4-2026-11-04). Drafted 2026-11-04, revised
 after a Fable review the same day, see [Review](#review-2026-11-04).
 
 A browser DevTools panel for [Wordgard](../../../wordgard) editors, the counterpart of
@@ -272,7 +273,7 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
 2b. **Executed.** Extension shell: on-demand injection, bridge, `chrome.runtime` transport, frames, protocol
    handshake, DevTools theme. Can run after any later phase.
 3. **Executed.** Doc tree and selection.
-4. Element picker.
+4. **Executed.** Element picker.
 5. Transaction log and timing.
 6. `$wg` / `$tr`.
 7. Copy as repro, tested by running the generated script in Node.
@@ -496,3 +497,41 @@ the first found the tree's cache broken (below), the second checked the rewrite.
 Out of scope: very large documents (thousands of top-level nodes). Every refresh resends each
 expanded level whole, about 1.6 MB per frame of typing for 10 000 paragraphs over the extension.
 The panel is for developers troubleshooting, not for documents that size.
+
+## Implementation notes: phase 4 (2026-11-04)
+
+Checks at the end: `npm run typecheck`; `npm test` (devtools 37, panel 28, extension 12, two
+consecutive clean runs); `npm run build`; e2e 7 tests (hover outline in the page; a pick in the
+iframe's editor that leaves its caret where it was). A Fable audit followed; its findings are fixed
+or noted below.
+
+### How it works
+
+- `packages/devtools/src/inspect.ts`, loaded with the serialisers: the outline is a fixed-position
+  overlay on `document.body` (`pointer-events: none`, a label with the node's name), from the
+  node's element box (`nodeDOM`) or, for text and element-less nodes, the client rects of a range
+  between `domAtPos(from, 1)` and `domAtPos(to, -1)`. It follows scrolling and resizing.
+- Pick mode listens in the capture phase on `window` (pointer, mouse, click, dblclick,
+  contextmenu, keydown). Events whose composed path holds an editor's `contentDOM` are swallowed
+  (`preventDefault` + `stopImmediatePropagation`); Chromium then skips the compatibility
+  `mousedown`, so Wordgard never starts a selection, and the editor doesn't take focus. The node is
+  `nodeFromDOM(target)`, refined to the text leaf under the pointer with `posAtCoords` (at a leaf
+  boundary, the leaf on the pointer's side, if the pointer is over it). A click pushes
+  `picked(id, path)`; picking ending any other way (Escape, a panel's `pick(false)`, the extension
+  detaching) pushes the new `pickCancelled`, so every panel's Pick button stays in step.
+- The panel: a Pick toggle. A pick selects the editor as the user's choice and reveals the node in
+  its tree (also when the pick switched editors: the new tree takes the reveal on mount). A panel
+  that didn't start picking ignores `picked`. Hovering a tree row outlines its node; leaving the
+  tree hides it. `highlight` with `path: null` hides the outline whatever the id; the extension's
+  transport sends it to every frame.
+
+### Deviations
+
+- Events are swallowed in editors' content only, not window-wide as planned: the in-page panel,
+  the page around, and an editor's own panels, menu bar and dialogs (outside `contentDOM`) keep
+  working in pick mode.
+- `stopImmediatePropagation`, not `stopPropagation`. Listeners the page put in the capture phase on
+  `window` before the picker still see the swallowed events (not `defaultPrevented`); inherent.
+- The plan's "text targets use `parentElement`" isn't needed: event targets are elements.
+- Escape cancels only in the page. In the extension, Escape in DevTools belongs to DevTools; the
+  Pick button toggles off.

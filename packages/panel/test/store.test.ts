@@ -29,8 +29,11 @@ const fakeAgent = (ids: number[], delay = 20) => {
     clear: unsupported,
     log: unsupported,
     entry: unsupported,
-    highlight: unsupported,
-    pick: unsupported,
+    highlight: () => null,
+    pick: ({on}) => {
+      sent.push(`pick:${on}`)
+      return null
+    },
     setConsole: unsupported,
     repro: unsupported,
   }
@@ -62,7 +65,10 @@ const fakeAgent = (ids: number[], delay = 20) => {
     editors = [...editors, {id, name, attached: false, recording: false}].sort((a, b) => a.id - b.id)
     for (const listener of listeners) listener({type: "editorsChanged"})
   }
-  return {transport, sent, remove, add, attached: () => editors.filter(e => e.attached).map(e => e.id)}
+  const push = (message: Push) => {
+    for (const listener of listeners) listener(message)
+  }
+  return {transport, sent, remove, add, push, attached: () => editors.filter(e => e.attached).map(e => e.id)}
 }
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 150))
@@ -73,7 +79,7 @@ it("doesn't attach an editor once stopped", async () => {
   const stop = store.start()
   stop()
   await settle()
-  expect(agent.sent).toEqual(["listEditors", "select:null"])
+  expect(agent.sent).toEqual(["listEditors", "pick:false", "select:null"])
   expect(agent.attached()).toEqual([])
 })
 
@@ -105,5 +111,37 @@ it("follows the chosen editor's name when it is remounted as a new instance", as
   agent.add(3, "e2")
   await settle()
   expect(store.get().selected).toBe(3)
+  stop()
+})
+
+it("ignores another panel's picks", async () => {
+  const agent = fakeAgent([1, 2])
+  const store = createPanelStore(agent.transport)
+  const stop = store.start()
+  await settle()
+  agent.push({type: "picked", id: 2, path: [0]})
+  await settle()
+  expect(store.get().selected).toBe(1)
+  expect(store.takeReveal(2)).toBeNull()
+  stop()
+})
+
+it("leaves pick mode when picking ends elsewhere", async () => {
+  const agent = fakeAgent([1, 2])
+  const store = createPanelStore(agent.transport)
+  const stop = store.start()
+  await settle()
+  store.pick(true)
+  await settle()
+  agent.sent.length = 0
+  agent.push({type: "pickCancelled"})
+  expect(store.get().picking).toBe(false)
+  await settle()
+  expect(agent.sent).toEqual([])
+  store.pick(true)
+  agent.push({type: "picked", id: 2, path: [0, 1]})
+  await settle()
+  expect(store.get()).toMatchObject({picking: false, selected: 2})
+  expect(store.takeReveal(2)).toEqual([0, 1])
   stop()
 })

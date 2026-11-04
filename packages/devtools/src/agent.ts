@@ -11,6 +11,7 @@ import {
   type Results,
 } from "./protocol.ts"
 import type {Agent, Entry, Registry} from "./registry.ts"
+import type * as Inspect from "./inspect.ts"
 import type * as Serialisers from "./serialise.ts"
 import {VERSION} from "./version.ts"
 
@@ -31,6 +32,7 @@ const notYet = (phase: number) => () => {
 const createHandlers = (
   registry: Registry,
   s: typeof Serialisers,
+  inspector: Inspect.Inspector,
   select: (client: Client, id: number | null) => void,
 ): Handlers => {
   const entry = (id: number) => {
@@ -60,8 +62,14 @@ const createHandlers = (
     clear: notYet(5),
     log: notYet(5),
     entry: notYet(5),
-    highlight: notYet(4),
-    pick: notYet(4),
+    highlight: ({id, path}) => {
+      inspector.highlight(path ? entry(id) : null, path)
+      return null
+    },
+    pick: ({on}) => {
+      inspector.pick(on)
+      return null
+    },
     setConsole: notYet(6),
     repro: notYet(7),
   }
@@ -78,6 +86,7 @@ export const createAgent = (registry: Registry): Agent => {
   // Set once a request arrives over postMessage, i.e. a bridge is listening.
   let remote = false
   let handlers: Promise<Handlers> | null = null
+  let inspector: Inspect.Inspector | null = null
   // Each client's editor: one doesn't detach the other's (the dock and the extension at once).
   const selected: Record<Client, number | null> = {local: null, remote: null}
   const sync = () => {
@@ -103,8 +112,11 @@ export const createAgent = (registry: Registry): Agent => {
 
   // Serialisers load on the first request: pages that never open the panel skip them.
   const loadHandlers = () =>
-    (handlers ??= import("./serialise.ts").then(
-      s => createHandlers(registry, s, select),
+    (handlers ??= Promise.all([import("./serialise.ts"), import("./inspect.ts")]).then(
+      ([s, inspect]) => {
+        inspector = inspect.createInspector(registry, push)
+        return createHandlers(registry, s, inspector, select)
+      },
       e => {
         handlers = null
         throw e
@@ -134,6 +146,7 @@ export const createAgent = (registry: Registry): Agent => {
     if (fromBridge(data, "ping")) announce()
     else if (fromBridge(data, "detach")) {
       remote = false
+      inspector?.stop()
       select("remote", null)
     } else if (isRequest(data)) {
       const {id, v, request: message} = data

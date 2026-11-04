@@ -68,6 +68,7 @@ export type Requests = {
   clear: {id: number}
   log: {id: number; from: number; to: number}
   entry: {id: number; index: number}
+  /** Outlines the node in the page; `path: null` hides the outline (any `id`). */
   highlight: {id: number; path: Path | null}
   pick: {on: boolean}
   setConsole: {id: number; index?: number}
@@ -108,6 +109,8 @@ export type Push =
   | {type: "editorsChanged"}
   | {type: "stateChanged"; id: number; docChanged: boolean; selectionSet: boolean}
   | {type: "picked"; id: number; path: Path}
+  /** Picking ended without a pick (Escape in the page). */
+  | {type: "pickCancelled"}
   | {type: "logAppended"; id: number; count: number}
 
 export type Message =

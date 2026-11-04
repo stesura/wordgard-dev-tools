@@ -1,5 +1,5 @@
 import {cn} from "cn"
-import {MonitorIcon, MoonIcon, SunIcon} from "lucide-react"
+import {MonitorIcon, MoonIcon, MousePointerClickIcon, SunIcon} from "lucide-react"
 import {useState, useSyncExternalStore, type ReactNode} from "react"
 import type {EditorInfo} from "wordgard-devtools"
 import {PortalContainer} from "#components/portal"
@@ -41,6 +41,16 @@ const EditorPicker = ({store}: {store: PanelStore}) => {
   )
 }
 
+const PickButton = ({store}: {store: PanelStore}) => {
+  const {picking, editors} = useSyncExternalStore(store.subscribe, store.get)
+  if (!editors.length) return null
+  return (
+    <IconButton label="Pick a node in the page" pressed={picking} onClick={() => store.pick(!picking)}>
+      <MousePointerClickIcon className={cn(picking && "text-primary")} />
+    </IconButton>
+  )
+}
+
 const themeIcons: Record<ThemeChoice, ReactNode> = {
   system: <MonitorIcon />,
   light: <SunIcon />,
@@ -56,9 +66,30 @@ const ThemeToggle = ({theme}: {theme: ThemeStore}) => {
   )
 }
 
-export const IconButton = ({label, onClick, children}: {label: string; onClick: () => void; children: ReactNode}) => (
+export const IconButton = ({
+  label,
+  onClick,
+  pressed,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  /** A toggle's state. */
+  pressed?: boolean
+  children: ReactNode
+}) => (
   <Tooltip>
-    <TooltipTrigger render={<Button variant="ghost" size="icon-xs" aria-label={label} onClick={onClick} />}>
+    <TooltipTrigger
+      render={
+        <Button
+          variant={pressed ? "secondary" : "ghost"}
+          size="icon-xs"
+          aria-label={label}
+          aria-pressed={pressed}
+          onClick={onClick}
+        />
+      }
+    >
       {children}
     </TooltipTrigger>
     <TooltipContent side="top">{label}</TooltipContent>
@@ -115,6 +146,7 @@ export const Panel = ({store, theme, actions, className}: PanelProps) => {
         <header className="flex h-8 shrink-0 items-center gap-2 border-b px-2">
           <span className="font-semibold">Wordgard</span>
           <EditorPicker store={store} />
+          <PickButton store={store} />
           <span className="text-xs text-muted-foreground">
             {editors.length} editor{editors.length == 1 ? "" : "s"}
           </span>

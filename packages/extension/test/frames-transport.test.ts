@@ -86,7 +86,13 @@ describe("frames transport", () => {
       receive({type: "fromFrame", frameId, url: "", message: {type: "push", v: PROTOCOL, push: p}})
     push(7, {type: "stateChanged", id: 1, docChanged: true, selectionSet: false})
     push(0, {type: "stateChanged", id: 1, docChanged: true, selectionSet: false})
-    expect(pushed).toEqual([{type: "stateChanged", id: 1, docChanged: true, selectionSet: false}])
+    push(7, {type: "picked", id: 1, path: [0, 1]})
+    push(7, {type: "pickCancelled"})
+    expect(pushed).toEqual([
+      {type: "stateChanged", id: 1, docChanged: true, selectionSet: false},
+      {type: "picked", id: 1, path: [0, 1]},
+      {type: "pickCancelled"},
+    ])
   })
 
   it("forgets a frame that goes away, and doesn't reuse its ids", async () => {
@@ -133,6 +139,16 @@ describe("frames transport", () => {
     const {editors, notices} = await transport.send({type: "listEditors"})
     expect(editors).toEqual([])
     expect(notices).toEqual(["top.test/: the page didn't answer"])
+  })
+
+  it("hides the outline in every frame", async () => {
+    const frames = twoFrames()
+    const {transport, announce} = setup(frames)
+    announce(0)
+    announce(7)
+    await transport.send({type: "highlight", id: 0, path: null})
+    expect(frames[0].seen.at(-1)).toEqual({type: "highlight", id: 0, path: null})
+    expect(frames[7].seen.at(-1)).toEqual({type: "highlight", id: 0, path: null})
   })
 
   it("starts over when the connection drops, with new ids", async () => {

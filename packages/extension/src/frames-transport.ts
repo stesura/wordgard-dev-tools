@@ -129,7 +129,12 @@ export const createFramesTransport = (send: (frameId: number, message: ToBridge)
     clear: ({id}) => routed<"clear">(id, page => ({type: "clear", id: page})),
     log: ({id, from, to}) => routed<"log">(id, page => ({type: "log", id: page, from, to})),
     entry: ({id, index}) => routed<"entry">(id, page => ({type: "entry", id: page, index})),
-    highlight: ({id, path}) => routed<"highlight">(id, page => ({type: "highlight", id: page, path})),
+    // Hiding needs no editor: every frame hides its outline.
+    highlight: async ({id, path}) => {
+      if (path) return routed<"highlight">(id, page => ({type: "highlight", id: page, path}))
+      await Promise.allSettled(usableFrames().map(frameId => ask(frameId, {type: "highlight", id: 0, path: null})))
+      return null
+    },
     setConsole: ({id, index}) => routed<"setConsole">(id, page => ({type: "setConsole", id: page, index})),
     repro: ({id}) => routed<"repro">(id, page => ({type: "repro", id: page})),
     pick: async ({on}) => {
@@ -185,7 +190,7 @@ export const createFramesTransport = (send: (frameId: number, message: ToBridge)
       pending.get(m.id)?.settle(m.reply)
     } else if (usable(frameId)) {
       const push = m.push
-      emit(push.type == "editorsChanged" ? push : {...push, id: panelId(frameId, push.id)})
+      emit("id" in push ? {...push, id: panelId(frameId, push.id)} : push)
     }
   }
 

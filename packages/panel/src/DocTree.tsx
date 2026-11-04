@@ -126,11 +126,13 @@ const Row = ({
   start,
   selection,
   loading,
+  onHover,
 }: {
   item: ItemInstance<TreeNode>
   start: number
   selection: SelectionInfo | null
   loading: boolean
+  onHover: (path: Path) => void
 }) => {
   const node = item.getItemData()
   const holds = selection != null && (isPrefix(node.path, selection.headPath) || isPrefix(node.path, selection.anchorPath))
@@ -140,6 +142,7 @@ const Row = ({
     <div
       {...item.getProps()}
       data-path={node.path.join(".")}
+      onPointerEnter={() => onHover(node.path)}
       data-selection={innermost ? "innermost" : holds ? "holds" : undefined}
       className={cn(
         "absolute inset-x-0 top-0 flex cursor-default items-center gap-1.5 pr-2 font-mono text-xs whitespace-nowrap outline-none",
@@ -196,13 +199,13 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
   const [focusedItem, setFocusedItem] = useState<string | null>(null)
 
   // Rows are virtualized at a fixed height: scroll by index, the row may not be in the DOM.
-  const scrollToRow = (index: number) => {
+  const scrollToRow = useCallback((index: number) => {
     const element = scroller.current
     if (!element) return
     const top = index * ROW
     if (top < element.scrollTop) element.scrollTop = top
     else if (top + ROW > element.scrollTop + element.clientHeight) element.scrollTop = top + ROW - element.clientHeight
-  }
+  }, [])
 
   // The source owns the data (versioned per document change); headless-tree reads it synchronously.
   const tree = useTree<TreeNode>({
@@ -246,7 +249,33 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
     })
   }, [source, tree])
 
-  // The tree's container: headless-tree's ref, plus the source and document-change subscriptions.
+  const reveal = useCallback(
+    async (path: Path) => {
+      if (!path.length) return
+      const ancestors = steps(path).slice(0, -1)
+      const target = itemId(path)
+      // The levels down to the target, not the target's own children.
+      await source.load([ROOT, ...ancestors])
+      setExpandedItems(ids => [...new Set([...ids, ...ancestors])])
+      setFocusedItem(target)
+      // Once React has rendered the expanded levels (a few frames at most).
+      for (let frame = 0; frame < 30; frame++) {
+        await new Promise(requestAnimationFrame)
+        const index = tree.getItemInstance(target).getItemMeta().index
+        if (index < 0) continue
+        scrollToRow(index)
+        tree.updateDomFocus()
+        return
+      }
+    },
+    [source, tree, scrollToRow],
+  )
+
+  const highlight = (path: Path | null) => {
+    store.transport.send({type: "highlight", id: editorId, path}).catch(() => {})
+  }
+
+  // The tree's container: headless-tree's ref, plus the source, document-change and reveal subscriptions.
   const container = useCallback(
     (element: HTMLDivElement | null) => {
       scroller.current = element
@@ -256,38 +285,26 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
       const stopDoc = store.onDocChanged(id => {
         if (id == editorId) void refresh()
       })
+      const takeReveal = () => {
+        const path = store.takeReveal(editorId)
+        if (path) void reveal(path)
+      }
+      const stopReveal = store.onReveal(takeReveal)
+      takeReveal()
       return () => {
         stopSource()
         stopDoc()
+        stopReveal()
         scroller.current = null
         tree.registerElement(null)
       }
     },
-    [store, editorId, refresh, source, tree],
+    [store, editorId, refresh, reveal, source, tree],
   )
-
-  const reveal = async () => {
-    if (!info?.headPath.length) return
-    const ancestors = steps(info.headPath).slice(0, -1)
-    const target = itemId(info.headPath)
-    // The levels down to the target, not the target's own children.
-    await source.load([ROOT, ...ancestors])
-    setExpandedItems(ids => [...new Set([...ids, ...ancestors])])
-    setFocusedItem(target)
-    // Once React has rendered the expanded levels (a few frames at most).
-    for (let frame = 0; frame < 30; frame++) {
-      await new Promise(requestAnimationFrame)
-      const index = tree.getItemInstance(target).getItemMeta().index
-      if (index < 0) continue
-      scrollToRow(index)
-      tree.updateDomFocus()
-      return
-    }
-  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <SelectionStrip selection={info} onReveal={() => void reveal()} />
+      <SelectionStrip selection={info} onReveal={() => info && void reveal(info.headPath)} />
       {error != null && (
         <p role="alert" className="flex items-center gap-2 border-b px-2 py-1 text-destructive">
           Couldn't load the tree: {error}
@@ -312,6 +329,7 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
           <div
             {...tree.getContainerProps("Document")}
             ref={container}
+            onPointerLeave={() => highlight(null)}
             className="relative min-h-0 flex-1 overflow-auto outline-none"
           >
             <div style={{height: virtualizer.getTotalSize()}}>
@@ -325,6 +343,7 @@ export const DocTree = ({store, editorId}: {store: PanelStore; editorId: number}
                       start={row.start}
                       selection={info}
                       loading={source.loading(item.getId())}
+                      onHover={highlight}
                     />
                   )
                 )

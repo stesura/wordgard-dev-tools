@@ -1,4 +1,4 @@
-import type {AgentInfo, EditorInfo, Push, SelectionInfo} from "wordgard-devtools"
+import type {AgentInfo, EditorInfo, Path, Push, Request, SelectionInfo} from "wordgard-devtools"
 import type {Transport} from "./transport.ts"
 
 export type PanelState = {
@@ -10,6 +10,8 @@ export type PanelState = {
   error: string | null
   /** Problems with some frames, from the transport. */
   notices: string[]
+  /** Pick mode: the next click on an editor in the page selects its node. */
+  picking: boolean
 }
 
 export type PanelStore = {
@@ -18,6 +20,11 @@ export type PanelStore = {
   select: (id: number | null) => Promise<void>
   /** The selected editor's document changed (coalesced per frame). */
   onDocChanged: (listener: (id: number) => void) => () => void
+  pick: (on: boolean) => void
+  /** A node to reveal in an editor's tree (a pick): taken once, by that editor's tree. */
+  takeReveal: (id: number) => Path | null
+  /** A reveal is waiting; the tree takes it with `takeReveal`. */
+  onReveal: (listener: () => void) => () => void
   transport: Transport
   /** Subscribes to pushes and loads the editors. Returns the stop function, which detaches. */
   start: () => () => void
@@ -26,9 +33,19 @@ export type PanelStore = {
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 export const createPanelStore = (transport: Transport): PanelStore => {
-  let state: PanelState = {agent: null, editors: [], selected: null, selection: null, error: null, notices: []}
+  let state: PanelState = {
+    agent: null,
+    editors: [],
+    selected: null,
+    selection: null,
+    error: null,
+    notices: [],
+    picking: false,
+  }
   const listeners = new Set<() => void>()
   const docListeners = new Set<(id: number) => void>()
+  const revealListeners = new Set<() => void>()
+  let reveal: {id: number; path: Path} | null = null
   const set = (patch: Partial<PanelState>) => {
     state = {...state, ...patch}
     for (const listener of listeners) listener()
@@ -94,12 +111,28 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     }
   }
 
+  const pick = (on: boolean) => {
+    set({picking: on})
+    // To every frame, through the transport: one pick ends picking everywhere.
+    transport.send({type: "pick", on}).catch(fail)
+  }
+
   // Coalesced per frame: a burst of updates refetches once.
   let frame: number | null = null
   let docChanged = false
   const onPush = (push: Push) => {
     if (push.type == "editorsChanged") void refreshEditors()
-    else if (push.type == "stateChanged" && push.id == state.selected) {
+    // Another panel's picking (the dock and the extension on one page) isn't ours.
+    else if (push.type == "pickCancelled") {
+      if (state.picking) set({picking: false})
+    } else if (push.type == "picked") {
+      if (!state.picking) return
+      // Ends picking in the other frames too.
+      pick(false)
+      reveal = {id: push.id, path: push.path}
+      void select(push.id)
+      for (const listener of revealListeners) listener()
+    } else if (push.type == "stateChanged" && push.id == state.selected) {
       docChanged ||= push.docChanged
       frame ??= requestAnimationFrame(() => {
         frame = null
@@ -126,6 +159,19 @@ export const createPanelStore = (transport: Transport): PanelStore => {
         docListeners.delete(listener)
       }
     },
+    pick,
+    takeReveal: id => {
+      if (reveal?.id != id) return null
+      const {path} = reveal
+      reveal = null
+      return path
+    },
+    onReveal: listener => {
+      revealListeners.add(listener)
+      return () => {
+        revealListeners.delete(listener)
+      }
+    },
     transport,
     start: () => {
       run++
@@ -144,7 +190,14 @@ export const createPanelStore = (transport: Transport): PanelStore => {
         if (frame != null) cancelAnimationFrame(frame)
         frame = null
         docChanged = false
-        transport.send({type: "select", id: null}).catch(() => {})
+        if (state.picking) set({picking: false})
+        for (const request of [
+          {type: "pick", on: false},
+          {type: "highlight", id: 0, path: null},
+          {type: "select", id: null},
+        ] satisfies Request[]) {
+          transport.send(request).catch(() => {})
+        }
       }
     },
   }
