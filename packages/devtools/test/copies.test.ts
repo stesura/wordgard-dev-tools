@@ -4,7 +4,7 @@ import {expect, it} from "vitest"
 import {Leaf} from "wordgard/doc"
 import * as first from "../src/index.ts"
 import type * as Devtools from "../src/index.ts"
-import {editor, post, pushes, registry} from "./helpers.ts"
+import {editor, nextMessage, post, pushes, registry} from "./helpers.ts"
 
 const secondCopy = "../src/index.ts?copy=b"
 const loadSecond = async (): Promise<typeof Devtools> => import(/* @vite-ignore */ secondCopy)
@@ -14,8 +14,10 @@ it("shares one registry, and only its creator runs the agent", async () => {
   expect(second.wordgardDevtools).not.toBe(first.wordgardDevtools)
   expect(window.__WORDGARD_DEVTOOLS__).toBeUndefined()
 
-  // The second copy connects first, so it creates the registry and its agent.
+  // The second copy connects first, so it creates the registry and its agent, which announces itself.
+  const announced = nextMessage("announce")
   const a = editor(second.wordgardDevtools({name: "from second"}))
+  expect(await announced).toMatchObject({kind: "announce"})
   const created = registry().agent
   const b = editor(first.wordgardDevtools({name: "from first"}))
   expect(registry().agent).toBe(created)

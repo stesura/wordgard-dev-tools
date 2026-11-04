@@ -9,7 +9,8 @@ import {Tooltip, TooltipContent, TooltipTrigger} from "#components/ui/tooltip"
 import type {PanelStore, Summary} from "./store.ts"
 import {nextTheme, type ThemeChoice, type ThemeStore} from "./theme.ts"
 
-const editorLabel = (editor: EditorInfo) => `${editor.name} · #${editor.id}`
+const editorLabel = (editor: EditorInfo) =>
+  `${editor.name} · #${editor.id}` + (editor.frame ? ` · ${editor.frame}` : "")
 
 const EditorPicker = ({store}: {store: PanelStore}) => {
   const {editors, selected} = useSyncExternalStore(store.subscribe, store.get)
@@ -88,13 +89,16 @@ const SummaryView = ({summary}: {summary: Summary}) => (
 )
 
 const Body = ({store}: {store: PanelStore}) => {
-  const {editors, summary, error} = useSyncExternalStore(store.subscribe, store.get)
+  const {editors, summary, error, notices} = useSyncExternalStore(store.subscribe, store.get)
   return (
     <>
-      {error && (
-        <p role="alert" className="mb-2 text-destructive">
-          {error}
-        </p>
+      {[error, ...notices].map(
+        (text, index) =>
+          text && (
+            <p key={index} role="alert" className="mb-2 text-destructive">
+              {text}
+            </p>
+          ),
       )}
       {!editors.length ? (
         <p className="text-muted-foreground">

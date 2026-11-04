@@ -46,3 +46,6 @@ jobs:
       - name: Build
         working-directory: wordgard-devtools
         run: npm run build
+      - name: End to end (built extension against the built demo)
+        working-directory: wordgard-devtools
+        run: npm run e2e -w wordgard-devtools-extension

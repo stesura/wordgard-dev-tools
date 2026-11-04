@@ -63,3 +63,14 @@ export const post = (request: Request, v = PROTOCOL, wait = 50) =>
       resolve(replies)
     }, wait)
   })
+
+/** The next message the page receives of the given kind. */
+export const nextMessage = (kind: string) =>
+  new Promise<unknown>(resolve => {
+    const listen = (event: MessageEvent) => {
+      if (event.data?.source != SOURCE || event.data.kind != kind) return
+      window.removeEventListener("message", listen)
+      resolve(event.data)
+    }
+    window.addEventListener("message", listen)
+  })

@@ -12,11 +12,15 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "typecheck": "wxt prepare && tsc --noEmit",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare",
+    "test": "vitest run",
+    "e2e": "wxt build && npm run build -w demo && vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "wordgard-devtools": "0.0.0",
+    "wordgard-devtools-panel": "0.0.0"
   },
   "devDependencies": {
     "@wxt-dev/module-react": "^1.2.2",

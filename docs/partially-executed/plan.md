@@ -1,7 +1,8 @@
 # Wordgard DevTools — plan
 
-Status: PARTIALLY EXECUTED. Phases 0, 1 and 2 done on 2026-11-04, see
-[Implementation notes](#implementation-notes-phases-0-2-2026-11-04). Drafted 2026-11-04, revised
+Status: PARTIALLY EXECUTED. Phases 0, 1, 2 and 2b done on 2026-11-04, see
+[Implementation notes](#implementation-notes-phases-0-2-2026-11-04) and
+[2b's](#implementation-notes-phase-2b-2026-11-04). Drafted 2026-11-04, revised
 after a Fable review the same day, see [Review](#review-2026-11-04).
 
 A browser DevTools panel for [Wordgard](../../../wordgard) editors, the counterpart of
@@ -268,7 +269,7 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
 2. **Executed.** `wordgard-devtools-panel` shell: the `Transport` interface, the in-page
    transport and `mountDevtools()` (shadow root, dock, collapse), editor list and picker, theme.
    Docked in the demo.
-2b. Extension shell: on-demand injection, bridge, `chrome.runtime` transport, frames, protocol
+2b. **Executed.** Extension shell: on-demand injection, bridge, `chrome.runtime` transport, frames, protocol
    handshake, DevTools theme. Can run after any later phase.
 3. Doc tree and selection.
 4. Element picker.
@@ -383,3 +384,64 @@ while typing, remounting the react-wordgard editor, theme toggle, collapse.
   theme choice moves to `chrome.storage.local` there.
 - The version in `packages/devtools/src/version.ts` is a constant, checked against
   `package.json` by a test.
+
+## Implementation notes: phase 2b (2026-11-04)
+
+Checks at the end: `npm run typecheck`; `npm test` (devtools 25, panel 11, extension 11); `npm run
+build`; `npm run e2e -w wordgard-devtools-extension` (4 tests: the built extension against the
+built demo in Chromium, now in CI). A Fable audit followed; its accepted findings are fixed below.
+
+### How it works
+
+- **Background** (`packages/extension/src/background.ts`) keeps one panel port per tab and one
+  bridge port per frame. A panel's `init` injects the bridge into all frames; while the panel is
+  open, `webNavigation.onDOMContentLoaded` injects it into each frame that loads. When the panel's
+  port closes, the tab's bridges are disconnected. Permissions: `scripting`, `webNavigation`,
+  `storage`, host `<all_urls>`.
+- **Bridge** (`src/bridge.ts`, an unlisted script, 1.3 KB, no Wordgard) relays the agent's
+  postMessage protocol to its port. On connect it pings the page; a second injection reconnects
+  and pings again; a bfcache restore (`pageshow` with `persisted`) reconnects. When its port
+  closes it posts `detach`.
+- **Agent additions** (deviation): it posts `announce` (version, protocol) when created and when
+  pinged, so a bridge finds an agent created before or after it, and the panel only asks frames
+  that have one. That is one `postMessage` per page load even when no panel ever opens, beyond the
+  plan's "one map insert per connect, one message listener".
+- **Selection per client** (deviation, from the audit): `attached` was global, so the extension
+  and the in-page dock detached each other's editor. The agent now keeps one selection for direct
+  callers (the dock) and one for postMessage (the extension); `attached` means either. `detach`
+  clears only the extension's.
+- **Frames transport** (`src/frames-transport.ts`): one `Transport` over every frame. Panel ids
+  map to (frame, page id); a frame that goes away, or a dropped connection, forgets its ids, so a
+  new document's editors are never mistaken for the old ones. Requests time out after 10 s.
+  `select` waits only for the target frame. A frame with another protocol, a frame that doesn't
+  answer, or a page the bridge couldn't be injected into shows as a notice in the panel. Editors in
+  iframes are labelled with their frame's URL. The protocol gained `EditorInfo.frame`,
+  `listEditors`'s `notices`, and a nullable `agent`.
+- **Panel connection** (`src/panel-connection.ts`): reconnects when the service worker restarts,
+  which reinjects and reconnects the bridges, and pings every 20 s to keep it alive.
+- **Theme**: follows `devtools.panels.themeName` (live through `setThemeChangeHandler` on
+  Chrome); the choice is kept in `chrome.storage.local`. The panel's theme store takes a source
+  and a storage, synchronous or not.
+- **Panel package**: new `./ui` (the panel without the dock), `./transport` and `./styles.css`
+  exports. The extension bundle has no Wordgard code (tree-shaken through `sideEffects: false`).
+- **Demo**: an editor in an iframe (`demo/frame.html`). The in-page dock lists only the top
+  page's editors; the extension lists all.
+- **E2E**: opens the panel page as a tab with `?tabId=` (Playwright can't drive DevTools).
+
+### Rejected or deferred audit findings
+
+- Two panels for one tab: the background keeps one panel per tab. A browser gives a tab one
+  DevTools; only the e2e's `?tabId=` tab could add a second. Not handled.
+- A page can forge the protocol's messages (same window as the agent and the bridge). Inherent;
+  the page can call the agent directly anyway.
+- Replies from the page are typed `any` where they enter the extension (`src/messages.ts`): an
+  unchecked boundary, equivalent to a cast, stated there.
+
+### Open points
+
+- Not run on Firefox: the bridge's `event.source` check and `event.data` in a content script,
+  MV3 host permission grants (user-revocable there; a failed injection shows as a notice), and the
+  theme, which Firefox reports only at load.
+- Not exercised by tests: a service-worker restart, a bfcache restore, an injection failure in a
+  real browser (the transport's handling is unit-tested).
+- CI has still not run.

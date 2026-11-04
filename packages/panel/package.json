@@ -4,12 +4,28 @@
   "description": "Wordgard DevTools panel: React UI, transport-agnostic, mountable in-page",
   "license": "MIT",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "*.css"
+  ],
   "exports": {
     ".": {
       "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./ui": {
+      "source": "./src/ui.ts",
+      "types": "./dist/ui.d.ts",
+      "default": "./dist/ui.js"
+    },
+    "./transport": {
+      "source": "./src/transport.ts",
+      "types": "./dist/transport.d.ts",
+      "default": "./dist/transport.js"
+    },
+    "./styles.css": {
+      "source": "./src/styles.css",
+      "default": "./dist/styles.css"
     }
   },
   "imports": {

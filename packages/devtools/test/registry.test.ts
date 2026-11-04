@@ -4,8 +4,8 @@ import {Wordgard} from "wordgard/editor"
 import {blockquote} from "wordgard/schema"
 import {GardState} from "wordgard/state"
 import pkg from "../package.json" with {type: "json"}
-import {PROTOCOL, VERSION, mismatch, wordgardDevtools} from "../src/index.ts"
-import {agent, ask, editor, post, pushes, registry} from "./helpers.ts"
+import {PROTOCOL, SOURCE, VERSION, mismatch, wordgardDevtools} from "../src/index.ts"
+import {agent, ask, editor, nextMessage, post, pushes, registry} from "./helpers.ts"
 
 const editors: Wordgard[] = []
 
@@ -220,6 +220,48 @@ describe("postMessage", () => {
     })
     wg.dom.remove()
     expect(await pushed).toEqual({type: "editorsChanged"})
+  })
+
+  it("announces itself when pinged", async () => {
+    open(wordgardDevtools())
+    const announced = nextMessage("announce")
+    window.postMessage({source: SOURCE, v: PROTOCOL, kind: "ping"}, "*")
+    expect(await announced).toMatchObject({v: PROTOCOL, agent: {version: VERSION, protocol: PROTOCOL}})
+  })
+
+  it("keeps the in-page panel's and the extension's editors apart", async () => {
+    const a = open(wordgardDevtools())
+    const b = open(wordgardDevtools())
+    const id = (wg: Wordgard) => registry().editors.get(wg)?.id ?? 0
+    await ask({type: "select", id: id(a)})
+    await post({type: "select", id: id(b)})
+    expect([registry().editors.get(a)?.attached, registry().editors.get(b)?.attached]).toEqual([true, true])
+    window.postMessage({source: SOURCE, v: PROTOCOL, kind: "detach"}, "*")
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect([registry().editors.get(a)?.attached, registry().editors.get(b)?.attached]).toEqual([true, false])
+    // Reconnected, the same instance is attached again.
+    a.dom.remove()
+    document.body.appendChild(a.dom)
+    expect(registry().editors.get(a)?.attached).toBe(true)
+  })
+
+  it("detaches when the extension's panel goes away", async () => {
+    const wg = open(wordgardDevtools())
+    await post({type: "select", id: registry().editors.get(wg)?.id ?? 0})
+    expect(registry().editors.get(wg)?.attached).toBe(true)
+    window.postMessage({source: SOURCE, v: PROTOCOL, kind: "detach"}, "*")
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(registry().editors.get(wg)?.attached).toBe(false)
+    // No more pushes over postMessage.
+    let pushed = false
+    const listen = (event: MessageEvent) => {
+      if (event.data?.kind == "push") pushed = true
+    }
+    window.addEventListener("message", listen)
+    wg.dom.remove()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    window.removeEventListener("message", listen)
+    expect(pushed).toBe(false)
   })
 
   it("replies to a protocol mismatch", async () => {

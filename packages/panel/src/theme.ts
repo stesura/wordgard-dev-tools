@@ -7,47 +7,86 @@ export type ThemeStore = {
   set: (choice: ThemeChoice) => void
 }
 
+/** What "system" follows: `prefers-color-scheme` in-page, the DevTools theme in the extension. */
+export type ThemeSource = {
+  dark: () => boolean
+  subscribe: (listener: () => void) => () => void
+}
+
+/** Where the user's choice is kept. */
+export type ThemeStorage = {
+  load: () => ThemeChoice | null | Promise<ThemeChoice | null>
+  save: (choice: ThemeChoice) => void
+}
+
 export const nextTheme: Record<ThemeChoice, ThemeChoice> = {system: "light", light: "dark", dark: "system"}
 
-const isChoice = (value: unknown): value is ThemeChoice => value == "system" || value == "light" || value == "dark"
+export const isThemeChoice = (value: unknown): value is ThemeChoice =>
+  value == "system" || value == "light" || value == "dark"
 
-/** Follows `prefers-color-scheme` unless the user picked a theme, kept in localStorage. */
-export const createThemeStore = (key = "wordgard-devtools:theme"): ThemeStore => {
+export const prefersDark = (): ThemeSource => {
   const media = matchMedia("(prefers-color-scheme: dark)")
-  const listeners = new Set<() => void>()
-  const compute = (choice: ThemeChoice): Theme => ({choice, dark: choice == "dark" || (choice == "system" && media.matches)})
-  const read = () => {
+  return {
+    dark: () => media.matches,
+    subscribe: listener => {
+      media.addEventListener("change", listener)
+      return () => media.removeEventListener("change", listener)
+    },
+  }
+}
+
+export const localThemeStorage = (key = "wordgard-devtools:theme"): ThemeStorage => ({
+  load: () => {
     try {
       const stored = localStorage.getItem(key)
-      return isChoice(stored) ? stored : "system"
+      return isThemeChoice(stored) ? stored : null
     } catch {
-      return "system"
+      return null
     }
-  }
-  let theme = compute(read())
+  },
+  save: choice => {
+    try {
+      localStorage.setItem(key, choice)
+    } catch {
+      // Storage blocked: the choice lasts until reload.
+    }
+  },
+})
+
+export const createThemeStore = ({
+  source = prefersDark(),
+  storage = localThemeStorage(),
+}: {source?: ThemeSource; storage?: ThemeStorage} = {}): ThemeStore => {
+  const listeners = new Set<() => void>()
+  const compute = (choice: ThemeChoice): Theme => ({choice, dark: choice == "dark" || (choice == "system" && source.dark())})
+  let theme = compute("system")
   const update = (choice: ThemeChoice) => {
     const next = compute(choice)
     if (next.choice == theme.choice && next.dark == theme.dark) return
     theme = next
     for (const listener of listeners) listener()
   }
-  const onMedia = () => update(theme.choice)
+  // Loaded synchronously when the storage allows it, so the first paint has the right theme.
+  const loaded = storage.load()
+  if (loaded instanceof Promise) loaded.then(choice => choice && update(choice)).catch(() => {})
+  else if (loaded) theme = compute(loaded)
+
+  let stopSource: (() => void) | null = null
   return {
     get: () => theme,
     subscribe: listener => {
-      if (!listeners.size) media.addEventListener("change", onMedia)
+      stopSource ??= source.subscribe(() => update(theme.choice))
       listeners.add(listener)
       return () => {
         listeners.delete(listener)
-        if (!listeners.size) media.removeEventListener("change", onMedia)
+        if (!listeners.size && stopSource) {
+          stopSource()
+          stopSource = null
+        }
       }
     },
     set: choice => {
-      try {
-        localStorage.setItem(key, choice)
-      } catch {
-        // Storage blocked: the choice lasts until reload.
-      }
+      storage.save(choice)
       update(choice)
     },
   }

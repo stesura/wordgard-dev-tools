@@ -12,6 +12,10 @@ Wordgard DevTools: a DevTools panel for Wordgard editors. MIT. The plan is `docs
   and its `references/wordgard.md`.
 - Checks: `npm run typecheck`, `npm test` (Vitest, Chromium through Playwright; run
   `npx playwright install chromium` once), `npm run build`. Demo: `npm run dev`.
+- End to end: `npm run e2e -w wordgard-devtools-extension` builds the extension and the demo, then
+  drives the extension's panel page (opened with `?tabId=`) against the demo in Chromium.
+- Extension: background routes between the panel and one bridge per frame; the bridge (isolated
+  world, injected while the panel is open) relays the page agent's postMessage protocol.
 
 ## Rules
 

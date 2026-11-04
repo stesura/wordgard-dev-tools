@@ -16,7 +16,7 @@ export default defineConfig({
   },
   build: {
     target: "es2022",
-    lib: {entry: "src/index.ts", formats: ["es"], fileName: "index"},
+    lib: {entry: {index: "src/index.ts", ui: "src/ui.ts", transport: "src/transport.ts", styles: "src/styles-entry.ts"}, formats: ["es"], cssFileName: "styles"},
     // React is bundled (plan, open question 5); the page side is the page's own copy.
     rolldownOptions: {external: [/^wordgard(-devtools)?(\/|$)/]},
   },

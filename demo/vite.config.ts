@@ -3,7 +3,8 @@ import react from "@vitejs/plugin-react"
 import {fileURLToPath} from "node:url"
 import {defaultClientConditions, defineConfig, searchForWorkspaceRoot} from "vite"
 
-const sibling = (name: string) => fileURLToPath(new URL(`../../${name}`, import.meta.url))
+const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
+const sibling = (name: string) => here(`../../${name}`)
 
 export default defineConfig({
   // Tailwind compiles the panel's styles, which come from its source.
@@ -15,5 +16,8 @@ export default defineConfig({
   },
   optimizeDeps: {include: ["@stesura/react-wordgard > use-sync-external-store/with-selector"]},
   server: {fs: {allow: [searchForWorkspaceRoot(process.cwd()), sibling("wordgard"), sibling("react-wordgard")]}},
-  build: {target: "es2022"},
+  build: {
+    target: "es2022",
+    rolldownOptions: {input: {main: here("index.html"), frame: here("frame.html")}},
+  },
 })

@@ -14,23 +14,25 @@ import type {Agent, Entry, Registry} from "./registry.ts"
 import type * as Serialisers from "./serialise.ts"
 import {VERSION} from "./version.ts"
 
-type Handlers = {[K in RequestType]: (request: Request<K>) => Results[K] | Promise<Results[K]>}
+/** Who asked: the in-page panel calls the agent directly, the extension over postMessage. */
+type Client = "local" | "remote"
 
-type RequestMessage = Extract<Message, {kind: "request"}>
+type Handlers = {[K in RequestType]: (request: Request<K>, client: Client) => Results[K] | Promise<Results[K]>}
 
-const isRequest = (data: unknown): data is RequestMessage =>
-  typeof data == "object" &&
-  data != null &&
-  "source" in data &&
-  data.source == SOURCE &&
-  "kind" in data &&
-  data.kind == "request"
+const fromBridge = (data: unknown, kind: string) =>
+  typeof data == "object" && data != null && "source" in data && data.source == SOURCE && "kind" in data && data.kind == kind
+
+const isRequest = (data: unknown): data is Extract<Message, {kind: "request"}> => fromBridge(data, "request")
 
 const notYet = (phase: number) => () => {
   throw new Error(`Not implemented yet (plan phase ${phase})`)
 }
 
-const createHandlers = (registry: Registry, s: typeof Serialisers): Handlers => {
+const createHandlers = (
+  registry: Registry,
+  s: typeof Serialisers,
+  select: (client: Client, id: number | null) => void,
+): Handlers => {
   const entry = (id: number) => {
     for (const e of registry.editors.values()) if (e.id == id) return e
     throw new Error(`No editor with id ${id}`)
@@ -40,9 +42,9 @@ const createHandlers = (registry: Registry, s: typeof Serialisers): Handlers => 
       agent: {version: VERSION, protocol: PROTOCOL},
       editors: [...registry.editors.values()].map(s.editorInfo),
     }),
-    select: ({id}) => {
+    select: ({id}, client) => {
       if (id != null) entry(id)
-      for (const e of registry.editors.values()) e.attached = e.id == id
+      select(client, id)
       return null
     },
     children: ({id, paths}) => {
@@ -65,9 +67,9 @@ const createHandlers = (registry: Registry, s: typeof Serialisers): Handlers => 
   }
 }
 
-const run = <K extends RequestType>(handlers: Handlers, request: Request<K>) => {
+const run = <K extends RequestType>(handlers: Handlers, request: Request<K>, client: Client) => {
   if (!Object.hasOwn(handlers, request.type)) throw new Error(`Unknown request ${String(request.type)}`)
-  return handlers[request.type](request)
+  return handlers[request.type](request, client)
 }
 
 export const createAgent = (registry: Registry): Agent => {
@@ -76,6 +78,15 @@ export const createAgent = (registry: Registry): Agent => {
   // Set once a request arrives over postMessage, i.e. a bridge is listening.
   let remote = false
   let handlers: Promise<Handlers> | null = null
+  // Each client's editor: one doesn't detach the other's (the dock and the extension at once).
+  const selected: Record<Client, number | null> = {local: null, remote: null}
+  const sync = () => {
+    for (const e of registry.editors.values()) e.attached = e.id == selected.local || e.id == selected.remote
+  }
+  const select = (client: Client, id: number | null) => {
+    selected[client] = id
+    sync()
+  }
 
   const post = (message: Message) => window.postMessage(message, "*")
 
@@ -93,36 +104,52 @@ export const createAgent = (registry: Registry): Agent => {
   // Serialisers load on the first request: pages that never open the panel skip them.
   const loadHandlers = () =>
     (handlers ??= import("./serialise.ts").then(
-      s => createHandlers(registry, s),
+      s => createHandlers(registry, s, select),
       e => {
         handlers = null
         throw e
       },
     ))
 
-  const request = async <K extends RequestType>(message: Request<K>): Promise<Reply<K>> => {
+  const request = async <K extends RequestType>(message: Request<K>, client: Client): Promise<Reply<K>> => {
     try {
-      return {ok: true, value: await run(await loadHandlers(), message)}
+      return {ok: true, value: await run(await loadHandlers(), message, client)}
     } catch (e) {
       return {ok: false, error: e instanceof Error ? e.message : String(e)}
     }
   }
 
-  registry.subscribe(() => push({type: "editorsChanged"}))
+  registry.subscribe(() => {
+    // A reconnected editor (same instance, same id) is attached again.
+    sync()
+    push({type: "editorsChanged"})
+  })
+
+  const info = {version: VERSION, protocol: PROTOCOL}
+  const announce = () => post({source: SOURCE, v: PROTOCOL, kind: "announce", agent: info})
 
   window.addEventListener("message", event => {
-    if (event.source != window || !isRequest(event.data)) return
-    const {id, v, request: message} = event.data
-    remote = true
-    const reply: Promise<Reply> =
-      v == PROTOCOL ? request(message) : Promise.resolve({ok: false, error: mismatch(PROTOCOL, v)})
-    void reply.then(r => post({source: SOURCE, v: PROTOCOL, kind: "reply", id, reply: r}))
+    if (event.source != window) return
+    const {data} = event
+    if (fromBridge(data, "ping")) announce()
+    else if (fromBridge(data, "detach")) {
+      remote = false
+      select("remote", null)
+    } else if (isRequest(data)) {
+      const {id, v, request: message} = data
+      remote = true
+      const reply: Promise<Reply> =
+        v == PROTOCOL ? request(message, "remote") : Promise.resolve({ok: false, error: mismatch(PROTOCOL, v)})
+      void reply.then(r => post({source: SOURCE, v: PROTOCOL, kind: "reply", id, reply: r}))
+    }
   })
+  // A bridge injected before the agent existed learns about it here.
+  announce()
 
   return {
     version: VERSION,
     protocol: PROTOCOL,
-    request,
+    request: message => request(message, "local"),
     onPush: listener => {
       listeners.add(listener)
       return () => {

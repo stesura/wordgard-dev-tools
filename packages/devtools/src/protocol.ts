@@ -46,6 +46,8 @@ export type EditorInfo = {
   name: string
   attached: boolean
   recording: boolean
+  /** The frame it lives in, when not the top one. Set by the extension's transport. */
+  frame?: string
 }
 
 export type AgentInfo = {version: string; protocol: number}
@@ -71,7 +73,13 @@ export type Requests = {
 }
 
 export type Results = {
-  listEditors: {agent: AgentInfo; editors: EditorInfo[]}
+  listEditors: {
+    /** Null when no frame has a usable agent. */
+    agent: AgentInfo | null
+    editors: EditorInfo[]
+    /** Problems with some frames (a protocol mismatch), for the panel to show. */
+    notices?: string[]
+  }
   select: null
   children: (TreeNode[] | null)[]
   node: NodeDetail
@@ -104,5 +112,10 @@ export type Message =
   | {source: typeof SOURCE; v: number; kind: "request"; id: number; request: Request}
   | {source: typeof SOURCE; v: number; kind: "reply"; id: number; reply: Reply}
   | {source: typeof SOURCE; v: number; kind: "push"; push: Push}
+  /** From the agent, when created and when pinged: lets a bridge find it. */
+  | {source: typeof SOURCE; v: number; kind: "announce"; agent: AgentInfo}
+  | {source: typeof SOURCE; v: number; kind: "ping"}
+  /** The extension's panel went away: stop pushing over postMessage, detach editors. */
+  | {source: typeof SOURCE; v: number; kind: "detach"}
 
 export const mismatch = (agent: number, panel: number) => `Page agent speaks protocol ${agent}, panel expects ${panel}`

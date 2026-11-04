@@ -9,6 +9,8 @@ export type PanelState = {
   selected: number | null
   summary: Summary | null
   error: string | null
+  /** Problems with some frames, from the transport. */
+  notices: string[]
 }
 
 export type PanelStore = {
@@ -22,7 +24,7 @@ export type PanelStore = {
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 export const createPanelStore = (transport: Transport): PanelStore => {
-  let state: PanelState = {agent: null, editors: [], selected: null, summary: null, error: null}
+  let state: PanelState = {agent: null, editors: [], selected: null, summary: null, error: null, notices: []}
   const listeners = new Set<() => void>()
   const set = (patch: Partial<PanelState>) => {
     state = {...state, ...patch}
@@ -78,9 +80,9 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   const refreshEditors = async () => {
     const at = run
     try {
-      const {agent, editors} = await transport.send({type: "listEditors"})
+      const {agent, editors, notices = []} = await transport.send({type: "listEditors"})
       if (!current(at)) return
-      set({agent, editors, error: null})
+      set({agent, editors, notices, error: null})
       const target =
         editors.find(e => e.id == chosen?.id) ??
         editors.find(e => e.name == chosen?.name) ??
