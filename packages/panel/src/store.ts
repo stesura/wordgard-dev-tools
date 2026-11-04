@@ -1,6 +1,8 @@
 import type {AgentInfo, EditorInfo, Path, Push, Request, SelectionInfo} from "wordgard-devtools"
 import type {Transport} from "./transport.ts"
 
+export type View = "tree" | "structure"
+
 export type PanelState = {
   agent: AgentInfo | null
   editors: EditorInfo[]
@@ -12,6 +14,8 @@ export type PanelState = {
   notices: string[]
   /** Pick mode: the next click on an editor in the page selects its node. */
   picking: boolean
+  /** The tab shown for the selected editor. */
+  view: View
 }
 
 export type PanelStore = {
@@ -21,6 +25,7 @@ export type PanelStore = {
   /** The selected editor's document changed (coalesced per frame). */
   onDocChanged: (listener: (id: number) => void) => () => void
   pick: (on: boolean) => void
+  setView: (view: View) => void
   /** A node to reveal in an editor's tree (a pick): taken once, by that editor's tree. */
   takeReveal: (id: number) => Path | null
   /** A reveal is waiting; the tree takes it with `takeReveal`. */
@@ -41,6 +46,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     error: null,
     notices: [],
     picking: false,
+    view: "tree",
   }
   const listeners = new Set<() => void>()
   const docListeners = new Set<(id: number) => void>()
@@ -160,6 +166,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       }
     },
     pick,
+    setView: view => set({view}),
     takeReveal: id => {
       if (reveal?.id != id) return null
       const {path} = reveal

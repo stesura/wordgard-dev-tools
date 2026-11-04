@@ -54,6 +54,7 @@ const createHandlers = (
       return paths.map(path => s.children(doc, path))
     },
     node: ({id, path}) => s.node(entry(id).wg.state.doc, path),
+    structure: ({id}) => s.structure(entry(id).wg.state.doc),
     selection: ({id}) => s.selection(entry(id).wg.state),
     record: ({id, on}) => {
       entry(id).recording = on
@@ -68,6 +69,10 @@ const createHandlers = (
     },
     pick: ({on}) => {
       inspector.pick(on)
+      return null
+    },
+    scrollIntoView: ({id, path}) => {
+      inspector.scrollIntoView(entry(id), path)
       return null
     },
     setConsole: notYet(6),

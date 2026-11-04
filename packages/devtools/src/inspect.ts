@@ -66,9 +66,22 @@ const nodeRects = (wg: Wordgard, path: Path): DOMRect[] => {
   return [...range.getClientRects()].filter(rect => rect.width || rect.height)
 }
 
+/** The element showing the node: its own, or, for text, the element holding its start. */
+const nodeElement = (wg: Wordgard, path: Path): Element => {
+  if (!path.length) return wg.contentDOM
+  const found = locate(wg.state.doc, path)
+  if (!found) throw new Error(`No node at path [${path.join(", ")}]`)
+  const element = found.node.isText ? null : wg.nodeDOM(found.from)
+  if (element) return element
+  const {node} = wg.domAtPos(found.from, 1)
+  return node instanceof Element ? node : (node.parentElement ?? wg.contentDOM)
+}
+
 export type Inspector = {
   highlight: (entry: Entry | null, path: Path | null) => void
   pick: (on: boolean) => void
+  /** Scrolls the node into view: its editor's scroller and the page, without a transaction. */
+  scrollIntoView: (entry: Entry, path: Path) => void
   /** Ends picking and hides the overlay (the panel went away). */
   stop: () => void
 }
@@ -249,6 +262,9 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
       setFollowing(true)
     },
     pick,
+    scrollIntoView: (entry, path) => {
+      nodeElement(entry.wg, path).scrollIntoView({block: "center", inline: "nearest"})
+    },
     stop: () => {
       pick(false)
       hide()

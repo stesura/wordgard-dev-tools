@@ -21,6 +21,13 @@ export type TreeNode = {
   textPreview: string | null
 }
 
+/** The whole document, nested: for the Structure tab. */
+export type StructureNode = TreeNode & {
+  children: StructureNode[]
+  /** A text leaf's full text (its preview is truncated): for searching. */
+  text?: string
+}
+
 export type NodeDetail = TreeNode & {
   param: unknown
   markValues: {name: string; value: unknown}[]
@@ -63,6 +70,7 @@ export type Requests = {
   /** The children of each path; `null` for a path that doesn't resolve. */
   children: {id: number; paths: readonly Path[]}
   node: {id: number; path: Path}
+  structure: {id: number}
   selection: {id: number}
   record: {id: number; on: boolean}
   clear: {id: number}
@@ -71,6 +79,8 @@ export type Requests = {
   /** Outlines the node in the page; `path: null` hides the outline (any `id`). */
   highlight: {id: number; path: Path | null}
   pick: {on: boolean}
+  /** Scrolls the node into view in the page (its editor and the page around). */
+  scrollIntoView: {id: number; path: Path}
   setConsole: {id: number; index?: number}
   repro: {id: number}
 }
@@ -86,6 +96,7 @@ export type Results = {
   select: null
   children: (TreeNode[] | null)[]
   node: NodeDetail
+  structure: StructureNode
   selection: SelectionInfo
   record: null
   clear: null
@@ -93,6 +104,7 @@ export type Results = {
   entry: never
   highlight: null
   pick: null
+  scrollIntoView: null
   setConsole: null
   repro: string
 }

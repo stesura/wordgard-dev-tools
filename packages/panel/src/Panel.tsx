@@ -6,8 +6,10 @@ import {PortalContainer} from "#components/portal"
 import {Button} from "#components/ui/button"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "#components/ui/select"
 import {Tooltip, TooltipContent, TooltipTrigger} from "#components/ui/tooltip"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "#components/ui/tabs"
 import {DocTree} from "./DocTree.tsx"
-import type {PanelStore} from "./store.ts"
+import type {PanelStore, View} from "./store.ts"
+import {Structure} from "./Structure.tsx"
 import {nextTheme, type ThemeChoice, type ThemeStore} from "./theme.ts"
 
 const editorLabel = (editor: EditorInfo) =>
@@ -108,8 +110,10 @@ const Notices = ({store}: {store: PanelStore}) => {
   )
 }
 
+const isView = (value: unknown): value is View => value == "tree" || value == "structure"
+
 const Body = ({store}: {store: PanelStore}) => {
-  const {editors, selected} = useSyncExternalStore(store.subscribe, store.get)
+  const {editors, selected, view} = useSyncExternalStore(store.subscribe, store.get)
   if (!editors.length) {
     return (
       <p className="p-2 text-muted-foreground">
@@ -117,8 +121,32 @@ const Body = ({store}: {store: PanelStore}) => {
       </p>
     )
   }
-  // A tree per editor: switching starts a fresh one.
-  return selected != null && <DocTree key={selected} store={store} editorId={selected} />
+  if (selected == null) return null
+  // Both tabs stay mounted (the tree keeps its expanded rows); per editor, so switching starts afresh.
+  return (
+    <Tabs
+      value={view}
+      onValueChange={value => {
+        if (isView(value)) store.setView(value)
+      }}
+      className="min-h-0 flex-1 gap-0"
+    >
+      <TabsList variant="line" className="h-7 w-full shrink-0 justify-start rounded-none border-b px-1">
+        <TabsTrigger value="tree" className="flex-none px-2 text-xs">
+          Tree
+        </TabsTrigger>
+        <TabsTrigger value="structure" className="flex-none px-2 text-xs">
+          Structure
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="tree" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
+        <DocTree key={selected} store={store} editorId={selected} />
+      </TabsContent>
+      <TabsContent value="structure" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
+        <Structure key={selected} store={store} editorId={selected} />
+      </TabsContent>
+    </Tabs>
+  )
 }
 
 export type PanelProps = {
@@ -131,7 +159,7 @@ export type PanelProps = {
 
 export const Panel = ({store, theme, actions, className}: PanelProps) => {
   const {dark} = useSyncExternalStore(theme.subscribe, theme.get)
-  const {agent, editors} = useSyncExternalStore(store.subscribe, store.get)
+  const {editors} = useSyncExternalStore(store.subscribe, store.get)
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   return (
     <PortalContainer value={root}>
@@ -143,7 +171,7 @@ export const Panel = ({store, theme, actions, className}: PanelProps) => {
           className,
         )}
       >
-        <header className="flex h-8 shrink-0 items-center gap-2 border-b px-2">
+        <header className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-2 border-b px-2">
           <span className="font-semibold">Wordgard</span>
           <EditorPicker store={store} />
           <PickButton store={store} />
@@ -151,11 +179,6 @@ export const Panel = ({store, theme, actions, className}: PanelProps) => {
             {editors.length} editor{editors.length == 1 ? "" : "s"}
           </span>
           <div className="ml-auto flex items-center gap-1">
-            {agent && (
-              <span className="font-mono text-xs text-muted-foreground">
-                agent {agent.version} · protocol {agent.protocol}
-              </span>
-            )}
             <ThemeToggle theme={theme} />
             {actions}
           </div>

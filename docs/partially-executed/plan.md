@@ -1,9 +1,9 @@
 # Wordgard DevTools — plan
 
-Status: PARTIALLY EXECUTED. Phases 0, 1, 2, 2b, 3 and 4 done on 2026-11-04, see the implementation
-notes for [0-2](#implementation-notes-phases-0-2-2026-11-04),
-[2b](#implementation-notes-phase-2b-2026-11-04), [3](#implementation-notes-phase-3-2026-11-04) and
-[4](#implementation-notes-phase-4-2026-11-04). Drafted 2026-11-04, revised
+Status: PARTIALLY EXECUTED. Phases 0, 1, 2, 2b, 3, 4 and 4b done on 2026-11-04, see the
+implementation notes for [0-2](#implementation-notes-phases-0-2-2026-11-04),
+[2b](#implementation-notes-phase-2b-2026-11-04), [3](#implementation-notes-phase-3-2026-11-04),
+[4](#implementation-notes-phase-4-2026-11-04) and [4b](#implementation-notes-phase-4b-2026-11-04). Drafted 2026-11-04, revised
 after a Fable review the same day, see [Review](#review-2026-11-04).
 
 A browser DevTools panel for [Wordgard](../../../wordgard) editors, the counterpart of
@@ -38,7 +38,8 @@ A browser DevTools panel for [Wordgard](../../../wordgard) editors, the counterp
 
 Out of scope: facet inspector, decorations view, undo/collab state (use `$wg`), input/DOM
 event log (revisit with the IME plan), snapshot diff, react-wordgard component layer,
-schema check.
+schema check. Added later at the user's request (2026-11-04): a Structure tab (4b), a Schema tab
+(5b) and a Fields tab (5c).
 
 ## Packages
 
@@ -274,7 +275,21 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
    handshake, DevTools theme. Can run after any later phase.
 3. **Executed.** Doc tree and selection.
 4. **Executed.** Element picker.
+4b. **Executed.** Structure tab (added 2026-11-04): the panel gets a tab bar (Tree | Structure). Structure draws
+   the whole document as nested boxes, as `prosemirror-dev-tools`'s Structure tab does: each node
+   with its name and its from/to positions, blocks nested, inline content as chips in a row. The
+   nodes holding the selection are marked; hovering a box outlines its node in the page; clicking
+   one shows it in the side pane; a pick reveals it there too. One `structure(id)` request sends
+   the document's shallow nodes nested (developers' documents: no paging).
 5. Transaction log and timing.
+5b. Schema tab (added 2026-11-04): the editor's node and mark types: names, groups, what each
+   holds, parameters, mark targets, from the state's schema (public API).
+5c. Fields tab (added 2026-11-04): each `GardState.Field` (Wordgard's plugin state) with its value,
+   when it last changed, and its history of changes linked to the transaction log. Fields are
+   found through `state.config.base` (public); they have no names, so they show as "field #n"
+   unless the app names them: `wordgardDevtools({fields: {history: historyField}})` (the shape
+   `GardState.toJSON(fields)` takes). Changes are found by comparing each field's value per
+   update, only while the tab is shown or the log records.
 6. `$wg` / `$tr`.
 7. Copy as repro, tested by running the generated script in Node.
 8. react-wordgard automatic registration (react-wordgard repo).
@@ -535,3 +550,42 @@ or noted below.
 - The plan's "text targets use `parentElement`" isn't needed: event targets are elements.
 - Escape cancels only in the page. In the extension, Escape in DevTools belongs to DevTools; the
   Pick button toggles off.
+
+## Implementation notes: phase 4b (2026-11-04)
+
+Checks at the end: `npm run typecheck`; `npm test` (devtools 39, panel 40, extension 12, two
+consecutive clean runs); `npm run build`; e2e 8 tests (a Structure step added). A Fable audit
+followed; its findings are fixed below.
+
+### How it works
+
+- `structure(id)` (`packages/devtools/src/serialise.ts`) sends every node, nested, with text
+  leaves' full text for searching. One request per document change, only while the tab is shown
+  (catching up when shown). Developers' documents: no paging.
+- `packages/panel/src/Structure.tsx`: blocks as boxes (a left border coloured by type, name,
+  param, marks with values, from–to), a textblock's content as a row of chips (text or inline
+  node, param, marks, from–to; an inline plot nests its own chips). Boxes holding the selection
+  are shaded, the innermost outlined. Hover outlines the node in the page; click (or the arrow
+  keys, Home and End: the view is a `tree` with roving focus) shows it in the side pane;
+  double-click scrolls the node into view in the editor (`scrollIntoView` request: the node's
+  element, `Element.scrollIntoView`, no transaction). A search box matches text, node names and
+  params, with a count, Enter / Shift+Enter and previous/next buttons.
+- Tabs (shadcn on Base UI), both kept mounted so the tree keeps its expanded rows. The active tab
+  is in the store; only the shown tab takes a pick's reveal. The Structure's reveal waits for the
+  structure to load (a pick that switched editors).
+- The node pane and selection strip are shared (`node-pane.tsx`), as is the detail cache
+  (`detail-cache.ts`).
+
+### Also done at the user's request (2026-11-04)
+
+- The toolbar's "agent x · protocol y" is gone; a mismatch still shows as a notice.
+- The in-page dock docks on any side (bottom, right, top, left: a toolbar button cycles), its size
+  remembered per axis. Narrow (left or right), the side pane goes under the content (a container
+  query), and the toolbar wraps.
+
+### Notes
+
+- `PROTOCOL` stays 1 although `structure` and `scrollIntoView` were added: nothing is published,
+  and a new panel against an old agent shows the "Unknown request" error inline.
+- The vitest config pre-bundles the panel's dependencies: one discovered mid-run reloads the
+  browser tests, which a cold CI cache would hit.

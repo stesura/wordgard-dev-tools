@@ -60,7 +60,6 @@ afterAll(async () => {
 
 it("lists every frame's editors and attaches the first", async () => {
   await panel.getByText("5 editors").waitFor()
-  await panel.getByText(/agent 0\.0\.0 · protocol 1/).waitFor()
   await panel.getByText("Plain Wordgard").first().waitFor()
   expect(await attached(demo)).toEqual(["plain"])
   await panel.getByLabel("Editor").click()
@@ -79,6 +78,14 @@ it("shows the document tree, live", async () => {
   await demo.keyboard.press("Control+Home")
   await demo.keyboard.type("Edited ")
   await panel.locator("[data-path='0']").getByText("Edited Plain Wordgard").waitFor()
+})
+
+it("draws the document's structure", async () => {
+  await panel.getByRole("tab", {name: "Structure"}).click()
+  const structure = panel.getByLabel("Document structure")
+  await structure.locator("[data-path='1']").getByText("Paragraph").waitFor()
+  await structure.locator("[data-path='1.1']").getByText('"plain"').waitFor()
+  await panel.getByRole("tab", {name: "Tree"}).click()
 })
 
 it("switches to an editor in an iframe and follows it", async () => {

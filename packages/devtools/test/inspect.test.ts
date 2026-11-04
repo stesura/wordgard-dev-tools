@@ -193,3 +193,22 @@ it("keeps a tree row's outline while the pointer moves off the editors in pick m
   await settle()
   expect(overlay()?.textContent).toBe("Paragraph")
 })
+
+it("scrolls a node into view in the page, without a transaction", async () => {
+  const spacer = document.createElement("div")
+  spacer.style.height = "3000px"
+  document.body.prepend(spacer)
+  extra.push(spacer)
+  const transactions: unknown[] = []
+  const wg = open([wordgardDevtools(), Wordgard.transactionListener.of(trs => transactions.push(...trs))])
+  window.scrollTo(0, 0)
+  const inView = (element: Element | null) => {
+    const rect = element?.getBoundingClientRect()
+    return rect != null && rect.top >= 0 && rect.bottom <= window.innerHeight
+  }
+  expect(inView(wg.nodeDOM(7))).toBe(false)
+  await ask({type: "scrollIntoView", id: idOf(wg), path: [1, 1]})
+  expect(inView(wg.nodeDOM(7))).toBe(true)
+  expect(transactions).toEqual([])
+  window.scrollTo(0, 0)
+})

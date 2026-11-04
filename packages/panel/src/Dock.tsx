@@ -1,25 +1,40 @@
 import {cn} from "cn"
-import {ChevronDownIcon} from "lucide-react"
+import {
+  ChevronDownIcon,
+  PanelBottomIcon,
+  PanelLeftIcon,
+  PanelRightIcon,
+  PanelTopIcon,
+} from "lucide-react"
 import {useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent} from "react"
 import {Button} from "#components/ui/button"
 import {IconButton, Panel} from "./Panel.tsx"
 import type {PanelStore} from "./store.ts"
 import type {ThemeStore} from "./theme.ts"
 
-export type DockLayout = {height: number; collapsed: boolean}
+export type DockSide = "bottom" | "right" | "top" | "left"
+
+/** `size` is the height for top and bottom, the width for left and right. */
+export type DockLayout = {side: DockSide; size: number; collapsed: boolean}
 
 const KEY = "wordgard-devtools:dock"
-const MIN_HEIGHT = 120
+const SIDES: readonly DockSide[] = ["bottom", "right", "top", "left"]
+const isSide = (value: unknown): value is DockSide => SIDES.some(side => side == value)
+const vertical = (side: DockSide) => side == "top" || side == "bottom"
+
+const DEFAULT_SIZE = {vertical: 280, horizontal: 420}
 
 export const readLayout = (): DockLayout => {
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) ?? "null")
+    const side = isSide(stored?.side) ? stored.side : "bottom"
     return {
-      height: typeof stored?.height == "number" ? stored.height : 280,
+      side,
+      size: typeof stored?.size == "number" ? stored.size : DEFAULT_SIZE[vertical(side) ? "vertical" : "horizontal"],
       collapsed: stored?.collapsed === true,
     }
   } catch {
-    return {height: 280, collapsed: false}
+    return {side: "bottom", size: DEFAULT_SIZE.vertical, collapsed: false}
   }
 }
 
@@ -31,7 +46,36 @@ const saveLayout = (layout: DockLayout) => {
   }
 }
 
-const clamp = (height: number) => Math.round(Math.max(MIN_HEIGHT, Math.min(window.innerHeight - 40, height)))
+const clamp = (side: DockSide, size: number) => {
+  const [min, max] = vertical(side) ? [120, window.innerHeight - 40] : [240, window.innerWidth - 40]
+  return Math.round(Math.max(min, Math.min(max, size)))
+}
+
+// The dock's place, its resize handle on the edge facing the page, and which way the pointer
+// grows it.
+const placement: Record<DockSide, {dock: string; handle: string; grow: (dx: number, dy: number) => number}> = {
+  bottom: {dock: "inset-x-0 bottom-0 border-t", handle: "inset-x-0 -top-1 h-2 cursor-row-resize", grow: (_, dy) => -dy},
+  top: {dock: "inset-x-0 top-0 border-b", handle: "inset-x-0 -bottom-1 h-2 cursor-row-resize", grow: (_, dy) => dy},
+  right: {dock: "inset-y-0 right-0 border-l", handle: "inset-y-0 -left-1 w-2 cursor-col-resize", grow: dx => -dx},
+  left: {dock: "inset-y-0 left-0 border-r", handle: "inset-y-0 -right-1 w-2 cursor-col-resize", grow: dx => dx},
+}
+
+const sideIcons: Record<DockSide, typeof PanelBottomIcon> = {
+  bottom: PanelBottomIcon,
+  right: PanelRightIcon,
+  top: PanelTopIcon,
+  left: PanelLeftIcon,
+}
+
+const nextSide = (side: DockSide) => SIDES[(SIDES.indexOf(side) + 1) % SIDES.length] ?? "bottom"
+
+// The keys that grow the dock, per side (the others shrink it).
+const growKeys: Record<DockSide, [grow: string, shrink: string]> = {
+  bottom: ["ArrowUp", "ArrowDown"],
+  top: ["ArrowDown", "ArrowUp"],
+  right: ["ArrowLeft", "ArrowRight"],
+  left: ["ArrowRight", "ArrowLeft"],
+}
 
 export type DockProps = {
   store: PanelStore
@@ -43,38 +87,56 @@ export type DockProps = {
 
 export const Dock = ({store, theme, initial, setActive}: DockProps) => {
   const {dark} = useSyncExternalStore(theme.subscribe, theme.get)
-  const [height, setHeight] = useState(() => clamp(initial.height))
+  const [side, setSide] = useState(initial.side)
+  const [size, setSize] = useState(() => clamp(initial.side, initial.size))
   const [collapsed, setCollapsed] = useState(initial.collapsed)
-  const drag = useRef<{y: number; height: number} | null>(null)
+  const drag = useRef<{x: number; y: number; size: number} | null>(null)
+  const place = placement[side]
 
   const collapse = (value: boolean) => {
     setCollapsed(value)
     setActive(!value)
-    saveLayout({height, collapsed: value})
+    saveLayout({side, size, collapsed: value})
+  }
+
+  const move = () => {
+    const next = nextSide(side)
+    // Each axis starts at its own default: a height makes a poor width.
+    const nextSize = vertical(next) == vertical(side) ? size : clamp(next, DEFAULT_SIZE[vertical(next) ? "vertical" : "horizontal"])
+    setSide(next)
+    setSize(nextSize)
+    saveLayout({side: next, size: nextSize, collapsed})
+  }
+
+  const resized = (event: PointerEvent<HTMLDivElement>) => {
+    const start = drag.current
+    return start && clamp(side, start.size + place.grow(event.clientX - start.x, event.clientY - start.y))
   }
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId)
-    drag.current = {y: event.clientY, height}
+    drag.current = {x: event.clientX, y: event.clientY, size}
   }
   const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    if (drag.current) setHeight(clamp(drag.current.height + drag.current.y - event.clientY))
+    const next = resized(event)
+    if (next != null) setSize(next)
   }
   const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
-    if (!drag.current) return
-    // From the event: the last pointermove's height may not have rendered yet.
-    const next = clamp(drag.current.height + drag.current.y - event.clientY)
+    // From the event: the last pointermove's size may not have rendered yet.
+    const next = resized(event)
     drag.current = null
-    setHeight(next)
-    saveLayout({height: next, collapsed})
+    if (next == null) return
+    setSize(next)
+    saveLayout({side, size: next, collapsed})
   }
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const step = event.key == "ArrowUp" ? 20 : event.key == "ArrowDown" ? -20 : 0
+    const [grow, shrink] = growKeys[side]
+    const step = event.key == grow ? 20 : event.key == shrink ? -20 : 0
     if (!step) return
     event.preventDefault()
-    const next = clamp(height + step)
-    setHeight(next)
-    saveLayout({height: next, collapsed})
+    const next = clamp(side, size + step)
+    setSize(next)
+    saveLayout({side, size: next, collapsed})
   }
 
   if (collapsed) {
@@ -87,20 +149,22 @@ export const Dock = ({store, theme, initial, setActive}: DockProps) => {
     )
   }
 
+  const SideIcon = sideIcons[nextSide(side)]
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-2147483647 flex flex-col border-t shadow-lg"
-      style={{height}}
+      className={cn("fixed z-2147483647 flex flex-col shadow-lg", place.dock)}
+      style={vertical(side) ? {height: size} : {width: size}}
       role="region"
       aria-label="Wordgard DevTools"
+      data-side={side}
     >
       <div
         role="separator"
-        aria-orientation="horizontal"
+        aria-orientation={vertical(side) ? "horizontal" : "vertical"}
         aria-label="Resize Wordgard DevTools"
-        aria-valuenow={height}
+        aria-valuenow={size}
         tabIndex={0}
-        className="absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize touch-none focus-visible:bg-ring/50"
+        className={cn("absolute z-10 touch-none focus-visible:bg-ring/50", place.handle)}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -112,9 +176,14 @@ export const Dock = ({store, theme, initial, setActive}: DockProps) => {
         theme={theme}
         className="min-h-0 flex-1"
         actions={
-          <IconButton label="Collapse" onClick={() => collapse(true)}>
-            <ChevronDownIcon />
-          </IconButton>
+          <>
+            <IconButton label={`Dock to the ${nextSide(side)}`} onClick={move}>
+              <SideIcon />
+            </IconButton>
+            <IconButton label="Collapse" onClick={() => collapse(true)}>
+              <ChevronDownIcon />
+            </IconButton>
+          </>
         }
       />
     </div>

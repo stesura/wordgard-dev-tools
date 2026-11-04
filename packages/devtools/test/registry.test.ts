@@ -179,6 +179,21 @@ describe("agent", () => {
     expect(sel.json).toMatchObject({anchor: 3, head: 16})
   })
 
+  it("sends the whole document nested", async () => {
+    const wg = open(wordgardDevtools())
+    const doc = await ask({type: "structure", id: registry().editors.get(wg)?.id ?? 0})
+    const shape = (n: typeof doc): unknown => [n.name, n.from, n.to, n.children.map(shape)]
+    expect(shape(doc)).toEqual([
+      "Doc",
+      0,
+      20,
+      [
+        ["Heading", 0, 7, [["Text", 1, 6, []]]],
+        ["Paragraph", 7, 20, [["Text", 8, 14, []], ["Text", 14, 19, []]]],
+      ],
+    ])
+  })
+
   it("counts positions through nested plots", async () => {
     const wg = open([wordgardDevtools(), blockquote()], "<blockquote><p>Quoted <em>text</em></p></blockquote><p>After</p>")
     const id = registry().editors.get(wg)?.id ?? 0

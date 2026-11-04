@@ -25,6 +25,8 @@ const fakeAgent = (ids: number[], delay = 20) => {
     children: () => [[]],
     selection: () => ({anchor: 0, head: 0, from: 0, to: 0, empty: true, json: null, headPath: [], anchorPath: []}),
     node: unsupported,
+    structure: unsupported,
+    scrollIntoView: unsupported,
     record: unsupported,
     clear: unsupported,
     log: unsupported,

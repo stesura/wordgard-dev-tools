@@ -1,18 +1,9 @@
-import type {NodeDetail, Path, TreeNode} from "wordgard-devtools"
+import type {TreeNode} from "wordgard-devtools"
+import {ROOT, createDetailCache, itemId, parentOf, pathOf, type DetailSource} from "./detail-cache.ts"
 import {errorMessage} from "./store.ts"
 import type {Transport} from "./transport.ts"
 
-export const ROOT = "root"
-export const itemId = (path: Path) => (path.length ? path.join(".") : ROOT)
-export const pathOf = (id: string): Path => (id == ROOT ? [] : id.split(".").map(Number))
-export const parentOf = (id: string) => {
-  const path = pathOf(id)
-  return path.length ? itemId(path.slice(0, -1)) : null
-}
-
-export type Detail = {node: NodeDetail; error?: undefined} | {node?: undefined; error: string}
-
-export type DocSource = {
+export type DocSource = DetailSource & {
   /** A loaded node: the tree's item data. */
   node: (id: string) => TreeNode | undefined
   /** A level's children ids; requests the level when it isn't loaded (batched, not during render). */
@@ -29,17 +20,9 @@ export type DocSource = {
   refresh: (expanded: string[]) => Promise<string[]>
   /** The last failed load, until one succeeds. */
   error: () => string | null
-  /** A promise per (document version, path), cached: for `use()`. */
-  detail: (path: Path, version: number) => Promise<Detail>
-  version: () => number
-  /** Data changed: rebuild the tree. */
-  subscribe: (listener: () => void) => () => void
 }
 
 type Level = {version: number; nodes: TreeNode[]}
-
-// Detail promises kept: a deferred render may still show an older version's.
-const DETAILS_KEPT = 32
 // A failed level isn't requested again by rendering for this long: no retry loop on a page that fails at once.
 const RETRY_AFTER = 2000
 
@@ -106,8 +89,6 @@ export const createDocSource = (transport: Transport, id: number): DocSource => 
     queue.push(level)
   }
 
-  const details = new Map<string, Promise<Detail>>()
-
   return {
     node: item => {
       if (item == ROOT) return undefined
@@ -144,22 +125,7 @@ export const createDocSource = (transport: Transport, id: number): DocSource => 
       return gone
     },
     error: () => error,
-    detail: (path, at) => {
-      const key = `${at}|${itemId(path)}`
-      let found = details.get(key)
-      if (!found) {
-        found = transport.send({type: "node", id, path}).then(
-          (node): Detail => ({node}),
-          (e): Detail => ({error: errorMessage(e)}),
-        )
-        details.set(key, found)
-        for (const old of details.keys()) {
-          if (details.size <= DETAILS_KEPT) break
-          details.delete(old)
-        }
-      }
-      return found
-    },
+    detail: createDetailCache(transport, id),
     version: () => version,
     subscribe: listener => {
       listeners.add(listener)

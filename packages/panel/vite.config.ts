@@ -14,6 +14,26 @@ export default defineConfig({
   server: {
     fs: {allow: [searchForWorkspaceRoot(process.cwd()), fileURLToPath(new URL("../../../wordgard", import.meta.url))]},
   },
+  // All of them up front: one found mid-run reloads the browser tests (a cold CI cache).
+  optimizeDeps: {
+    include: [
+      "@base-ui/react/button",
+      "@base-ui/react/select",
+      "@base-ui/react/tabs",
+      "@base-ui/react/tooltip",
+      "@headless-tree/core",
+      "@headless-tree/react",
+      "@tanstack/react-virtual",
+      "class-variance-authority",
+      "cn",
+      "lucide-react",
+      "react",
+      "react-dom/client",
+      "wordgard/doc",
+      "wordgard/editor",
+      "wordgard/schema",
+    ],
+  },
   build: {
     target: "es2022",
     lib: {entry: {index: "src/index.ts", ui: "src/ui.ts", transport: "src/transport.ts", styles: "src/styles-entry.ts"}, formats: ["es"], cssFileName: "styles"},

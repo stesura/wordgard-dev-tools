@@ -1,6 +1,6 @@
 import type {Node as DocNode, Plot} from "wordgard/doc"
 import type {GardState} from "wordgard/state"
-import type {EditorInfo, NodeDetail, Path, SelectionInfo, TreeNode} from "./protocol.ts"
+import type {EditorInfo, NodeDetail, Path, SelectionInfo, StructureNode, TreeNode} from "./protocol.ts"
 import type {Entry} from "./registry.ts"
 
 export const PREVIEW_LENGTH = 80
@@ -98,6 +98,25 @@ export const children = (doc: Plot.Doc, path: Path): TreeNode[] | null => {
     return treeNode(child, [...path, index], at)
   })
 }
+
+const nest = (node: DocNode, path: Path, from: number): StructureNode => {
+  let pos = contentStart(path, from)
+  const text = node.isText && typeof node.param == "string" ? {text: node.param} : {}
+  return {
+    ...treeNode(node, path, from),
+    ...text,
+    children: node.isPlot
+      ? node.content.map((child, index) => {
+          const at = pos
+          pos += child.length
+          return nest(child, [...path, index], at)
+        })
+      : [],
+  }
+}
+
+/** Every node, nested. Developers' documents: no paging. */
+export const structure = (doc: Plot.Doc): StructureNode => nest(doc, [], 0)
 
 export const node = (doc: Plot.Doc, path: Path): NodeDetail => {
   const found = locate(doc, path)

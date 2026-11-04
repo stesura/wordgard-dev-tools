@@ -129,3 +129,23 @@ it("follows the picked editor through a remount", async () => {
   await until(() => text().includes("Beta again"))
   expect(entryOf(again)?.attached).toBe(true)
 })
+
+it("docks on any side, and remembers it", async () => {
+  open("first", "<p>Alpha</p>")
+  mounted = mountDevtools()
+  await mounted.ready
+  const dock = await until(() => shadow().querySelector<HTMLElement>("[role='region']"))
+  expect(dock.dataset.side).toBe("bottom")
+  expect(shadow().textContent).not.toContain("protocol")
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Dock to the right']"))).click()
+  const right = await until(() => shadow().querySelector<HTMLElement>("[data-side='right']"))
+  expect(right.getBoundingClientRect().right).toBe(window.innerWidth)
+  // 420 px, or the viewport less 40 when narrower.
+  const width = Math.min(420, window.innerWidth - 40)
+  expect(right.style.width).toBe(`${width}px`)
+  expect(JSON.parse(localStorage.getItem("wordgard-devtools:dock") ?? "{}")).toMatchObject({side: "right", size: width})
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Dock to the top']"))).click()
+  const top = await until(() => shadow().querySelector<HTMLElement>("[data-side='top']"))
+  expect(top.getBoundingClientRect().top).toBe(0)
+})
+

@@ -124,6 +124,7 @@ export const createFramesTransport = (send: (frameId: number, message: ToBridge)
     },
     children: ({id, paths}) => routed<"children">(id, page => ({type: "children", id: page, paths})),
     node: ({id, path}) => routed<"node">(id, page => ({type: "node", id: page, path})),
+    structure: ({id}) => routed<"structure">(id, page => ({type: "structure", id: page})),
     selection: ({id}) => routed<"selection">(id, page => ({type: "selection", id: page})),
     record: ({id, on}) => routed<"record">(id, page => ({type: "record", id: page, on})),
     clear: ({id}) => routed<"clear">(id, page => ({type: "clear", id: page})),
@@ -135,6 +136,7 @@ export const createFramesTransport = (send: (frameId: number, message: ToBridge)
       await Promise.allSettled(usableFrames().map(frameId => ask(frameId, {type: "highlight", id: 0, path: null})))
       return null
     },
+    scrollIntoView: ({id, path}) => routed<"scrollIntoView">(id, page => ({type: "scrollIntoView", id: page, path})),
     setConsole: ({id, index}) => routed<"setConsole">(id, page => ({type: "setConsole", id: page, index})),
     repro: ({id}) => routed<"repro">(id, page => ({type: "repro", id: page})),
     pick: async ({on}) => {
