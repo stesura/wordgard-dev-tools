@@ -7,4 +7,9 @@ Each [mark](https://wordgard.net/docs/ref/#doc.Mark) type, defined by a [`Mark.S
 - [`element`](https://wordgard.net/docs/ref/#doc.Mark.Type.isElement): rendered with an element (its [shape](https://wordgard.net/docs/ref/#doc.Mark.Spec.shape)), not as attributes. Spanning element marks can be drawn as elements containing multiple nodes.
 - [`rank`](https://wordgard.net/docs/ref/#doc.Mark.Spec.rank): its position relative to other marks. Lower ranks appear first in mark sets and are rendered around higher ranks. Defaults to 100.
 - [`keepOnSplit`](https://wordgard.net/docs/ref/#doc.Mark.Spec.keepOnSplit), [`keepOnTypeChange`](https://wordgard.net/docs/ref/#doc.Mark.Spec.keepOnTypeChange): whether it's kept when its node is split, or changes type.
-- goes on: the node types it may go on ([`target`](https://wordgard.net/docs/ref/#doc.Mark.Spec.target), as the schema resolves it). Order by rank to see how marks nest; double-click a card for its JSON.
+- goes on: the node types it may go on ([`target`](https://wordgard.net/docs/ref/#doc.Mark.Spec.target), as the schema resolves it).
+
+## Tips
+
+- Order by rank to see how marks nest.
+- Double-click a card for its JSON.

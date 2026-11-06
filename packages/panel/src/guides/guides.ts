@@ -32,6 +32,8 @@ export const SELECTION_SLICE = guide("selection-slice");
 /** The bar under every tab: the selection at a glance. */
 export const SELECTION_BAR = guide("selection-bar");
 export const RESOLVED_POSITIONS = guide("resolved-positions");
+/** The Log's filter bar. */
+export const LOG_FILTERS = guide("log-filters");
 /** The Schema's Nodes section. */
 export const SCHEMA_NODES = guide("schema-nodes");
 /** The Schema's Marks section. */

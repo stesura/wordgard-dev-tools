@@ -10,4 +10,9 @@ Each node type in the schema, defined by a [`Plot.Spec`](https://wordgard.net/do
 - [`canBeEmpty`](https://wordgard.net/docs/ref/#doc.Plot.Spec.canBeEmpty): may be empty. Plots with block content, by default, require at least one child.
 - [`preserveWhitespace`](https://wordgard.net/docs/ref/#doc.Plot.Spec.preserveWhitespace): whitespace inside it is preserved. [`row`](https://wordgard.net/docs/ref/#doc.Plot.Spec.orientation): its children sit next to each other, not below each other.
 - [`selectable`](https://wordgard.net/docs/ref/#doc.Node.Spec.selectable): can be selected by clicking it or moving the selection into it with the keyboard.
-- Card lines: [groups](https://wordgard.net/docs/ref/#doc.Node.Spec.group), content (its spec's query), holds (as the schema resolves it), marks allowed, [param](https://wordgard.net/docs/ref/#doc.Node.Spec.validate). Press a tag to filter; double-click a card for its JSON.
+- Card lines: [groups](https://wordgard.net/docs/ref/#doc.Node.Spec.group), content (its spec's query), holds (as the schema resolves it), marks allowed, [param](https://wordgard.net/docs/ref/#doc.Node.Spec.validate).
+
+## Tips
+
+- Press a tag to filter by it.
+- Double-click a card for its JSON. With the JSON pane closed, the button at the end of this bar opens it.
