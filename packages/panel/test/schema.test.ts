@@ -121,6 +121,17 @@ it("collapses nodes or marks, filters them by tag, and orders marks by rank", as
   await until(() => !card("mark-Link"));
 });
 
+it("keeps both of two tags pressed in one go", async () => {
+  await setup();
+  const nodes = await until(() => section("Nodes"));
+  // Both before React renders: the second must not start from the first's stale filters.
+  toggle(nodes, "textblock")?.click();
+  toggle(nodes, "defining")?.click();
+  await until(() => !card("node-Paragraph") && card("node-Heading"));
+  expect(toggle(nodes, "textblock")?.getAttribute("aria-pressed")).toBe("true");
+  expect(toggle(nodes, "defining")?.getAttribute("aria-pressed")).toBe("true");
+});
+
 it("rings the card a link or a click lands on", async () => {
   await setup();
   [...(card("mark-Strong")?.querySelectorAll("button") ?? [])]

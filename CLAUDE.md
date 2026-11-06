@@ -12,7 +12,12 @@ Wordgard DevTools: a DevTools panel for Wordgard editors. MIT. The plan is `docs
   and its `references/wordgard.md`.
 - Checks: `npm run typecheck`, `npm run lint` (Rules of React), `npm test` (Vitest, Chromium
   through Playwright; run `npx playwright install chromium` once), `npm run build`,
-  `npm run compiler:check` (after build), `npm run deps` (dependency-cruiser; rules in `.dependency-cruiser.cjs`). Demo: `npm run dev`.
+  `npm run compiler:check` (after build), `npm run dependency-check` (dependency-cruiser; rules in
+  `.dependency-cruiser.cjs`), `npm run format:check` (Prettier; `npm run format` fixes). Demo:
+  `npm run dev`.
+- Panel layout (`packages/panel/src`): `tabs/<tab>/`, `panel/`, `components/` (shadcn in
+  `components/ui/`), `hooks/`, `stores/` (nanostores), `lib/` (no React), `guides/*.md` (the
+  guides, in markdown). Layers and the `shadcn add` steps are in CONTRIBUTING.md.
 - End to end: `npm run e2e -w wordgard-devtools-extension` builds the extension and the demo, then
   drives the extension's panel page (opened with `?tabId=`) against the demo in Chromium.
 - Extension: background routes between the panel and one bridge per frame; the bridge (isolated

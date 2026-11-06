@@ -22,8 +22,10 @@ Node 22.12 or later. Use npm.
 Run these before opening a pull request. CI runs the same ones.
 
 ```sh
+npm run format:check                         # Prettier (npm run format fixes it)
 npm run typecheck
-npm run lint                                 # the Rules of React (eslint-plugin-react-hooks)
+npm run lint                                 # the Rules of React, arrow functions
+npm run dependency-check                     # dependency-cruiser: the layers below
 npm test                                     # Vitest in Chromium
 npm run build                                # packages, extension (Chrome and Firefox), demo
 npm run compiler:check                       # each build went through the React Compiler
@@ -47,9 +49,38 @@ Add or update tests for what you change.
 - No typecasts (`as`, `!`, `<T>x`). If one is unavoidable, explain why in the pull request.
 - No inline imports, except `import()` for lazy loading.
 - Comments only for decisions, workarounds or what the code can't say. Keep them short.
-- React: avoid `useEffect`. Prefer external stores (`useSyncExternalStore`), event handlers and ref
-  callbacks.
+- Formatting is Prettier's (`npm run format`), Tailwind classes sorted by its plugin.
+- File names in kebab-case.
+- React: avoid `useEffect`. Prefer external stores (nanostores atoms, read with `useStore`), event
+  handlers and ref callbacks.
 - The page side (`packages/devtools`) stays framework-free.
+
+## The panel's layout
+
+`packages/panel/src`, layered; `npm run dependency-check` enforces the rules (type-only imports
+are exempt):
+
+- `tabs/<tab>/`: one folder per tab, its component beside its helpers and its source (what it
+  loads from the page). A tab doesn't import another tab: what they share goes below.
+  `tabs/tabs.ts` lists the tabs (plain data, open to every layer); `tabs/registry.tsx` maps them
+  to their components.
+- `panel/`: the shell around the tabs (header, tab bar, settings) and the in-page dock.
+- `components/`: components shared by the tabs. `components/ui/` is shadcn's, kept apart.
+- `hooks/`: hooks shared by the tabs.
+- `stores/`: the panel store, the theme, saved settings (`persistent`), `createResource`,
+  `whileShown`. No components, tabs, panel or hooks.
+- `lib/`: plain helpers, no React.
+- `guides/`: each guide in markdown, `# Title`, one paragraph, then a list of tips; inline only
+  `` `code` `` and `[links](url)`. The panel shows them, and `npm run readme` writes the tabs'
+  guides into the README.
+
+Imports across these folders use the package's aliases (`#components/…`, `#lib/…`,
+`#stores/…`, `#hooks/…`); within a folder they stay relative.
+
+shadcn components: `npx shadcn add <name>` in `packages/panel`, then import its icons from
+`#icons` (heroicons; add the one it needs to `src/icons/heroicons.tsx`), remove `lucide-react` if
+it was added, turn its `function`s into arrow functions, add its `@base-ui/react/<name>` to
+`optimizeDeps.include` in `packages/panel/vite.config.ts`, and run `npm run format`.
 
 ## Pull requests
 

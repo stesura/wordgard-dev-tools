@@ -26,8 +26,8 @@ export const noFilters: SchemaFilters = {
   groups: none,
 };
 
-// Saved, shared by every editor: created by the Schema as it mounts. A tag no schema of this one
-// has is left out (`pressedIn`).
+// Saved: created by the Schema as it mounts, so every editor's Schema reads the same. A tag no
+// schema of this one has is left out (`pressedIn`).
 export const createSchemaFilters = () =>
   persistent(
     "wordgard-devtools:schema-filters",

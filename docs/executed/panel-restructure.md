@@ -1,9 +1,9 @@
 # Panel restructure — plan
 
-Status: PARTIALLY EXECUTED. Phases 0 to 7 done on 2026-11-06, see
-[Implementation notes](#implementation-notes). Drafted 2026-11-06 from an audit of
-`packages/panel`, scope agreed with the user the same day; revised after a Fable review the same
-day, see [Review](#review-2026-11-06).
+Status: EXECUTED. Phases 0 to 8 done on 2026-11-06, audited the same day, see
+[Implementation notes](#implementation-notes) and [Audit](#audit-2026-11-06). Drafted
+2026-11-06 from an audit of `packages/panel`, scope agreed with the user the same day; revised
+after a Fable review the same day, see [Review](#review-2026-11-06).
 
 Scope: `packages/panel` only, plus what has to follow it (root lint and format config, the scripts
 that import panel files, docs). The page side (`packages/devtools`) and its protocol don't change:
@@ -435,7 +435,7 @@ Add each with `npx shadcn add <name>` (from `packages/panel`), then:
 - `components.json` keeps `iconLibrary` as is (shadcn has no heroicons option); the steps above
   are the fix, written down in `CLAUDE.md` (phase 8) so the next `shadcn add` follows them too.
 
-## Phase 8: docs
+## Phase 8: docs (executed 2026-11-06)
 
 - `CLAUDE.md`: the layout lines for the panel; "guides are markdown in
   `packages/panel/src/guides/`"; the `shadcn add` steps (phase 7); `npm run format`; and the
@@ -493,9 +493,9 @@ the plan above includes them:
 Found while applying them: the tab-to-tab rule's `pathNot` must also let a tab import
 `tabs/tabs.ts` (phase 4).
 
-## Open points
+## Settled
 
-- None yet. (Settled 2026-11-06: Prettier in `../react-wordgard`'s style; no `input-group`.)
+- Prettier in `../react-wordgard`'s style; no `input-group` (2026-11-06).
 
 ## Implementation notes
 
@@ -732,3 +732,34 @@ Checks: typecheck, lint, tests (87 + 155 + 12), build, `compiler:check` (panel 1
   scratch folder): chips and checkboxes as before.
 - Checks: typecheck, lint, tests (87 + 155 + 12), build, `compiler:check` (panel 123, extension
   120, demo 124), `format:check`, `readme:check`, `dependency-check`, e2e (11): all pass.
+
+### Phase 8 (2026-11-06)
+
+- `CLAUDE.md`: `npm run dependency-check` (it said `deps`), `npm run format:check`, and a line on the
+  panel's layout pointing at CONTRIBUTING.md.
+- `CONTRIBUTING.md`: `format:check` and `dependency-check` in the checks; Prettier and kebab-case
+  in the code style; stores are nanostores atoms read with `useStore`; a "panel's layout" section
+  (the layers, the aliases, the guides' format) and the `shadcn add` steps.
+- `packages/panel/README.md` names no source files: unchanged. The README's links into
+  `components/ui` still hold.
+
+## Audit (2026-11-06)
+
+A Fable audit of the whole restructure (`b72fbed` to `030a0df`, and phase 8), each finding
+checked against the code. It re-ran every check and compared the old and new code of each
+deduplicated part (`whileShown`, `createResource`, the store's events, the saved settings, the
+dock, the menu anchor, the Base UI swaps); it found no regression in them and no weakened test.
+Its four findings, all low:
+
+1. **Accepted, fixed.** The Schema's tag chips toggled from the filters of the last render, so two
+   toggles before a render lost the first: the same bug as `toggleOpen` in phase 5, older than the
+   restructure. A new test (`schema.test.ts`, "keeps both of two tags pressed in one go") failed
+   first; `toggleTag` now reads the latest saved filters.
+2. **Accepted, fixed.** The plan wasn't in `docs/executed/`: moved there.
+3. **Accepted, fixed.** CONTRIBUTING's `stores/` line left out `hooks/`, which the rule forbids too.
+4. **Accepted, fixed.** Two comments still said the filters are "shared by every editor": each
+   mount has its own atom; they read the same through storage.
+
+## Open points
+
+- None.

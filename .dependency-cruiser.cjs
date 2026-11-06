@@ -58,7 +58,7 @@ module.exports = {
       from: { path: "^packages/panel/src/" },
       to: { path: "^(packages/extension|demo)/" },
     },
-    // The panel's layers (docs/panel-restructure.md). Type-only imports are exempt: the layers are
+    // The panel's layers (docs/executed/panel-restructure.md). Type-only imports are exempt: the layers are
     // about what runs. tabs/tabs.ts is plain data, open to all.
     {
       name: "panel-lib-plain",

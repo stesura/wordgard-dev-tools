@@ -117,6 +117,11 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
   const nodeFilter = pressedIn(filters.nodes, nodeTagList);
   const markFilter = pressedIn(filters.marks, markTagList);
   const groupFilter = pressedIn(filters.groups, groupTagList);
+  // From the latest: two clicks can land before a render.
+  const toggleTag = (key: "nodes" | "marks" | "groups", tags: string[], tag: string) => {
+    const latest = savedFilters.get();
+    savedFilters.set({ ...latest, [key]: toggled(pressedIn(latest[key], tags), tag) });
+  };
   const groups = allGroups.filter(
     (group) =>
       includes(group.name, query) &&
@@ -219,7 +224,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
             onToggleOpen={() => toggleOpen("node")}
             tags={nodeTagList}
             pressed={nodeFilter}
-            onToggle={(tag) => setFilters({ nodes: toggled(nodeFilter, tag) })}
+            onToggle={(tag) => toggleTag("nodes", nodeTagList, tag)}
             onClear={() => setFilters({ nodes: none })}
             empty={schema && !nodes.length ? "No node types match." : null}
           >
@@ -240,7 +245,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
             onToggleOpen={() => toggleOpen("mark")}
             tags={markTagList}
             pressed={markFilter}
-            onToggle={(tag) => setFilters({ marks: toggled(markFilter, tag) })}
+            onToggle={(tag) => toggleTag("marks", markTagList, tag)}
             onClear={() => setFilters({ marks: none })}
             empty={schema && !marks.length ? "No mark types match." : null}
             actions={
@@ -280,7 +285,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
             onToggleOpen={() => toggleOpen("group")}
             tags={groupTagList}
             pressed={groupFilter}
-            onToggle={(tag) => setFilters({ groups: toggled(groupFilter, tag) })}
+            onToggle={(tag) => toggleTag("groups", groupTagList, tag)}
             onClear={() => setFilters({ groups: none })}
             empty={schema && !groups.length ? "No groups match." : null}
             last

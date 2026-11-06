@@ -33,8 +33,8 @@ const filtering = (filters: Filters) =>
 // Numbered as first seen, page-wide: "annotation #1" may be another annotation after a reload.
 const unnamed = /^annotation #\d+$/;
 
-// Saved, shared by every editor: created by the Log as it mounts. Unnamed annotations last only
-// until reload.
+// Saved: created by the Log as it mounts, so every editor's Log reads the same. Unnamed
+// annotations last only until reload.
 export const createLogFilters = () =>
   persistent(
     "wordgard-devtools:log-filters",
