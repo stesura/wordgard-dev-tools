@@ -1,7 +1,9 @@
 import { afterEach, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
+import { Leaf } from "wordgard/doc";
 import { Wordgard } from "wordgard/editor";
 import { PROTOCOL, SOURCE, wordgardDevtools, type Push } from "../src/index.ts";
+import { agentReading } from "../src/reads.ts";
 import { agent, ask, editor, registry } from "./helpers.ts";
 
 const editors: Wordgard[] = [];
@@ -65,6 +67,56 @@ it("replies with an error for a path that doesn't resolve", async () => {
     ok: false,
     error: "No node at path [9]",
   });
+});
+
+const frames = async (n = 3) => {
+  for (let i = 0; i < n; i++) await new Promise((resolve) => requestAnimationFrame(resolve));
+};
+
+const boxRect = () => boxes()[0]?.getBoundingClientRect().toJSON();
+
+it("moves the outline with the page's layout", async () => {
+  const wg = open(wordgardDevtools());
+  await ask({ type: "highlight", id: idOf(wg), path: [1] });
+  const spacer = document.createElement("div");
+  spacer.style.height = "100px";
+  document.body.prepend(spacer);
+  extra.push(spacer);
+  await frames();
+  expect(boxRect()).toEqual(wg.nodeDOM(7)?.getBoundingClientRect().toJSON());
+});
+
+it("follows the node at its path through an edit, without flushing for the editor", async () => {
+  const wg = open(wordgardDevtools(), `<p>one</p><p>two</p>`);
+  await ask({ type: "highlight", id: idOf(wg), path: [1] });
+  const before = boxRect();
+  const byAgent: boolean[] = [];
+  const flush = wg.flush.bind(wg);
+  wg.flush = () => {
+    byAgent.push(agentReading());
+    flush();
+  };
+  // Dispatched from a frame: the outline's next frame is queued before the editor's flush.
+  await frames(1);
+  wg.dispatch({
+    changes: { from: 1, insert: [Leaf.text("a much longer first line ".repeat(20))] },
+  });
+  await frames();
+  // The editor's own flush drew it: the loop didn't force one before.
+  expect(byAgent).toContain(false);
+  expect(byAgent).not.toContain(true);
+  const element = wg.nodeDOM(wg.state.doc.content[0]?.length ?? 0);
+  expect(element?.textContent).toBe("two");
+  expect(boxRect()).toEqual(element?.getBoundingClientRect().toJSON());
+  expect(boxRect()).not.toEqual(before);
+});
+
+it("hides the outline when its node goes", async () => {
+  const wg = open(wordgardDevtools(), `<p>one</p><p>two</p>`);
+  await ask({ type: "highlight", id: idOf(wg), path: [1] });
+  wg.dispatch({ changes: { from: 5, to: wg.state.doc.length } });
+  await frames();
+  expect(overlay()).toBeNull();
 });
 
 it("picks the node under the pointer without moving the caret", async () => {

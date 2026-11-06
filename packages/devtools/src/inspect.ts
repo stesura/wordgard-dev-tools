@@ -53,37 +53,78 @@ const textAt = (wg: Wordgard, event: MouseEvent): Path | null => {
   const index = side < 0 ? resolved.index - 1 : resolved.index;
   if (!resolved.parent.node.content[index]?.isText) return null;
   const path = [...plotPath, index];
-  const over = nodeRects(wg, path).some(
+  const over = boxRects(nodeBox(wg, path).box).some(
     (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
   );
   return over ? path : null;
 };
 
-/** Client rects of the node at `path`: its element's box, or a text leaf's line boxes. */
-const nodeRects = (wg: Wordgard, path: Path): DOMRect[] => {
-  if (!path.length) return [wg.contentDOM.getBoundingClientRect()];
+/** What shows the node at `path`: its element, or a range over a text leaf. */
+const nodeBox = (wg: Wordgard, path: Path): { box: Element | Range; name: string } => {
+  if (!path.length) return { box: wg.contentDOM, name: "Document" };
   const found = locate(wg.state.doc, path);
   if (!found) throw new Error(`No node at path [${path.join(", ")}]`);
   const { node, from } = found;
   // nodeDOM is null for text.
   const element = node.isText ? null : wg.nodeDOM(from);
-  if (element) return [element.getBoundingClientRect()];
+  if (element) return { box: element, name: node.name };
   const start = wg.domAtPos(from, 1);
   const end = wg.domAtPos(from + node.length, -1);
   const range = document.createRange();
   range.setStart(start.node, start.offset);
   range.setEnd(end.node, end.offset);
-  return [...range.getClientRects()].filter((rect) => rect.width || rect.height);
+  return { box: range, name: node.name };
 };
 
-const domRects = (target: Node): DOMRect[] => {
-  // Redrawn since: the outline goes (`follow` hides it on the throw).
-  if (!target.isConnected) throw new Error("That element is gone");
-  if (target instanceof Element) return [target.getBoundingClientRect()];
-  const range = document.createRange();
-  range.selectNodeContents(target);
-  return [...range.getClientRects()].filter((rect) => rect.width || rect.height);
+const boxRects = (box: Element | Range): DOMRect[] =>
+  box instanceof Element
+    ? [box.getBoundingClientRect()]
+    : [...box.getClientRects()].filter((rect) => rect.width || rect.height);
+
+const connected = (box: Element | Range) =>
+  box instanceof Element ? box.isConnected : box.startContainer.isConnected;
+
+type Measure = () => { rects: DOMRect[]; name: string };
+
+/**
+ * Measures the node at `path`, following the page's layout. Reads the cached DOM, not Wordgard
+ * (whose reads flush a pending update early, blamed on the agent): the path is resolved again only
+ * when its element is gone, or a new state stayed a frame, so the editor's own flush, scheduled in
+ * the frame after the update, has drawn it.
+ */
+const trackNode = (wg: Wordgard, path: Path): Measure => {
+  let { box, name } = nodeBox(wg, path);
+  let drawn = wg.state;
+  let seen = wg.state;
+  return () => {
+    const { state } = wg;
+    if ((state != drawn && state == seen) || !connected(box)) {
+      ({ box, name } = nodeBox(wg, path));
+      drawn = state;
+    }
+    seen = state;
+    return { rects: boxRects(box), name };
+  };
 };
+
+const trackDOM = (target: Node, name: string): Measure => {
+  let range: Range | null = null;
+  return () => {
+    // Redrawn since: the outline goes (`follow` hides it on the throw).
+    if (!target.isConnected) throw new Error("That element is gone");
+    if (target instanceof Element) return { rects: [target.getBoundingClientRect()], name };
+    range ??= document.createRange();
+    range.selectNodeContents(target);
+    return { rects: boxRects(range), name };
+  };
+};
+
+const same = (a: DOMRect[], b: DOMRect[]) =>
+  a.length == b.length &&
+  a.every((r, i) => {
+    const s = b[i];
+    return s && r.x == s.x && r.y == s.y && r.width == s.width && r.height == s.height;
+  });
 
 /** The element showing the node: its own, or, for text, the element holding its start. */
 const nodeElement = (wg: Wordgard, path: Path): Element => {
@@ -111,8 +152,14 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
   // Outside every editor's contentDOM, the only part Wordgard's DOM observer watches.
   let overlay: HTMLElement | null = null;
   // Who asked for the outline: a click on a node in the panel (`highlight`) or the pointer while picking.
-  // `rects` measures again when the page scrolls or resizes.
-  let shown: { rects: () => DOMRect[]; name: string; by: "highlight" | "pick" } | null = null;
+  // `measure` runs every frame while shown: the node moves with scrolling, edits and any layout change.
+  let shown: {
+    measure: Measure;
+    rects: DOMRect[];
+    name: string;
+    by: "highlight" | "pick";
+  } | null = null;
+  let frame = 0;
 
   const render = (rects: DOMRect[], name: string) => {
     overlay ??= document.createElement("div");
@@ -160,14 +207,37 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
 
   const hide = () => {
     shown = null;
+    cancelAnimationFrame(frame);
+    frame = 0;
     overlay?.remove();
   };
 
-  /** Throws (nodeDOM/domAtPos on a disconnected or flushing editor) after hiding the outline. */
-  const outline = (rects: () => DOMRect[], name: string, by: "highlight" | "pick") => {
+  // Redraws only when the node moved, resized or changed type.
+  const follow = () => {
+    frame = 0;
+    if (!shown) return;
+    const current = shown;
     try {
-      render(rects(), name);
-      shown = { rects, name, by };
+      const { rects, name } = byAgent(current.measure);
+      if (name != current.name || !same(rects, current.rects)) {
+        render(rects, name);
+        shown = { ...current, rects, name };
+      }
+      frame = requestAnimationFrame(follow);
+    } catch {
+      // The node or its editor went away: the outline is gone.
+      hide();
+    }
+  };
+
+  /** Throws (nodeDOM/domAtPos on a disconnected or flushing editor) after hiding the outline. */
+  const outline = (track: () => Measure, by: "highlight" | "pick") => {
+    try {
+      const measure = track();
+      const { rects, name } = measure();
+      render(rects, name);
+      shown = { measure, rects, name, by };
+      frame ||= requestAnimationFrame(follow);
     } catch (e) {
       hide();
       throw e;
@@ -175,37 +245,15 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
   };
 
   const show = (wg: Wordgard, path: Path, by: "highlight" | "pick") =>
-    outline(
-      () => nodeRects(wg, path),
-      path.length ? (locate(wg.state.doc, path)?.node.name ?? "?") : "Document",
-      by
-    );
+    outline(() => trackNode(wg, path), by);
 
-  // From the page's events (scrolling, the pointer while picking): reads the agent made.
+  // From the pointer while picking: reads the agent made.
   const tryShow = (wg: Wordgard, path: Path, by: "highlight" | "pick") => {
     try {
       byAgent(() => show(wg, path, by));
     } catch {
       // The editor went away, or is mid-flush: the outline is gone.
     }
-  };
-
-  // Keeps the overlay on its node while the page scrolls or resizes.
-  const follow = () => {
-    if (!shown) return;
-    const { rects, name, by } = shown;
-    try {
-      byAgent(() => outline(rects, name, by));
-    } catch {
-      // The editor went away, or is mid-flush: the outline is gone.
-    }
-  };
-  let following = false;
-  const setFollowing = (on: boolean) => {
-    if (on == following) return;
-    following = on;
-    listen(on, "scroll", follow, { capture: true, passive: true });
-    listen(on, "resize", follow, {});
   };
 
   // Picking: events in an editor's content are swallowed (Wordgard starts its selection on
@@ -298,7 +346,6 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
     listen(false, "click", onClick, { capture: true });
     listen(false, "keydown", onKey, { capture: true });
     if (shown?.by == "pick") hide();
-    setFollowing(shown != null);
     return true;
   };
 
@@ -316,31 +363,24 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
     listen(true, "mousemove", onMove, { capture: true });
     listen(true, "click", onClick, { capture: true });
     listen(true, "keydown", onKey, { capture: true });
-    setFollowing(true);
   };
 
   return {
     highlight: (entry, path) => {
       if (!entry || !path) {
         if (shown?.by == "highlight") hide();
-        setFollowing(picking);
         return;
       }
       show(entry.wg, path, "highlight");
-      setFollowing(true);
     },
     pick,
-    outlineDOM: (target, label) => {
-      outline(() => domRects(target), label, "highlight");
-      setFollowing(true);
-    },
+    outlineDOM: (target, label) => outline(() => trackDOM(target, label), "highlight"),
     scrollIntoView: (entry, path) => {
       nodeElement(entry.wg, path).scrollIntoView({ block: "center", inline: "nearest" });
     },
     stop: () => {
       pick(false);
       hide();
-      setFollowing(false);
     },
   };
 };

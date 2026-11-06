@@ -132,7 +132,7 @@ it("marks the boxes holding the selection", async () => {
   expect(box("")?.dataset.selection).toBeUndefined();
 });
 
-it("shows a pick in the Structure, whichever tab is open", async () => {
+it("shows a pick in the Structure, whichever tab is open, outlined in the page", async () => {
   const editor = await setup();
   (await until(() => tab("State"))).click();
   (
@@ -144,6 +144,9 @@ it("shows a pick in the Structure, whichever tab is open", async () => {
   await until(() => tab("Structure")?.getAttribute("aria-selected") == "true");
   await until(() => box("1.1")?.className.includes("ring-2"));
   await until(() => pane()?.textContent?.includes('text"bold"'));
+  // The picker's outline went with the click: the selected node's stays.
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(document.querySelector("[data-wordgard-devtools-overlay]")?.textContent).toBe("Text");
 });
 
 it("keeps its collapsed boxes across tab switches", async () => {

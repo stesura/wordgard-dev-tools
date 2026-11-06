@@ -74,6 +74,8 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
   const reveal = useCallback(
     async (path: Path) => {
       setFocused(itemId(path));
+      // Selected, so outlined: the picker's own outline went with the click.
+      outline.show(path);
       // Its ancestors open.
       setCollapsed((ids) => {
         const ancestors = path.map((_, depth) => itemId(path.slice(0, depth)));
@@ -90,7 +92,7 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
         return;
       }
     },
-    [source, setCollapsed]
+    [source, setCollapsed, outline]
   );
 
   // Loads while its tab is shown: on showing (when the document changed meanwhile) and on each
