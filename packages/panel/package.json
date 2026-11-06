@@ -36,7 +36,10 @@
   },
   "imports": {
     "#components/*": "./src/components/*.tsx",
-    "#icons": "./src/icons/index.ts"
+    "#hooks/*": "./src/hooks/*",
+    "#icons": "./src/icons/index.ts",
+    "#lib/*": "./src/lib/*",
+    "#stores/*": "./src/stores/*"
   },
   "files": [
     "dist"

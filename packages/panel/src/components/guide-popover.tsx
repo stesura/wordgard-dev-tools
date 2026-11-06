@@ -9,9 +9,9 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "#components/ui/popover";
-import { GUIDES, type Guide } from "./guides.ts";
-import type { View } from "./store.ts";
-import { stored } from "./stored.ts";
+import { GUIDES, type Guide } from "../guides/guides.ts";
+import type { View } from "#stores/panel-store.ts";
+import { stored } from "#stores/stored.ts";
 
 const LINK = /^\[([^\]]+)\]\(([^)]+)\)$/;
 

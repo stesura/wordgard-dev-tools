@@ -1,10 +1,10 @@
 // Loaded by mountDevtools() on demand: React and the styles stay out of the page until then.
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { Dock, readLayout } from "./Dock.tsx";
-import { createPanelStore } from "./store.ts";
+import { Dock, readLayout } from "./panel/dock.tsx";
+import { createPanelStore } from "#stores/panel-store.ts";
 import css from "./styles.css?inline";
-import { createThemeStore } from "./theme.ts";
+import { createThemeStore } from "#stores/theme.ts";
 import type { Transport } from "./transport.ts";
 
 const adoptStyles = (shadow: ShadowRoot) => {

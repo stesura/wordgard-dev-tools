@@ -25,14 +25,14 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "#components/ui/context-menu";
-import { CopyButton } from "./copy-button.tsx";
+import { CopyButton } from "#components/copy-button";
 import { createFieldsSource, type FieldsSource } from "./fields-source.ts";
-import { clock } from "./Log.tsx";
-import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "./node-menu.tsx";
-import { Field as Line, json } from "./node-pane.tsx";
-import type { PanelStore } from "./store.ts";
-import { SplitPane, type Orientation, type SplitKind } from "./split-pane.tsx";
-import { Tip } from "./tip.tsx";
+import { clock } from "../log/log.tsx";
+import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "#components/node-menu";
+import { Field as Line, json } from "#components/node-pane";
+import type { PanelStore } from "#stores/panel-store.ts";
+import { SplitPane, type Orientation, type SplitKind } from "#components/split-pane";
+import { Tip } from "#components/tip";
 
 /** A change's time, and its transaction in the log as a link. */
 const When = ({ change, onLog }: { change: FieldChange; onLog: (index: number) => void }) => (

@@ -22,13 +22,13 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "#components/ui/context-menu";
-import { hue, typeColour } from "./colours.ts";
-import { SearchBox, centreRow, includes, matchClass, useSearch } from "./search.tsx";
-import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "./node-menu.tsx";
-import type { PanelStore } from "./store.ts";
-import { Tip } from "./tip.tsx";
-import { createViewSource } from "./view-source.ts";
-import { keepRowInView, useRows } from "./rows.ts";
+import { hue, typeColour } from "#lib/colours.ts";
+import { SearchBox, centreRow, includes, matchClass, useSearch } from "#components/search-box";
+import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "#components/node-menu";
+import type { PanelStore } from "#stores/panel-store.ts";
+import { Tip } from "#components/tip";
+import { createViewSource } from "./dom-source.ts";
+import { keepRowInView, useRows } from "#hooks/use-rows.ts";
 
 const ROW = 20;
 const INDENT = 14;

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { createThemeStore, type ThemeChoice, type ThemeSource } from "../src/theme.ts";
+import { createThemeStore, type ThemeChoice, type ThemeSource } from "../src/stores/theme.ts";
 
 const fakeSource = (initial: boolean) => {
   let dark = initial;

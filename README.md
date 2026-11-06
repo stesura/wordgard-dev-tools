@@ -57,7 +57,7 @@ production builds (see [Keep it out of production](#keep-it-out-of-production)).
 
 Nothing runs until the panel opens, and nothing is recorded until you press record.
 
-<!-- tabs:start: written from packages/panel/src/guides.ts by `npm run readme`; edit there -->
+<!-- tabs:start: written from packages/panel/src/guides/guides.ts by `npm run readme`; edit there -->
 
 ## Tabs
 

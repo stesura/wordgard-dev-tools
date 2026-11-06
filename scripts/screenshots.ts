@@ -5,8 +5,8 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "playwright";
 import { createServer } from "vite";
-import type { View } from "../packages/panel/src/store.ts";
-import { TAB_ORDER } from "../packages/panel/src/guides.ts";
+import type { View } from "../packages/panel/src/stores/panel-store.ts";
+import { TAB_ORDER } from "../packages/panel/src/guides/guides.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const out = `${root}docs/screenshots`;

@@ -1,14 +1,14 @@
-// The README's "Tabs" section, written from the panel's guides (packages/panel/src/guides.ts), so
+// The README's "Tabs" section, written from the panel's guides (packages/panel/src/guides/guides.ts), so
 // the two say the same.
 //   node scripts/readme.ts           rewrite it
 //   node scripts/readme.ts --check   fail if it's out of date
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { GUIDES, TAB_ORDER } from "../packages/panel/src/guides.ts";
+import { GUIDES, TAB_ORDER } from "../packages/panel/src/guides/guides.ts";
 
 const readme = fileURLToPath(new URL("../README.md", import.meta.url));
 const START =
-  "<!-- tabs:start: written from packages/panel/src/guides.ts by `npm run readme`; edit there -->";
+  "<!-- tabs:start: written from packages/panel/src/guides/guides.ts by `npm run readme`; edit there -->";
 const END = "<!-- tabs:end -->";
 
 const section = TAB_ORDER.map((view) => {

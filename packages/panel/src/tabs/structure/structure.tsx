@@ -20,14 +20,14 @@ import {
 import type { Path, SelectionInfo, StructureNode } from "@stesura/wordgard-dev-tools";
 import { Tag } from "#components/ui/badge";
 import { Button } from "#components/ui/button";
-import { ROOT, itemId, pathOf } from "./detail-cache.ts";
-import { NodeMenu, createNodeMenuAnchor } from "./node-menu.tsx";
-import { NodePane, isPrefix, json } from "./node-pane.tsx";
-import { SearchBox, matchClass, useSearch } from "./search.tsx";
-import { SplitPane } from "./split-pane.tsx";
-import { hue, markColour, typeColour } from "./colours.ts";
-import type { PanelStore } from "./store.ts";
-import { Tip } from "./tip.tsx";
+import { ROOT, itemId, pathOf } from "#lib/detail-cache.ts";
+import { NodeMenu, createNodeMenuAnchor } from "#components/node-menu";
+import { NodePane, isPrefix, json } from "#components/node-pane";
+import { SearchBox, matchClass, useSearch } from "#components/search-box";
+import { SplitPane } from "#components/split-pane";
+import { hue, markColour, typeColour } from "#lib/colours.ts";
+import type { PanelStore } from "#stores/panel-store.ts";
+import { Tip } from "#components/tip";
 import { createStructureSource } from "./structure-source.ts";
 
 type Marks = {

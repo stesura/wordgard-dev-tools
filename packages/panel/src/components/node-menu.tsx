@@ -15,7 +15,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "#components/ui/context-menu";
-import type { PanelStore } from "./store.ts";
+import type { PanelStore } from "#stores/panel-store.ts";
 
 /**
  * One context menu per view, opened through a hidden trigger (as Stesura's editor does): no

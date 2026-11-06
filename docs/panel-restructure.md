@@ -1,6 +1,6 @@
 # Panel restructure — plan
 
-Status: PARTIALLY EXECUTED. Phases 0 and 1 done on 2026-11-06, see
+Status: PARTIALLY EXECUTED. Phases 0, 1 and 2 done on 2026-11-06, see
 [Implementation notes](#implementation-notes). Drafted 2026-11-06 from an audit of
 `packages/panel`, scope agreed with the user the same day; revised after a Fable review the same
 day, see [Review](#review-2026-11-06).
@@ -90,6 +90,7 @@ packages/panel/src/
   lib/                   no React
     colours.ts  clipboard.ts  selected-text.ts  menu-anchor.ts  paths.ts  json.ts  time.ts (clock)
     dom.ts (scrollInto, centreRow)  sets.ts (toggled)  promise-cache.ts  detail-cache.ts
+  hooks/                 React hooks shared by tabs, no components: use-rows.ts (useRows)
   icons/
   guides/                *.md, plus parse.ts (pure) and guides.ts (loads them, Vite only)
 ```
@@ -101,7 +102,7 @@ Import rules, enforced by dependency-cruiser (phase 4):
 
 - `lib/` imports nothing from `components/`, `tabs/`, `panel/` or `stores/`, and no React.
 - `stores/` doesn't import `components/`, `tabs/` or `panel/`.
-- `components/` doesn't import `tabs/` or `panel/`.
+- `components/` and `hooks/` don't import `tabs/` or `panel/`.
 - A tab doesn't import another tab. Today Schema takes `scrollInto` from Structure and Fields takes
   `clock` from Log; both move to `lib/` in phase 3 (`lib/dom.ts`, `lib/time.ts`).
 - `tabs/tabs.ts` imports nothing (Node scripts load it).
@@ -111,8 +112,9 @@ Import rules, enforced by dependency-cruiser (phase 4):
   `GuideButton` takes the `Guide` from the registry instead of a tab id.
 
 Import aliases: `#components/*` stays as it is (`./src/components/*.tsx`: shadcn's
-`components.json` writes `#components/ui/x`, with no extension). Add `#lib/*` → `./src/lib/*` and
-`#stores/*` → `./src/stores/*`, used with the extension, as relative imports are, in `package.json`
+`components.json` writes `#components/ui/x`, with no extension). Add `#lib/*` → `./src/lib/*`,
+`#stores/*` → `./src/stores/*` and `#hooks/*` → `./src/hooks/*`, used with the extension, as
+relative imports are, in `package.json`
 `imports` and `tsconfig.json` `paths` both. Within a folder, and from a tab to its own files,
 imports stay relative.
 
@@ -155,7 +157,7 @@ imports stay relative.
   way.
 - `eslint-config-prettier` isn't needed: no stylistic ESLint rules are enabled.
 
-## Phase 2: move and rename (no code changes)
+## Phase 2: move and rename (no code changes) (executed 2026-11-06)
 
 Only `git mv` and the import specifiers that the moves break. No splits, no edits to logic, so
 git records renames and the diff is reviewable.
@@ -178,6 +180,7 @@ git records renames and the diff is reviewable.
 | `search.tsx`                                                                                                           | `components/search-box.tsx`                             |
 | `colours.ts`, `detail-cache.ts`                                                                                        | `lib/`                                                  |
 | `guides.ts`                                                                                                            | `guides/guides.ts` (becomes markdown in phase 4)        |
+| `rows.ts` (added after the plan)                                                                                       | `hooks/use-rows.ts`                                     |
 
 - Windows: the checkout is case-insensitive. Every rename here also changes folder, so none is
   case-only; if one ever is, `git mv` it in two steps (`a.tsx` → `a.tmp.tsx` → `A.tsx`).
@@ -521,3 +524,20 @@ Found while applying them: the tab-to-tab rule's `pathNot` must also let a tab i
 - Checks: typecheck, lint, `npm test` (87 devtools + 145 panel + 12 extension tests), build,
   `compiler:check`, `format:check`, `readme:check`, `release:check`, `dependency-check`: all pass.
   (e2e isn't due until phase 2.)
+
+### Phase 2 (2026-11-06)
+
+- 32 files moved with `git mv` by a script that then rewrote the relative import specifiers the
+  moves broke: an import into `components/`, `lib/`, `stores/` or `hooks/` from another folder
+  uses the `#` alias, any other import stays relative. Only import lines changed, plus the path
+  named in `scripts/readme.ts` and the README's marker comment, and `CONTRIBUTING.md`'s path to
+  `useRows`. Git records all 32 as renames.
+- Aliases `#lib/*`, `#stores/*`, `#hooks/*` in the panel's `package.json` `imports` and
+  `tsconfig.json` `paths`.
+- Deviation: `rows.ts` (`useRows`, added in `d445df2`, after the plan was written) is a React
+  hook shared by Log, State and DOM. `lib/` has no React, so it went to a new `hooks/` folder,
+  `hooks/use-rows.ts`, with its own alias. The target layout and import rules now list `hooks/`.
+- Not yet: the cross-tab imports (Schema → Structure's `scrollInto`, Fields → Log's `clock`) stay
+  until phase 3, as planned.
+- Checks: typecheck, lint, tests (87 + 145 + 12), build, `compiler:check`, `format:check`,
+  `readme:check`, `dependency-check`, e2e (11): all pass.

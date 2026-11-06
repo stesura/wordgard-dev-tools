@@ -1,6 +1,6 @@
 import type { FieldDetail, FieldsInfo } from "@stesura/wordgard-dev-tools";
-import { errorMessage } from "./store.ts";
-import type { Transport } from "./transport.ts";
+import { errorMessage } from "#stores/panel-store.ts";
+import type { Transport } from "../../transport.ts";
 
 export type FieldResult =
   { field: FieldDetail; error?: undefined } | { field?: undefined; error: string };

@@ -3,7 +3,10 @@
   "compilerOptions": {
     "types": ["node", "vite/client"],
     "paths": {
-      "#components/*": ["./src/components/*"]
+      "#components/*": ["./src/components/*"],
+      "#hooks/*": ["./src/hooks/*"],
+      "#lib/*": ["./src/lib/*"],
+      "#stores/*": ["./src/stores/*"]
     }
   },
   "include": ["src", "test", "*.ts"]

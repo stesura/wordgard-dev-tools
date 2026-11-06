@@ -1,5 +1,5 @@
-import { errorMessage } from "./store.ts";
-import type { Transport } from "./transport.ts";
+import { errorMessage } from "#stores/panel-store.ts";
+import type { Transport } from "../../transport.ts";
 
 export type StateView = { json: unknown; loaded: boolean; error: string | null };
 

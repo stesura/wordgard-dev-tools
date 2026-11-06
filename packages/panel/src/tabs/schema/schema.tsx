@@ -17,7 +17,7 @@ import type {
 } from "@stesura/wordgard-dev-tools";
 import { Tag } from "#components/ui/badge";
 import { Button } from "#components/ui/button";
-import { ClearFilters } from "./clear-filters.tsx";
+import { ClearFilters } from "#components/clear-filters";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -25,14 +25,14 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "#components/ui/context-menu";
-import { CopyButton } from "./copy-button.tsx";
-import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "./node-menu.tsx";
-import { json } from "./node-pane.tsx";
+import { CopyButton } from "#components/copy-button";
+import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "#components/node-menu";
+import { json } from "#components/node-pane";
 import { createSchemaSource } from "./schema-source.ts";
-import type { PanelStore } from "./store.ts";
-import { Tip } from "./tip.tsx";
-import { hue, markColour, typeColour, type ColourKind } from "./colours.ts";
-import { GuidePopover } from "./guide.tsx";
+import type { PanelStore } from "#stores/panel-store.ts";
+import { Tip } from "#components/tip";
+import { hue, markColour, typeColour, type ColourKind } from "#lib/colours.ts";
+import { GuidePopover } from "#components/guide-popover";
 import {
   SCHEMA_GROUPS,
   SCHEMA_MARKS,
@@ -40,10 +40,10 @@ import {
   SPEC_EFFECTIVE_MARK,
   SPEC_EFFECTIVE_NODE,
   type Guide,
-} from "./guides.ts";
-import { SplitPane } from "./split-pane.tsx";
-import { isRecord, stored, stringSet } from "./stored.ts";
-import { scrollInto } from "./Structure.tsx";
+} from "../../guides/guides.ts";
+import { SplitPane } from "#components/split-pane";
+import { isRecord, stored, stringSet } from "#stores/stored.ts";
+import { scrollInto } from "../structure/structure.tsx";
 
 type Kind = "node" | "mark" | "group";
 type Go = (kind: Kind, name: string) => void;

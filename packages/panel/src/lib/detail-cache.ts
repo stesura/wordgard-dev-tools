@@ -1,6 +1,6 @@
 import type { NodeDetail, Path } from "@stesura/wordgard-dev-tools";
-import { errorMessage } from "./store.ts";
-import type { Transport } from "./transport.ts";
+import { errorMessage } from "#stores/panel-store.ts";
+import type { Transport } from "../transport.ts";
 
 export const ROOT = "root";
 export const itemId = (path: Path) => (path.length ? path.join(".") : ROOT);

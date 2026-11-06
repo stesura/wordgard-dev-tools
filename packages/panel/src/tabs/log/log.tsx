@@ -35,7 +35,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "#components/ui/context-menu";
-import { ClearFilters } from "./clear-filters.tsx";
+import { ClearFilters } from "#components/clear-filters";
 import { Popover, PopoverContent, PopoverTrigger } from "#components/ui/popover";
 import { createLogSource, type LogSource, type RecordSetting } from "./log-source.ts";
 import {
@@ -44,13 +44,13 @@ import {
   createMenuAnchor,
   useMenuSelection,
   type MenuAnchor,
-} from "./node-menu.tsx";
-import { Field, json } from "./node-pane.tsx";
-import type { PanelStore } from "./store.ts";
-import { Tip } from "./tip.tsx";
-import { SplitPane } from "./split-pane.tsx";
-import { isRecord, stored, stringSet } from "./stored.ts";
-import { keepRowInView, useRows } from "./rows.ts";
+} from "#components/node-menu";
+import { Field, json } from "#components/node-pane";
+import type { PanelStore } from "#stores/panel-store.ts";
+import { Tip } from "#components/tip";
+import { SplitPane } from "#components/split-pane";
+import { isRecord, stored, stringSet } from "#stores/stored.ts";
+import { keepRowInView, useRows } from "#hooks/use-rows.ts";
 
 const ROW = 20;
 const COLUMNS =

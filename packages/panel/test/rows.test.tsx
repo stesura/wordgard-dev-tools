@@ -2,7 +2,7 @@ import { useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it } from "vitest";
-import { keepRowInView, useRows } from "../src/rows.ts";
+import { keepRowInView, useRows } from "../src/hooks/use-rows.ts";
 
 const ROW = 20;
 let root: Root | null = null;

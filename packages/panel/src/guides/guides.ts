@@ -1,7 +1,7 @@
 // Each tab's guide: shown in the panel (the ? in the tab bar) and written into the README's
 // "Tabs" section by `npm run readme`. Plain data, `code` in backticks and [links](href) to
 // Wordgard's reference, inline: both read it. Wordgard's concepts in its reference's own words.
-import type { View } from "./store.ts";
+import type { View } from "#stores/panel-store.ts";
 
 export type Guide = {
   title: string;

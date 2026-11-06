@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { hue, markColour, type ColourKind } from "./colours.ts";
+import { hue, markColour, type ColourKind } from "#lib/colours.ts";
 import { Tip } from "./tip.tsx";
 
 /** A node or mark type as a badge in its Schema colour, a link to its card there. */

@@ -16,12 +16,12 @@ import {
   ContextMenuTrigger,
 } from "#components/ui/context-menu";
 import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "./node-menu.tsx";
-import { pathOf, type DetailSource } from "./detail-cache.ts";
-import type { ColourKind } from "./colours.ts";
+import { pathOf, type DetailSource } from "#lib/detail-cache.ts";
+import type { ColourKind } from "#lib/colours.ts";
 import { CopyButton } from "./copy-button.tsx";
-import { GuidePopover } from "./guide.tsx";
-import { SELECTION_BAR } from "./guides.ts";
-import type { PanelStore } from "./store.ts";
+import { GuidePopover } from "./guide-popover.tsx";
+import { SELECTION_BAR } from "../guides/guides.ts";
+import type { PanelStore } from "#stores/panel-store.ts";
 import { Tip } from "./tip.tsx";
 import { TypeLink } from "./type-link.tsx";
 

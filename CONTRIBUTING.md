@@ -33,7 +33,7 @@ npm run e2e -w wordgard-devtools-extension   # the built extension's panel again
 The panel is compiled by the React Compiler in every build (`scripts/react-compiler.ts`), so
 don't add `useMemo`, `useCallback` or `memo` for speed. Keep them only where a value must stay
 the same object (ref callbacks that subscribe, and what they call). Long lists draw their rows
-through `useRows` (`packages/panel/src/rows.ts`), not a library the compiler can't follow.
+through `useRows` (`packages/panel/src/hooks/use-rows.ts`), not a library the compiler can't follow.
 
 A component the compiler can't compile fails the build: a broken Rule of React (`npm run lint`
 says which), a construct the compiler doesn't support yet, or an `eslint-disable` of a

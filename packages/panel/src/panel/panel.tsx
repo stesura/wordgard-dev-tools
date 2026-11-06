@@ -36,17 +36,17 @@ import {
 } from "#components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#components/ui/tabs";
-import { Log } from "./Log.tsx";
-import { Fields } from "./Fields.tsx";
-import { Schema } from "./Schema.tsx";
-import { State } from "./State.tsx";
-import { View as ViewTab } from "./View.tsx";
-import { GuideButton, guidesShown } from "./guide.tsx";
-import { isView, type PanelStore } from "./store.ts";
-import { SelectionBar } from "./node-pane.tsx";
-import { SelectionTab } from "./Selection.tsx";
-import { Structure } from "./Structure.tsx";
-import type { ThemeChoice, ThemeStore } from "./theme.ts";
+import { Log } from "../tabs/log/log.tsx";
+import { Fields } from "../tabs/fields/fields.tsx";
+import { Schema } from "../tabs/schema/schema.tsx";
+import { State } from "../tabs/state/state.tsx";
+import { View as ViewTab } from "../tabs/dom/dom.tsx";
+import { GuideButton, guidesShown } from "#components/guide-popover";
+import { isView, type PanelStore } from "#stores/panel-store.ts";
+import { SelectionBar } from "#components/node-pane";
+import { SelectionTab } from "../tabs/selection/selection.tsx";
+import { Structure } from "../tabs/structure/structure.tsx";
+import type { ThemeChoice, ThemeStore } from "#stores/theme.ts";
 
 const editorLabel = (editor: EditorInfo) =>
   `${editor.name} · #${editor.id}` + (editor.frame ? ` · ${editor.frame}` : "");

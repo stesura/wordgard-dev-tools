@@ -29,9 +29,9 @@ import {
   DropdownMenuSeparator,
 } from "#components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#components/ui/tooltip";
-import { ChoiceMenu, IconButton, Panel, type Choice } from "./Panel.tsx";
-import type { PanelStore } from "./store.ts";
-import type { ThemeStore } from "./theme.ts";
+import { ChoiceMenu, IconButton, Panel, type Choice } from "./panel.tsx";
+import type { PanelStore } from "#stores/panel-store.ts";
+import type { ThemeStore } from "#stores/theme.ts";
 
 export type DockSide = "bottom" | "right" | "top" | "left";
 

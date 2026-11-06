@@ -1,6 +1,6 @@
 import type { ResolvedPos, SelectionDetail } from "@stesura/wordgard-dev-tools";
-import { errorMessage } from "./store.ts";
-import type { Transport } from "./transport.ts";
+import { errorMessage } from "#stores/panel-store.ts";
+import type { Transport } from "../../transport.ts";
 
 /** A position the user typed, resolved. */
 export type Probe = { pos: number; resolved: ResolvedPos | null; error: string | null };

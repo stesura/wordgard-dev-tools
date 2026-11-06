@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { hueOf } from "../src/colours.ts";
+import { hueOf } from "../src/lib/colours.ts";
 
 it("gives each name its own hue, the same every time, until the palette is full", () => {
   const names = Array.from({ length: 12 }, (_, i) => `Type${i}`);

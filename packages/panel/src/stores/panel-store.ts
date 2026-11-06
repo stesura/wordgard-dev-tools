@@ -6,8 +6,8 @@ import type {
   Request,
   SelectionInfo,
 } from "@stesura/wordgard-dev-tools";
-import type { ColourKind } from "./colours.ts";
-import type { Transport } from "./transport.ts";
+import type { ColourKind } from "#lib/colours.ts";
+import type { Transport } from "../transport.ts";
 
 export type View = "structure" | "selection" | "state" | "view" | "schema" | "fields" | "log";
 const VIEWS: readonly View[] = [

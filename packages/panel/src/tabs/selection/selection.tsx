@@ -17,15 +17,15 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "#components/ui/context-menu";
-import type { ColourKind } from "./colours.ts";
-import { GuidePopover } from "./guide.tsx";
-import { RESOLVED_POSITIONS, SELECTION } from "./guides.ts";
-import { CopySelection, copy, useMenuSelection } from "./node-menu.tsx";
-import { Field, json, selectionType } from "./node-pane.tsx";
+import type { ColourKind } from "#lib/colours.ts";
+import { GuidePopover } from "#components/guide-popover";
+import { RESOLVED_POSITIONS, SELECTION } from "../../guides/guides.ts";
+import { CopySelection, copy, useMenuSelection } from "#components/node-menu";
+import { Field, json, selectionType } from "#components/node-pane";
 import { createSelectionSource } from "./selection-source.ts";
-import type { PanelStore } from "./store.ts";
-import { Tip } from "./tip.tsx";
-import { TypeLink } from "./type-link.tsx";
+import type { PanelStore } from "#stores/panel-store.ts";
+import { Tip } from "#components/tip";
+import { TypeLink } from "#components/type-link";
 
 type Links = { onNode: (path: Path) => void; onType: (kind: ColourKind, name: string) => void };
 

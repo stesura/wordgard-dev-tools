@@ -24,13 +24,13 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "#components/ui/context-menu";
-import { CopyButton } from "./copy-button.tsx";
-import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "./node-menu.tsx";
-import { SearchBox, centreRow, includes, matchClass, useSearch } from "./search.tsx";
+import { CopyButton } from "#components/copy-button";
+import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "#components/node-menu";
+import { SearchBox, centreRow, includes, matchClass, useSearch } from "#components/search-box";
 import { createStateSource } from "./state-source.ts";
-import type { PanelStore } from "./store.ts";
-import { Tip } from "./tip.tsx";
-import { keepRowInView, useRows } from "./rows.ts";
+import type { PanelStore } from "#stores/panel-store.ts";
+import { Tip } from "#components/tip";
+import { keepRowInView, useRows } from "#hooks/use-rows.ts";
 
 const ROW = 20;
 

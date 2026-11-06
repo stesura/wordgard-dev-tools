@@ -1,7 +1,7 @@
 // The store against a slow fake agent, as the extension's transport will be.
 import { afterEach, expect, it } from "vitest";
 import type { EditorInfo, Push, Request, RequestType, Results } from "@stesura/wordgard-dev-tools";
-import { createPanelStore } from "../src/store.ts";
+import { createPanelStore } from "../src/stores/panel-store.ts";
 import type { Transport } from "../src/transport.ts";
 
 const fakeAgent = (ids: number[], delay = 20) => {

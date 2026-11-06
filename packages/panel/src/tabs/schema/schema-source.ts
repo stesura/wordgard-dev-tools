@@ -1,6 +1,6 @@
 import type { SchemaInfo } from "@stesura/wordgard-dev-tools";
-import { errorMessage } from "./store.ts";
-import type { Transport } from "./transport.ts";
+import { errorMessage } from "#stores/panel-store.ts";
+import type { Transport } from "../../transport.ts";
 
 export type SchemaSource = {
   schema: () => SchemaInfo | null;

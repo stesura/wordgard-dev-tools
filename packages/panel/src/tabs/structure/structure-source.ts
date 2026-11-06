@@ -1,7 +1,7 @@
 import type { StructureNode } from "@stesura/wordgard-dev-tools";
-import { createDetailCache, type DetailSource } from "./detail-cache.ts";
-import { errorMessage } from "./store.ts";
-import type { Transport } from "./transport.ts";
+import { createDetailCache, type DetailSource } from "#lib/detail-cache.ts";
+import { errorMessage } from "#stores/panel-store.ts";
+import type { Transport } from "../../transport.ts";
 
 export type StructureSource = DetailSource & {
   doc: () => StructureNode | null;
