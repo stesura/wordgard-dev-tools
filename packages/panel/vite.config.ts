@@ -4,13 +4,14 @@ import {playwright} from "@vitest/browser-playwright"
 import {fileURLToPath} from "node:url"
 import {defaultClientConditions, searchForWorkspaceRoot} from "vite"
 import {defineConfig} from "vitest/config"
+import {reactCompiler} from "../../scripts/react-compiler.ts"
 import {cssAndCopiedCode, thirdPartyLicenses} from "../../scripts/third-party-licenses.ts"
 
 export default defineConfig(({command}) => ({
   // The build ships production React only. The page's own `isProduction()` stays unreplaced,
   // as @stesura/wordgard-dev-tools is external. Tests and the extension build from source.
   define: command === "build" ? {"process.env.NODE_ENV": JSON.stringify("production")} : {},
-  plugins: [react(), tailwindcss(), thirdPartyLicenses({extra: cssAndCopiedCode}).plugin],
+  plugins: [react(), reactCompiler(), tailwindcss(), thirdPartyLicenses({extra: cssAndCopiedCode}).plugin],
   resolve: {
     conditions: ["source", ...defaultClientConditions],
     dedupe: ["wordgard", "react", "react-dom"],

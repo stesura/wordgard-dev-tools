@@ -61,13 +61,14 @@ const DomMenu = ({
   tree: HTMLElement | null
   onElement: (id: string, action: "log" | "logHTML") => void
 }) => {
-  const target = useSyncExternalStore(anchor.subscribe, anchor.get)
+  const {subscribe, get, setTrigger} = anchor
+  const target = useSyncExternalStore(subscribe, get)
   const node = target && dom ? drawnBy(dom, target.id) : null
   const copyHTML = async (id: string) => copy(await store.transport.send({type: "viewHTML", id: editorId, path: pathOf(id)}))
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
-        <span ref={anchor.setTrigger} />
+        <span ref={setTrigger} />
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52" finalFocus={() => tree ?? true}>
         <CopySelection text={target?.selection} />
@@ -245,6 +246,8 @@ const Status = ({status}: {status: ViewInfo["status"]}) => {
 
 /** The editor's view: its status and its content's DOM, mapped to the document. Mounted per editor. */
 export const View = ({store, editorId}: {store: PanelStore; editorId: number}) => {
+  // TanStack Virtual can't be memoized: not compiled; this component keeps its manual memoization.
+  "use no memo"
   const [source] = useState(() => createViewSource(store.transport, editorId))
   const {info, error} = useSyncExternalStore(source.subscribe, source.get)
   const [collapsed, setCollapsedState] = useState<ReadonlySet<string>>(() => new Set())
@@ -261,6 +264,7 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
   const lines = useMemo(() => (info ? flatten(info.dom, collapsed) : []), [info, collapsed])
   const outlined = useRef(false)
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- not compiled: "use no memo" above
   const virtualizer = useVirtualizer({
     count: lines.length,
     getScrollElement: () => scrollElement,
@@ -346,6 +350,9 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
         hide()
       }
     },
+    // `showLine` reads the latest values through refs and setters: the first render's copy is enough,
+    // and listing it would re-subscribe on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [store, editorId, source, hide],
   )
 

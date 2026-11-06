@@ -10,6 +10,8 @@ export type Find = ((query: string) => string[]) | null
 export const useSearch = (find: Find, reveal: (id: string) => void) => {
   const [query, setQuery] = useState("")
   const [current, setCurrent] = useState(0)
+  // Kept: the compiler would also key it on `current` and `reveal`, and the uncompiled tabs pass
+  // a new `reveal` on every render (every scroll frame): the whole search would rerun.
   const matches = useMemo(() => (find && query ? find(query) : []), [find, query])
   // -1 with no matches; clamped when a reload leaves fewer.
   const index = Math.min(current, matches.length - 1)

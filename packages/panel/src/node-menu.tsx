@@ -21,6 +21,9 @@ import type { PanelStore } from "./store.ts";
  * One context menu per view, opened through a hidden trigger (as Stesura's editor does): no
  * menu root or trigger wraps the rows, so opening it re-renders only the menu, and Base UI keeps
  * its own anchoring and dismissal.
+ *
+ * Menus destructure it before use: `ref={anchor.setTrigger}` makes the React Compiler take the
+ * whole anchor for a ref, and reject reading it during render.
  */
 export type MenuAnchor<T> = {
   /** `selection`: the text selected in the view when the menu opened, for its "Copy" item. */
@@ -184,7 +187,8 @@ export const NodeMenu = ({
   editorId: number;
   anchor: NodeMenuAnchor;
 }) => {
-  const target = useSyncExternalStore(anchor.subscribe, anchor.get);
+  const {subscribe, get, setTrigger} = anchor;
+  const target = useSyncExternalStore(subscribe, get);
   const path = target?.path ?? [];
   const copyJSON = async () => {
     const node = await store.transport.send({ type: "node", id: editorId, path });
@@ -193,9 +197,9 @@ export const NodeMenu = ({
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
-        <span ref={anchor.setTrigger} />
+        <span ref={setTrigger} />
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-52" finalFocus={() => anchor.get()?.row ?? true}>
+      <ContextMenuContent className="w-52" finalFocus={() => get()?.row ?? true}>
         <CopySelection text={target?.selection} />
         <ContextMenuItem
           className="text-xs"

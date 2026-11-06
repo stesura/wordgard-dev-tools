@@ -11,7 +11,6 @@ import {
 } from "#icons"
 import {
   useCallback,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -337,7 +336,10 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
     if (!element || !path || !(element instanceof HTMLElement)) return
     setFocused(itemId(path))
     element.focus({preventScroll: true})
-    if (scroller.current) scrollInto(scroller.current, element)
+    // Found from the item, not the scroller ref: the context menu's anchor, built during render,
+    // holds this function, and the React Compiler rejects refs reached from render.
+    const tree = element.closest("[role='tree']")
+    if (tree instanceof HTMLElement) scrollInto(tree, element)
   }
 
   // Closing a box that holds the focused node moves focus to the box.
@@ -384,7 +386,7 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
     focusItem(target)
   }
 
-  const find = useMemo(() => (doc ? (query: string) => search(doc, query) : null), [doc])
+  const find = doc ? (query: string) => search(doc, query) : null
   const searching = useSearch(find, id => void reveal(pathOf(id)))
 
   const marks = {selection: info, focused, all: searching.all, current: searching.current, collapsed, toggle}

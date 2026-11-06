@@ -485,11 +485,12 @@ const SpecMenu = ({
   onLog: Log;
   copied: () => string;
 }) => {
-  const target = useSyncExternalStore(anchor.subscribe, anchor.get);
+  const {subscribe, get, setTrigger} = anchor;
+  const target = useSyncExternalStore(subscribe, get);
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
-        <span ref={anchor.setTrigger} />
+        <span ref={setTrigger} />
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52">
         <CopySelection text={target?.selection} />
@@ -526,12 +527,13 @@ const SchemaMenu = ({
   onShow: (card: string) => void;
   onLog: Log;
 }) => {
-  const target = useSyncExternalStore(anchor.subscribe, anchor.get);
+  const {subscribe, get, setTrigger} = anchor;
+  const target = useSyncExternalStore(subscribe, get);
   const card = jsonOf(schema, target?.card ?? null);
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
-        <span ref={anchor.setTrigger} />
+        <span ref={setTrigger} />
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52">
         <CopySelection text={target?.selection} />
@@ -770,6 +772,19 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
     ),
   );
 
+  // Clears the filters so the card is there, rings it, then scrolls to it once drawn.
+  const go: Go = (kind, name) => {
+    setSelectedCard(`${kind}-${name}`);
+    schemaFilters.update(() => noFilters);
+    requestAnimationFrame(() => {
+      const container = scroller.current;
+      const card = container?.querySelector(`[data-type='${kind}-${CSS.escape(name)}']`);
+      const heading = card?.closest("[data-list]")?.querySelector("[data-heading]");
+      if (container && card)
+        scrollInto(container, card, heading instanceof HTMLElement ? heading.offsetHeight : 0);
+    });
+  };
+
   // Loads while its tab is shown: on showing (when the configuration changed meanwhile) and on
   // each configuration change.
   const container = useCallback(
@@ -808,19 +823,6 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
     },
     [store, editorId, source],
   );
-
-  // Clears the filters so the card is there, rings it, then scrolls to it once drawn.
-  const go: Go = (kind, name) => {
-    setSelectedCard(`${kind}-${name}`);
-    schemaFilters.update(() => noFilters);
-    requestAnimationFrame(() => {
-      const container = scroller.current;
-      const card = container?.querySelector(`[data-type='${kind}-${CSS.escape(name)}']`);
-      const heading = card?.closest("[data-list]")?.querySelector("[data-heading]");
-      if (container && card)
-        scrollInto(container, card, heading instanceof HTMLElement ? heading.offsetHeight : 0);
-    });
-  };
 
   const allNodes = schema?.nodes ?? [];
   const allMarks = schema?.marks ?? [];

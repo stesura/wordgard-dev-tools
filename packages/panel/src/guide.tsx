@@ -46,7 +46,7 @@ export const guidesShown = stored<boolean>("wordgard-devtools:guides", true, jso
  */
 export const GuidePopover = ({
   guide,
-  label = `About ${guide.title}`,
+  label,
   align = "end",
   dim = true,
 }: {
@@ -65,7 +65,7 @@ export const GuidePopover = ({
         <Button
           variant="ghost"
           size="icon-xs"
-          aria-label={label}
+          aria-label={label ?? `About ${guide.title}`}
           className={cn(dim && "opacity-50 hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100")}
         />
       }

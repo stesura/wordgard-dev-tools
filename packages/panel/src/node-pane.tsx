@@ -122,12 +122,13 @@ type PaneTarget = {part: PaneLog | null; text: string}
 const Part = ({part, children}: {part: string; children: ReactNode}) => <div data-part={part}>{children}</div>
 
 const PaneMenu = ({anchor, onLog}: {anchor: MenuAnchor<PaneTarget>; onLog: (part: PaneLog) => void}) => {
-  const target = useSyncExternalStore(anchor.subscribe, anchor.get)
+  const {subscribe, get, setTrigger} = anchor
+  const target = useSyncExternalStore(subscribe, get)
   const part = target?.part
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
-        <span ref={anchor.setTrigger} />
+        <span ref={setTrigger} />
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52">
         <CopySelection text={target?.selection} />

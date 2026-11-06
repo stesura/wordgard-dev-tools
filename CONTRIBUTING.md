@@ -23,10 +23,19 @@ Run these before opening a pull request. CI runs the same ones.
 
 ```sh
 npm run typecheck
+npm run lint                                 # the Rules of React (eslint-plugin-react-hooks)
 npm test                                     # Vitest in Chromium
 npm run build                                # packages, extension (Chrome and Firefox), demo
+npm run compiler:check                       # each build went through the React Compiler
 npm run e2e -w wordgard-devtools-extension   # the built extension's panel against the demo
 ```
+
+The panel is compiled by the React Compiler in every build (`scripts/react-compiler.ts`), so
+don't add `useMemo`, `useCallback` or `memo` for speed. Keep them only where a value must stay
+the same object (ref callbacks that subscribe), and in the components that use TanStack Virtual,
+which opt out with `"use no memo"`. A component the compiler can't compile fails the build: a
+broken Rule of React (`npm run lint` says which), a construct the compiler doesn't support yet,
+or an `eslint-disable` of a `react-hooks` rule inside it. Rewrite it, or opt it out.
 
 Add or update tests for what you change.
 

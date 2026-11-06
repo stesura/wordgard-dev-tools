@@ -1210,3 +1210,85 @@ Audit (Fable). Accepted and fixed:
 
 Rejected: a named field called `selection` or `doc` replaces that key in the State's JSON, while the
 menu logs the live selection or treats `doc` as the document. Not a realistic field name.
+
+## React Compiler and the Rules of React (2026-11-06)
+
+At the user's request. React 19 doesn't memoize by itself; the compiler does, at build time.
+
+### How it works
+
+- `scripts/react-compiler.ts`: the Babel React Compiler (`@rolldown/plugin-babel` with
+  `reactCompilerPreset()` from `@vitejs/plugin-react`, Babel 7, `babel-plugin-react-compiler`
+  1.0). Not plugin-react's Rust `compiler` option, marked experimental. It runs before Vite's own
+  transform (`enforce: "pre"`), so its place in a plugin list doesn't matter.
+- Used by every build of the panel: its own Vite config (tests and `dist/`), the demo's and the
+  extension's WXT config, which both build the panel from source. Limited to this repo's
+  `packages/` and `demo/`: the sibling `../wordgard` and `../react-wordgard` resolve outside
+  `node_modules` and would otherwise be compiled too.
+- `panicThreshold: "all_errors"`: a component the compiler can't compile fails the build, rather
+  than silently staying uncompiled. That covers what lint misses: constructs the compiler doesn't
+  support yet, and an `eslint-disable` of a `react-hooks` rule inside a component (both checked
+  by breaking a component on purpose). Components opt out with `"use no memo"`.
+- `npm run compiler:check` (`scripts/compiler-check.ts`, CI after the build): each build's
+  scripts must hold at least 20 compiled memo-cache checks (about 100 today; an uncompiled build
+  has none). Checked by building the demo without the compiler: 0, and the check fails.
+- `eslint.config.js`: `eslint-plugin-react-hooks`' recommended preset (the hooks rules and the
+  compiler's diagnostics) over the panel, the extension and the demo, with the `typescript-eslint`
+  parser only. `npm run lint` allows no warnings; CI runs it.
+
+### Lint fixes
+
+- Context menus destructure their anchor (`subscribe`, `get`, `setTrigger`) before use:
+  `ref={anchor.setTrigger}` made the compiler take the whole anchor for a ref.
+- Structure's `focusItem` finds its scroller from the item (`closest("[role='tree']")`): the
+  menu anchor, built during render, holds it, and the compiler rejects refs reached from render.
+- Schema's `go` is declared before the `container` callback that calls it.
+- Log's and View's `container` keep their first render's `select` / `showLine` (refs and setters
+  only), with the exhaustive-deps rule disabled on that line: listing them would re-subscribe on
+  every render.
+- Log, State and View use TanStack Virtual, which the compiler can't memoize: they opt out with
+  `"use no memo"` and keep their manual memoization (the lint rule still flags the virtualizer,
+  so it has a line exception too).
+- Compiler limitations, rewritten: the guide's `label` default (a template literal in a default
+  parameter) moved into the body; the Log entry's flags expression moved into `entryFlags`.
+
+### Memoization
+
+Removed where the compiler does it: the Structure's `find`. Kept: `useSearch`'s matches (see the
+audit), the ref callbacks that subscribe (their identity is the behaviour), the Structure
+callbacks they depend on, and everything in the three opted-out components. CONTRIBUTING states
+the policy.
+
+### Audit (Fable)
+
+1. Accepted, fixed: without its `useMemo`, the compiler keyed `useSearch`'s matches on `current`
+   and `reveal` too, and the uncompiled State and View pass a new `reveal` on every render: the
+   search would rerun on every scroll frame. The `useMemo` is back; checked in the compiled output.
+2. Not ours: the working tree renames the `deps` script to `dependency-check`, and CLAUDE.md still
+   says `npm run deps`. Left for the author of that change.
+3. Accepted, fixed: the Log's `EntryView` wasn't compiled (a compiler limitation) and lint didn't
+   say so. Rewritten, and `panicThreshold` now fails the build on any such case.
+4. Accepted, fixed: an `eslint-disable` of a `react-hooks` rule silently skips the component it's
+   in. The three virtualised components opt out explicitly instead, and the build fails on any
+   other.
+5. Accepted, fixed: the compiler also ran over the sibling repos' sources. Now limited to this repo.
+
+### Measured
+
+Production demo, 300 keystrokes, Chrome's main-thread `TaskDuration`, median of 5, the two builds
+back to back (before the audit's fixes, which only add compiled code and a memo):
+
+| Panel | Without the compiler | With it |
+| --- | --- | --- |
+| Log tab, recording | 2488 ms | 1572 ms (-37%) |
+| Structure tab | 1646 ms | 928 ms (-44%) |
+| State tab | 1653 ms | 1028 ms (-38%) |
+| Collapsed | 512 ms | 569 ms (noise: the runs overlap) |
+
+### Open points
+
+- The three virtualised tabs (Log, State, View) are where most rendering happens and aren't
+  compiled. Moving `useVirtualizer` into a small child component would let the rest of each
+  compile.
+- Three Schema tests fail since commit `ea18c7c`, which removed the "node type" / "mark type"
+  label the tests wait for ("Paragraphnode type"). They fail with or without this change.

@@ -103,7 +103,8 @@ type HistoryTarget = {seq: number}
 
 /** A history change's context menu. */
 const HistoryMenu = ({source, index, anchor}: {source: FieldsSource; index: number; anchor: MenuAnchor<HistoryTarget>}) => {
-  const target = useSyncExternalStore(anchor.subscribe, anchor.get)
+  const {subscribe, get, setTrigger} = anchor
+  const target = useSyncExternalStore(subscribe, get)
   const copyValue = async (seq: number) => {
     const result = await source.change(index, seq)
     if (result.error == null) await copy(json(result.value))
@@ -111,9 +112,9 @@ const HistoryMenu = ({source, index, anchor}: {source: FieldsSource; index: numb
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
-        <span ref={anchor.setTrigger} />
+        <span ref={setTrigger} />
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-52" finalFocus={() => anchor.get()?.row.querySelector("button") ?? true}>
+      <ContextMenuContent className="w-52" finalFocus={() => get()?.row.querySelector("button") ?? true}>
         <CopySelection text={target?.selection} />
         <ContextMenuItem className="text-xs" onClick={() => target && source.logChange(index, target.seq)}>
           <CommandLineIcon /> Log to console
@@ -128,11 +129,12 @@ const HistoryMenu = ({source, index, anchor}: {source: FieldsSource; index: numb
 
 /** The value's context menu. */
 const ValueMenu = ({anchor, onLog, text}: {anchor: MenuAnchor<object>; onLog: () => void; text: () => string}) => {
-  const target = useSyncExternalStore(anchor.subscribe, anchor.get)
+  const {subscribe, get, setTrigger} = anchor
+  const target = useSyncExternalStore(subscribe, get)
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
-        <span ref={anchor.setTrigger} />
+        <span ref={setTrigger} />
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52">
         <CopySelection text={target?.selection} />
@@ -269,7 +271,8 @@ const FieldMenu = ({
   anchor: MenuAnchor<MenuTarget>
   list: HTMLElement | null
 }) => {
-  const target = useSyncExternalStore(anchor.subscribe, anchor.get)
+  const {subscribe, get, setTrigger} = anchor
+  const target = useSyncExternalStore(subscribe, get)
   const index = target?.index
   const copyValue = async (index: number) => {
     const result = await source.detail(index, source.version())
@@ -278,7 +281,7 @@ const FieldMenu = ({
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
-        <span ref={anchor.setTrigger} />
+        <span ref={setTrigger} />
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52" finalFocus={() => list ?? true}>
         <CopySelection text={target?.selection} />

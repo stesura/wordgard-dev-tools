@@ -287,7 +287,8 @@ const StateMenu = ({
   tree: HTMLElement | null;
   onHighlight: (path: Path) => void;
 }) => {
-  const target = useSyncExternalStore(anchor.subscribe, anchor.get);
+  const {subscribe, get, setTrigger} = anchor;
+  const target = useSyncExternalStore(subscribe, get);
   const keys = target?.keys ?? [];
   const path = nodePathOf(keys);
   const log = (json: boolean) =>
@@ -298,7 +299,7 @@ const StateMenu = ({
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
-        <span ref={anchor.setTrigger} />
+        <span ref={setTrigger} />
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52" finalFocus={() => tree ?? true}>
         <CopySelection text={target?.selection} />
@@ -341,6 +342,8 @@ const StateMenu = ({
 
 /** The editor's state as plain JSON (`GardState.toJSON`), collapsible and virtualized. Mounted per editor. */
 export const State = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
+  // TanStack Virtual can't be memoized: not compiled; this component keeps its manual memoization.
+  "use no memo";
   const [source] = useState(() => createStateSource(store.transport, editorId));
   const { json, loaded, error } = useSyncExternalStore(source.subscribe, source.get);
 
@@ -382,6 +385,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const lines = useMemo(() => (loaded ? flatten(json, collapsed) : []), [json, loaded, collapsed]);
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- not compiled: "use no memo" above
   const virtualizer = useVirtualizer({
     count: lines.length,
     getScrollElement: () => scrollElement,

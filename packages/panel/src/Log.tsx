@@ -57,6 +57,10 @@ const flagOf: Record<Flag, (row: LogRow) => boolean> = {
 }
 const flags = (row: LogRow) => FLAGS.filter(flag => flagOf[flag](row))
 
+// Outside EntryView: the React Compiler can't compile this expression inline yet.
+const entryFlags = (entry: LogEntryDetail) =>
+  [...flags(entry), ...(entry.scrollIntoView ? ["scroll"] : []), ...(entry.reconfigured ? ["reconfig"] : [])].join(" ") || "–"
+
 const flushTitle = (row: LogRow) =>
   row.flush == null
     ? "Not drawn yet"
@@ -481,7 +485,8 @@ type RowTarget = {index: number}
 
 /** A row's context menu. */
 const RowMenu = ({source, rows, anchor}: {source: LogSource; rows: LogRow[]; anchor: MenuAnchor<RowTarget>}) => {
-  const target = useSyncExternalStore(anchor.subscribe, anchor.get)
+  const {subscribe, get, setTrigger} = anchor
+  const target = useSyncExternalStore(subscribe, get)
   const row = target ? rows.find(r => r.index == target.index) : undefined
   const copyJSON = async (row: LogRow) => {
     const detail = await source.detail(row.index, row.flush)
@@ -490,12 +495,12 @@ const RowMenu = ({source, rows, anchor}: {source: LogSource; rows: LogRow[]; anc
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
-        <span ref={anchor.setTrigger} />
+        <span ref={setTrigger} />
       </ContextMenuTrigger>
       <ContextMenuContent
         className="w-48"
         finalFocus={() => {
-          const list = anchor.get()?.row.closest("[role='listbox']")
+          const list = get()?.row.closest("[role='listbox']")
           return list instanceof HTMLElement ? list : true
         }}
       >
@@ -586,8 +591,7 @@ const EntryView = ({
         <Field label="time">{clock(entry.time)}</Field>
         <Field label="userEvent">{entry.userEvent ?? "–"}</Field>
         <Field label="flags">
-          {[...flags(entry), ...(entry.scrollIntoView ? ["scroll"] : []), ...(entry.reconfigured ? ["reconfig"] : [])].join(" ") ||
-            "–"}
+          {entryFlags(entry)}
         </Field>
         <Field label="dispatch">
           <span className={cn(slow(entry.dispatchMs) && slowText)}>{ms(entry.dispatchMs)} ms</span>
@@ -653,6 +657,8 @@ const EntryPane = ({source, row}: {source: LogSource; row: LogRow | null}) => {
 
 /** The transaction log of one editor, with record/pause and per-update timing. Mounted per editor. */
 export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) => {
+  // TanStack Virtual can't be memoized: not compiled; this component keeps its manual memoization.
+  "use no memo"
   const [source] = useState(() => createLogSource(store.transport, editorId))
   const view = useSyncExternalStore(source.subscribe, source.get)
   const [selected, setSelected] = useState<number | null>(null)
@@ -673,6 +679,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
   shownNow.current = shown
 
   // The column header is a sticky row at the top of the scroller.
+  // eslint-disable-next-line react-hooks/incompatible-library -- not compiled: "use no memo" above
   const virtualizer = useVirtualizer({
     count: shown.length,
     getScrollElement: () => scrollElement,
@@ -767,6 +774,9 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
         scroller.current = null
       }
     },
+    // `select` reads the latest values through refs and setters: the first render's copy is enough,
+    // and listing it would re-subscribe on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [store, editorId, source],
   )
 

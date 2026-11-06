@@ -28,12 +28,18 @@ jobs:
       - name: Typecheck
         working-directory: wordgard-devtools
         run: npm run typecheck
+      - name: Lint (the Rules of React)
+        working-directory: wordgard-devtools
+        run: npm run lint
       - name: Test
         working-directory: wordgard-devtools
         run: npm test
       - name: Build
         working-directory: wordgard-devtools
         run: npm run build
+      - name: Every build of the panel is compiled by the React Compiler
+        working-directory: wordgard-devtools
+        run: npm run compiler:check
       - name: End to end (built extension against the built demo)
         working-directory: wordgard-devtools
         run: npm run e2e -w wordgard-devtools-extension

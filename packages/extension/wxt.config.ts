@@ -1,6 +1,7 @@
 import tailwindcss from "@tailwindcss/vite"
 import {defaultClientConditions} from "vite"
 import {defineConfig} from "wxt"
+import {reactCompiler} from "../../scripts/react-compiler.ts"
 import {cssAndCopiedCode, thirdPartyLicenses} from "../../scripts/third-party-licenses.ts"
 
 // WXT runs one Vite build per entrypoint group: collect across them, write once at the end.
@@ -25,7 +26,7 @@ export default defineConfig({
   }),
   vite: () => ({
     // The panel's Tailwind styles come from its source.
-    plugins: [tailwindcss(), licenses.plugin],
+    plugins: [reactCompiler(), tailwindcss(), licenses.plugin],
     resolve: {conditions: ["source", ...defaultClientConditions], dedupe: ["react", "react-dom"]},
   }),
   hooks: {
