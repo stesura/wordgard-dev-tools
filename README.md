@@ -65,33 +65,45 @@ Nothing runs until the panel opens, and nothing is recorded until you press reco
 
 ![The Structure tab](docs/screenshots/structure.png)
 
-The document as nested boxes: each node with its type, marks and from–to positions. The selection is marked: in a cell selection, every selected cell, with the anchor and head cells. [A document is a tree of nodes](https://wordgard.net/docs/ref/#h-document): [plots](https://wordgard.net/docs/ref/#doc.Plot) (nodes with content nodes) or [leaves](https://wordgard.net/docs/ref/#doc.Leaf); [marks](https://wordgard.net/docs/ref/#doc.Mark) are pieces of information attached to nodes.
+The document as represented by a tree of nested boxes, each box being a [plots](https://wordgard.net/docs/ref/#doc.Plot) or a [leaf](https://wordgard.net/docs/ref/#doc.Leaf) node.
 
-- from–to: [positions are offset numbers](https://wordgard.net/docs/ref/#h-resolved-positions) into the document.
-- Hover a box to outline its node in the page; click it for its detail, parameters and JSON.
-- Right-click a box to scroll it into view, show its type in Schema or its element in DOM, log it, or copy its JSON or path.
-- Press the pick button in the header, then click in the page, to find a node here.
+- Each node displays its [type](https://wordgard.net/docs/ref/#doc.Node.Type), [marks](https://wordgard.net/docs/ref/#doc.Mark) and from–to positions.
+- Selection is show through a darker (lighter in dark mode) background.
+- [A document is a tree of nodes](https://wordgard.net/docs/ref/#h-document): [plots](https://wordgard.net/docs/ref/#doc.Plot) (nodes with content nodes) or [leaves](https://wordgard.net/docs/ref/#doc.Leaf); [marks](https://wordgard.net/docs/ref/#doc.Mark) are pieces of information attached to nodes.
+
+Tips:
+
+- Click a box for its detail and JSON; Escape clears it.
+- Right-click a box for more actions.
+- Use the pick button, then click in the page, to find a node.
+- Decorations shows the editor's [decorations](https://wordgard.net/docs/ref/#editor.Decoration): ◆ marks a widget, ◇ 2 a node with two decorations.
+- By default a range decoration applies to the text in its range, not the paragraph around it; a point decoration to the node starting at it.
 
 ### Selection
 
 ![The Selection tab](docs/screenshots/selection.png)
 
-The [selection](https://wordgard.net/docs/ref/#state.GardSelection), its [slice](https://wordgard.net/docs/ref/#doc.Slice), and its anchor and head [resolved](https://wordgard.net/docs/ref/#h-resolved-positions).
+The [selection](https://wordgard.net/docs/ref/#state.GardSelection), its [slice](https://wordgard.net/docs/ref/#doc.Slice), and its anchor and head [resolved](https://wordgard.net/docs/ref/#h-resolved-positions). Each card's guide explains its fields.
+
+Tips:
 
 - The bar at the bottom of the panel always shows the selection, whichever tab is open: its type, anchor, head and marks.
 - Nodes link to the Structure, types to the Schema.
-- Hover a card to log or copy it.
+- Right click a card to log or copy it.
 
 ### State
 
 ![The State tab](docs/screenshots/state.png)
 
-The [editor state](https://wordgard.net/docs/ref/#state.GardState) as collapsible JSON: [`GardState.toJSON()`](https://wordgard.net/docs/ref/#state.GardState.toJSON), with the named fields that serialise. The state tracks the current document, the selection, the configuration of the editor, and any extra state defined by extensions.
+The [editor state](https://wordgard.net/docs/ref/#state.GardState) as collapsible JSON: [`GardState.toJSON()`](https://wordgard.net/docs/ref/#state.GardState.toJSON), with the named fields that serialise.
+
+- The state tracks the current document, the selection, the configuration of the editor, and any extra state defined by extensions, in [fields](https://wordgard.net/docs/ref/#state.GardState.Field).
+
+Tips:
 
 - Right-click a line to highlight its node in the editor, show it in the Structure, log it (live or as JSON), or copy its JSON or path.
 - The toolbar logs the whole state, live or as JSON.
 - Download the state as a JSON file, or replace it from one: the file is checked against the schema first, and the replacement can be undone. Fields aren't restored.
-- Name your [fields](https://wordgard.net/docs/ref/#state.GardState.Field) with `wordgardDevtools({fields: {name: field}})` to see them here.
 
 ### DOM
 
@@ -99,42 +111,60 @@ The [editor state](https://wordgard.net/docs/ref/#state.GardState) as collapsibl
 
 The editor's [content DOM](https://wordgard.net/docs/ref/#editor.Wordgard.contentDOM): the editable DOM element holding the editor content. Each element shows the document node it draws; text shows its position.
 
-- Click an element to outline it in the page. Right-click it to show its node in the Structure, log it, or log or copy its outer HTML.
 - Elements that draw no node (widgets, decorations) are marked as chrome.
-- The status line says whether the editor is connected, editable, focused or composing; hover a label for more.
+- The status line says whether the editor is connected, editable, focused or composing.
+
+Tips:
+
+- Click an element to outline it in the page; Escape clears it.
+- Right-click an element to show its node in the Structure, log it, or log or copy its outer HTML.
+- Hover a status label for more.
 
 ### Schema
 
 ![The Schema tab](docs/screenshots/schema.png)
 
-The [schema](https://wordgard.net/docs/ref/#h-schema)'s node and mark types and node groups: what each holds, where it can go, its parameter and its spec. A schema is a collection of node and mark types, including exactly one document type, plus an optional set of overrides that modify the relations between those elements.
+The [schema](https://wordgard.net/docs/ref/#h-schema)'s node and mark types and node groups: what each holds, where it can go, its parameter and its spec.
+
+- A schema is a collection of node and mark types, including exactly one document type, plus an optional set of [overrides](https://wordgard.net/docs/ref/#doc.Schema.Override) that modify the relations between those elements.
+
+Tips:
 
 - Filter by name or tag. Collapse a section from its title.
 - Type names link between cards. Double-click a card to see its spec as JSON.
 - Order marks by rank to see how they nest.
+- Each section's guide explains its cards.
 
 ### Fields
 
 ![The Fields tab](docs/screenshots/fields.png)
 
-Each [`GardState.Field`](https://wordgard.net/docs/ref/#state.GardState.Field): fields store additional information in an editor state, and keep it in sync with the rest of the state. Its value, and the changes seen to it, each linked to its transaction in the Log.
+Each [`GardState.Field`](https://wordgard.net/docs/ref/#state.GardState.Field): its value, and the changes seen to it, each linked to its transaction in the Log.
 
+- Fields store additional information in an editor state, and keep it in sync with the rest of the state.
 - Changes are tracked while this tab is shown, or while the Log records.
-- Unnamed fields show as "field #n": name them with `wordgardDevtools({fields: {name: field}})`.
-- Expand a change to see the value it set; right-click it to log or copy it.
-- A field holding a [`PointSet` or `RangeSet`](https://wordgard.net/docs/ref/#set) shows its entries; click a position to show its node in the Structure.
-- Each change to a set is badged: "updated +a −d" (a new set sharing entries with the old: mapped, modified or rebuilt from the same values), "recreated" (sharing none), and amber "kept, not mapped": the same set kept across a change that moved or removed what it holds, usually a field that forgot `set.map(tr.changes)`. Fine only if its positions aren't the document's, or are mapped where they're read.
-- Expanding a set change lists what it added and dropped; added entries link to their nodes while the document hasn't changed since.
+
+Tips:
+
+- Name unnamed fields ("field #n") with `wordgardDevtools({fields: {name: field}})`.
+- Expand a change to see its value; right-click to log or copy it.
+- For a [`PointSet` or `RangeSet`](https://wordgard.net/docs/ref/#set), click a position to show its node in the Structure.
+- Amber "kept, not mapped": the set wasn't mapped through a change that moved it; usually a missing `set.map(tr.changes)`.
+- Expand a set change to see what it added and dropped.
 
 ### Log
 
 ![The Log tab](docs/screenshots/log.png)
 
-Recorded [transactions](https://wordgard.net/docs/ref/#state.Transaction). Typically, a user action creates a single transaction, which may contain any number of document changes, may change the selection, or have other effects. For each: what it changed, its selection, [effects](https://wordgard.net/docs/ref/#state.Transaction.Effect) and [annotations](https://wordgard.net/docs/ref/#state.Transaction.Annotation), and how long its [dispatch](https://wordgard.net/docs/ref/#editor.Wordgard.dispatch) and [flush](https://wordgard.net/docs/ref/#editor.Wordgard.flush) took.
+Recorded [transactions](https://wordgard.net/docs/ref/#state.Transaction). For each: what it changed, its selection, [effects](https://wordgard.net/docs/ref/#state.Transaction.Effect) and [annotations](https://wordgard.net/docs/ref/#state.Transaction.Annotation), and how long its [dispatch](https://wordgard.net/docs/ref/#editor.Wordgard.dispatch) and [flush](https://wordgard.net/docs/ref/#editor.Wordgard.flush) took.
 
-- Press Record, then use the editor. Updates over 16 ms are flagged.
+- Typically, a user action creates a single transaction, which may contain any number of document changes, may change the selection, or have other effects.
 - [userEvent](https://wordgard.net/docs/ref/#state.Transaction.userEvent): a string identifying the user interface event, dot-separated (`input.type`, `select.pointer`).
-- changed: `doc`, `sel`; `focus`, the editor's [focused status changed](https://wordgard.net/docs/ref/#editor.Wordgard.isFocusChange); `app`, [created by a transaction appender](https://wordgard.net/docs/ref/#state.Transaction.appended).
+- Updates over 16 ms, a frame, are flagged.
+
+Tips:
+
+- Press Record, then use the editor.
 - Filter by user event, what changed or annotation; sort by any timing column.
 - Right-click a row to log the transaction or copy it as JSON or text; right-click a part of its detail to log or copy that part.
 - Untick record select.pointer to leave out selections made with the pointer, and record focus to leave out focus changes.

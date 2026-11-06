@@ -76,9 +76,10 @@ are exempt, and so are tests in `__tests__`, which may import from any layer):
 - `stores/`: the panel store, the theme, saved settings (`persistent`), `createResource`,
   `whileShown`. No components, tabs, panel or hooks.
 - `lib/`: plain helpers, no React.
-- `guides/`: each guide in markdown, `# Title`, one paragraph, then a list of tips; inline only
-  `` `code` `` and `[links](url)`. The panel shows them, and `npm run readme` writes the tabs'
-  guides into the README.
+- `guides/`: each guide in markdown, `# Title`, one paragraph, then an optional list of notes
+  (Wordgard's concepts, what the view shows) and an optional `## Tips` list (using the panel:
+  clicks, right-clicks, toolbars, other panes); inline only `` `code` `` and `[links](url)`. The
+  panel shows them, and `npm run readme` writes the tabs' guides into the README.
 
 Imports across these folders use the package's aliases (`#components/…`, `#lib/…`,
 `#stores/…`, `#hooks/…`); within a folder they stay relative.

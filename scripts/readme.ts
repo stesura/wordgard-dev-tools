@@ -15,12 +15,17 @@ const END = "<!-- tabs:end -->";
 
 const section = TABS.map(({ id }) => {
   const name = `${id}.md`;
-  const { title, summary, tips } = parseGuide(readFileSync(new URL(name, guides), "utf8"), name);
+  const { title, summary, notes, tips } = parseGuide(
+    readFileSync(new URL(name, guides), "utf8"),
+    name
+  );
+  const list = (items: string[]) => items.map((item) => `- ${item}`).join("\n");
   return [
     `### ${title}`,
     `![The ${title} tab](docs/screenshots/${id}.png)`,
     summary,
-    tips.map((tip) => `- ${tip}`).join("\n"),
+    ...(notes.length ? [list(notes)] : []),
+    ...(tips.length ? ["Tips:", list(tips)] : []),
   ].join("\n\n");
 }).join("\n\n");
 
