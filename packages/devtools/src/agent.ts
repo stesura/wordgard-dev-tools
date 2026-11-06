@@ -12,6 +12,7 @@ import {
   type Results,
 } from "./protocol.ts";
 import type { Agent, Entry, Registry } from "./registry.ts";
+import type * as Decorations from "./decorations.ts";
 import type * as Fields from "./fields.ts";
 import type * as Inspect from "./inspect.ts";
 import type * as Log from "./log.ts";
@@ -57,6 +58,7 @@ const createHandlers = (
   s: typeof Serialisers,
   schema: typeof Schema,
   view: typeof View,
+  decorations: typeof Decorations,
   inspector: Inspect.Inspector,
   recorder: Log.Recorder,
   tracker: Fields.FieldTracker,
@@ -96,6 +98,11 @@ const createHandlers = (
     viewHTML: ({ id, path }) => view.outerHTML(view.viewNode(entry(id).wg, path)),
     selection: ({ id }) => s.selection(entry(id).wg.state),
     selectionDetail: ({ id }) => s.selectionDetail(entry(id).wg.state),
+    decorations: ({ id }) => decorations.decorations(entry(id).wg.state),
+    logDecoration: ({ id, source, index }) => {
+      decorations.logDecoration(entry(id).wg.state, source, index);
+      return null;
+    },
     resolve: ({ id, pos }) => s.resolve(entry(id).wg.state.doc, pos),
     logPos: ({ id, pos }) => {
       console.log(
@@ -308,13 +315,24 @@ export const createAgent = (registry: Registry): Agent => {
       import("./schema.ts"),
       import("./fields.ts"),
       import("./view.ts"),
+      import("./decorations.ts"),
     ]).then(
-      ([s, inspect, log, schema, fields, view]) => {
+      ([s, inspect, log, schema, fields, view, decorations]) => {
         inspector = inspect.createInspector(registry, push);
         const logged = log.createRecorder(registry, push);
         recorder = logged;
         tracker = fields.createFieldTracker(registry, logged.indexOf);
-        return createHandlers(registry, s, schema, view, inspector, logged, tracker, select);
+        return createHandlers(
+          registry,
+          s,
+          schema,
+          view,
+          decorations,
+          inspector,
+          logged,
+          tracker,
+          select
+        );
       },
       (e) => {
         handlers = null;

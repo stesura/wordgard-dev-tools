@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 import { Leaf } from "wordgard/doc";
-import { Wordgard } from "wordgard/editor";
+import { Decoration, Widget, Wordgard } from "wordgard/editor";
 import { GardSelection } from "wordgard/state";
 import { basicSchema } from "wordgard/schema";
 import { wordgardDevtools } from "@stesura/wordgard-dev-tools";
@@ -415,4 +415,101 @@ it("logs and copies the pane's values from their context menu", async () => {
   rightClick(await until(() => row("json")));
   (await until(() => item("Copy JSON"))).click();
   await until(() => copied.some((text) => text.includes('"Strong"')));
+});
+
+const marker = Widget.define<string>({ render: (value) => document.createTextNode(value) });
+const highlights = () =>
+  Decoration.Point.set([
+    // In "Title", at offset 2.
+    [Decoration.Point.widget(marker.of("in text")), 3],
+    [Decoration.Point.attributes({ class: "para" }), 7],
+    // Between the paragraphs.
+    [Decoration.Point.widget(marker.of("between")), 19],
+  ]);
+
+it("shows decorations when asked, and follows the selection", async () => {
+  const inner = inPageTransport();
+  let asked = 0;
+  const transport: Transport = {
+    send: (request) => {
+      if (request.type == "decorations") asked++;
+      return inner.send(request);
+    },
+    onPush: (listener) => inner.onPush(listener),
+  };
+  const editor = Wordgard.create({
+    parent: document.body,
+    doc,
+    config: [
+      basicSchema(),
+      Decoration.Point.source.of(highlights),
+      wordgardDevtools({ name: "d" }),
+    ],
+  });
+  wg = editor;
+  mounted = mountDevtools({ transport });
+  await mounted.ready;
+  await showStructure();
+  expect(asked).toBe(0);
+  expect(structure()?.querySelector("[data-widget]")).toBeNull();
+
+  const toggle = await until(() =>
+    [...shadow().querySelectorAll<HTMLButtonElement>("button")].find(
+      (b) => b.textContent == "Decorations"
+    )
+  );
+  toggle.click();
+  await until(() => shadow().textContent?.includes("3 decorations from 2 sources"));
+  expect(toggle.getAttribute("aria-pressed")).toBe("true");
+  expect(box("0.0")?.querySelector("[data-widget='3']")).not.toBeNull();
+  expect(box("0.0")?.textContent).toContain('"Ti◆tle"');
+  // Between the paragraphs: in the document's content, not in either paragraph.
+  const between = structure()?.querySelector("[data-widget='19']");
+  expect(between?.closest("[data-path]")?.getAttribute("data-path")).toBe("");
+  expect(box("1")?.firstElementChild?.querySelector("[data-decorations]")?.textContent).toBe("◇ 1");
+
+  box("1")?.click();
+  const section = await until(() => pane()?.querySelector("[aria-label='Decorations']"));
+  expect(section.textContent).toContain("attributes");
+  expect(section.textContent).toContain('class="para"');
+
+  // A selection-only change: the node selection's own decoration appears.
+  const paragraph = editor.state.doc.nodeAt(19);
+  if (!paragraph) throw new Error("No paragraph");
+  editor.dispatch({ selection: GardSelection.node(19, paragraph) });
+  await until(() => box("2")?.firstElementChild?.querySelector("[data-decorations]"));
+
+  // Off: nothing more is asked.
+  toggle.click();
+  await until(() => !structure()?.querySelector("[data-widget]"));
+  const before = asked;
+  editor.dispatch({ selection: { anchor: 2 } });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(asked).toBe(before);
+});
+
+it("shows a widget in an empty node, and the document's own decorations in the pane", async () => {
+  // An empty paragraph 0–2, "<p>Hi</p>" 2–6.
+  const placeholder = () =>
+    Decoration.Point.set([
+      [Decoration.Point.widget(marker.of("empty")), 1],
+      [Decoration.Point.attributes({ class: "end" }), 6],
+    ]);
+  wg = Wordgard.create({
+    parent: document.body,
+    doc: "<p></p><p>Hi</p>",
+    config: [
+      basicSchema(),
+      Decoration.Point.source.of(placeholder),
+      wordgardDevtools({ name: "e" }),
+    ],
+  });
+  localStorage.setItem("wordgard-devtools:structure-decorations", "true");
+  mounted = mountDevtools();
+  await mounted.ready;
+  (await until(() => tab("Structure"))).click();
+  await until(() => box("0")?.querySelector("[data-widget='1']"));
+  const section = await until(() => pane()?.querySelector("[aria-label='Decorations']"));
+  expect(section.textContent).toContain("The document's decorations");
+  expect(section.textContent).toContain("applies to no node");
 });

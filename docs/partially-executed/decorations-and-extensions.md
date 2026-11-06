@@ -1,7 +1,8 @@
 # Decorations, Extensions tab and keymap — plan
 
 Status: PARTIALLY EXECUTED. Phase 9b done on 2026-11-06, see
-[its implementation notes](#implementation-notes-phase-9b-2026-11-06); phases 10–12 not started.
+[its implementation notes](#implementation-notes-phase-9b-2026-11-06), and phase 10, see
+[its notes](#implementation-notes-phase-10-2026-11-06); phases 10b–12 not started.
 Drafted 2026-11-06, revised the same day after Fable reviews (see [Review](#review-2026-11-06)).
 Follows the main plan ([plan.md](plan.md)), whose scope listed "facet inspector"
 and "decorations view" as out of scope; the user asked for them (2026-11-06). Phases 9b–12
@@ -177,6 +178,9 @@ tr.changes)`. The previous value is the transaction's start state's, not the pre
 
 ## Phase 10: decorations in the Structure
 
+**Executed (2026-11-06)**, with deviations: see
+[its implementation notes](#implementation-notes-phase-10-2026-11-06).
+
 ### Page side
 
 - `decorations.ts` (lazy, with the serialisers): `decorations(state): DecorationsInfo`.
@@ -201,7 +205,8 @@ Attributes.none, Elt.hole))`, `Point.shape(…)`, `Range.attribute("x", "")`,
       text leaf. So only when `resolved.inText == 0 && nodeAfter && !nodeAfter.isText`; then its
       path is `[...plotPath(parent), index]` (not `pathFrom`, which double-counts in text and
       points past the end at a content end). Otherwise "applies to no node", a diagnostic worth
-      showing. Several shapes at one position: the earlier source wins (`compareSetPrec`);
+      showing. Several shapes at one position: the first within a source wins; across sources, not by
+      source order (corrected in phase 10's notes);
       points inside an atom are skipped; both noted on the decoration.
     - **Range**: applies to nodes whose _start_ is in `[from, to)` (a parent that began before
       `from` is never decorated), that pass `scope` (Atom: `state.isAtom(type)`; InlineAtom: an
@@ -609,3 +614,63 @@ Not acted on: the cost notes (within the scope: huge documents are out of it), a
 
 - Phase 10's `walkSet` call and 10b's `compareSets` call are ready; 10b's flush-level comparison
   passes the flush's composed changes.
+
+## Implementation notes: phase 10 (2026-11-06)
+
+**Executed.** Checks: `format:check`, `lint`, `dependency-check`, `build`, `compiler:check` pass;
+tests: devtools 110, extension 25, panel 219 of 220. Not from this phase: `typecheck` fails on
+`packages/panel/test/log.test.ts` and the panel's `mount.test.ts` expects the Structure guide's old
+summary, both from other uncommitted work in progress.
+
+### How it works
+
+- Page side `decorations.ts` (lazy): sources from `Decoration.Point.source` and `…Range.source`
+  (guarded; the last point source is Wordgard's node selection), each called in a `try` and walked
+  with `walkSet` (2000 decorations per request). Kinds by constructor, from decorations built with
+  the public factories. Details from the decorations' internal fields, guarded; elements by
+  `renderElt`. Where: a widget's holder and offset; a point's non-text node starting at it; a
+  range's nodes starting in it that its scope and query admit (`state.isAtom`,
+  `schema.matchNode`), not descending into atoms; notes for no node, inside an atom, several
+  shapes. Requests `decorations`, `logDecoration`. `schema.ts`'s naming is `createQueryNamer`,
+  shared with the Schema tab.
+- Panel: the Structure toolbar's "Decorations" toggle (saved, off by default; nothing requested
+  while off) loads on every state change while shown. Boxes: ◆ widgets between children (an empty
+  node holding one opens to show it) and inside text at their offset (a text over 200 characters
+  keeps its preview, its widgets after it), ◇ n badges. The node pane lists a node's decorations
+  (`NodePane` takes children); with none focused, the document's. Toolbar status with source
+  errors. Guide and README.
+
+### Deviations
+
+- **No hover highlight** for chips and badges: `highlight` takes a node path (open question 2).
+  Clicking a box outlines its node.
+- **`DecorationInfo.at`**, the node holding a decoration's position, so one that applies to no
+  node is listed there.
+- **Several shapes at one position**: within a source the first wins; across sources Wordgard
+  keeps the last its cursor yields (`compareSetPrec` is used as a boolean), which isn't source
+  order. Noted as such, not as "the earlier source wins" (the plan's assumption).
+- The toggle is a text button.
+
+### Audit (Fable)
+
+Accepted and fixed:
+
+1. "An earlier shape here wins" was wrong across sources (see Deviations). Tested both cases.
+2. Range nodes descended into atom plots, where Wordgard draws nothing: the walk stops at atoms.
+3. A widget in an empty node (a placeholder in an empty paragraph) wasn't drawn: the node opens to
+   show it. Tested.
+4. Document-level decorations (widgets between blocks, points at the end) were listed nowhere:
+   the pane lists them with no node focused. Tested.
+5. Widgets inside an atom were drawn as if Wordgard drew them: listed, not drawn.
+6. Minor: a long text with a widget printed in full (now truncated); a Wordgard without the
+   source facets failed the request (now an empty list).
+
+Not acted on: the frame where a document change's structure and decorations replies land apart
+(transient); the badges and chips being hover-only (the pane lists everything, keyboard
+included).
+
+### Open points
+
+- Open question 2 (`highlightRange`) stays open.
+- No test of an atom plot under a range (basicSchema has none).
+- The extension e2e doesn't cover `decorations` / `logDecoration`.

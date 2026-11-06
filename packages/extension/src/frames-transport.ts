@@ -162,6 +162,10 @@ export const createFramesTransport = (
     selection: ({ id }) => routed<"selection">(id, (page) => ({ type: "selection", id: page })),
     selectionDetail: ({ id }) =>
       routed<"selectionDetail">(id, (page) => ({ type: "selectionDetail", id: page })),
+    decorations: ({ id }) =>
+      routed<"decorations">(id, (page) => ({ type: "decorations", id: page })),
+    logDecoration: ({ id, source, index }) =>
+      routed<"logDecoration">(id, (page) => ({ type: "logDecoration", id: page, source, index })),
     resolve: ({ id, pos }) => routed<"resolve">(id, (page) => ({ type: "resolve", id: page, pos })),
     logPos: ({ id, pos }) => routed<"logPos">(id, (page) => ({ type: "logPos", id: page, pos })),
     logSlice: ({ id }) => routed<"logSlice">(id, (page) => ({ type: "logSlice", id: page })),

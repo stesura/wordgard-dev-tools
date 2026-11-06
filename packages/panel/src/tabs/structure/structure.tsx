@@ -16,6 +16,18 @@ import type { PanelStore } from "#stores/panel-store.ts";
 import { createStructureSource } from "./structure-source.ts";
 import { scrollInto } from "#lib/dom.ts";
 import { Box } from "./boxes.tsx";
+import { Button } from "#components/ui/button";
+import { Tip } from "#components/tip";
+import { persistent } from "#stores/persistent.ts";
+import { DecorationList } from "./decoration-views.tsx";
+import { createDecorationsSource, decorationsOf, indexDecorations } from "./decorations-source.ts";
+
+// Whether the Structure shows decorations: off by default (nothing is asked of the page).
+const showDecorations = () =>
+  persistent("wordgard-devtools:structure-decorations", false, {
+    decode: (text) => text == "true",
+    encode: String,
+  });
 
 /** The ids of the nodes matching a search, in document order: text leaves by their text, others by name or param. */
 const search = (doc: StructureNode, query: string) => {
@@ -51,6 +63,11 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
   const scroller = useRef<HTMLDivElement | null>(null);
   // A clicked box's node is outlined in the page until another is clicked, or the tab or editor changes.
   const [outline] = useState(() => createOutline(store.transport, editorId));
+  const [decorationsSource] = useState(() => createDecorationsSource(store.transport, editorId));
+  const [decorationsOn] = useState(showDecorations);
+  const showing = useStore(decorationsOn);
+  const decorations = useStore(decorationsSource.state);
+  const index = showing && decorations.value ? indexDecorations(decorations.value) : null;
 
   // Focuses a node and scrolls to it, once the structure holding it has loaded and rendered.
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
@@ -73,7 +90,7 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
         return;
       }
     },
-    [source]
+    [source, setCollapsed]
   );
 
   // Loads while its tab is shown: on showing (when the document changed meanwhile) and on each
@@ -93,13 +110,23 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
           if (path) void reveal(path);
         },
       });
+      // On every state change, not only the document's: a source can follow the selection.
+      const stopDecorations = whileShown(store, {
+        tab: "structure",
+        editorId,
+        on: "state",
+        load: () => {
+          if (decorationsOn.get()) void decorationsSource.load();
+        },
+      });
       return () => {
         outline.hide();
         stop();
+        stopDecorations();
         scroller.current = null;
       };
     },
-    [store, editorId, source, reveal, outline]
+    [store, editorId, source, reveal, outline, decorationsOn, decorationsSource]
   );
 
   const focusItem = (element: Element | null) => {
@@ -172,7 +199,15 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
     current: searching.current,
     collapsed,
     toggle,
+    decorations: index,
   };
+
+  const toggleDecorations = () => {
+    const on = !decorationsOn.get();
+    decorationsOn.set(on);
+    if (on) void decorationsSource.load();
+  };
+  const failed = index?.sources.filter((s) => s.error != null) ?? [];
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
@@ -183,6 +218,32 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
           label="Search the structure"
           placeholder="Search text, node names, params"
         />
+        {index && (
+          <span className="text-xs text-muted-foreground" aria-live="polite">
+            {index.total} decoration{index.total == 1 ? "" : "s"} from {index.sources.length} source
+            {index.sources.length == 1 ? "" : "s"}
+            {failed.length > 0 && (
+              <span className="text-destructive">
+                {" "}
+                · {failed.length} failed: {failed.map((s) => s.error).join("; ")}
+              </span>
+            )}
+          </span>
+        )}
+        {showing && decorations.error != null && (
+          <span className="text-xs text-destructive">{decorations.error}</span>
+        )}
+        <Tip label="Show the editor's decorations: widgets, attributes, shapes and wrappers">
+          <Button
+            variant="ghost"
+            size="xs"
+            aria-pressed={showing}
+            onClick={toggleDecorations}
+            className="aria-pressed:bg-foreground/10"
+          >
+            Decorations
+          </Button>
+        </Tip>
         <ExpandCollapse
           onExpand={() => setCollapsed(new Set())}
           // The document stays open: its blocks show.
@@ -203,7 +264,23 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
                   : { type: "logNode", id: editorId, path, part }
               )
             }
-          />
+          >
+            {index && (
+              <DecorationList
+                title={focused == ROOT ? "The document's decorations" : "Decorations"}
+                items={decorationsOf(index, focused == ROOT ? [] : pathOf(focused))}
+                index={index}
+                onLog={(item) =>
+                  fire(store.transport, {
+                    type: "logDecoration",
+                    id: editorId,
+                    source: item.source,
+                    index: item.index,
+                  })
+                }
+              />
+            )}
+          </NodePane>
         }
       >
         <div

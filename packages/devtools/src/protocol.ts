@@ -342,6 +342,62 @@ export type FieldChange = {
 /** The value a change set; with what it added and dropped, for a set. */
 export type FieldChangeDetail = { value: unknown; set: SetChangeDetail | null };
 
+/** A decoration source: one of `Decoration.Point.source`'s or `Decoration.Range.source`'s functions. */
+export type DecorationSource = {
+  /** Point sources first, then range sources. */
+  index: number;
+  kind: "point" | "range";
+  /** Its function's name, when it has one (a named const, in a dev build). */
+  name: string | null;
+  /** Wordgard's own (the node selection's). */
+  builtIn: boolean;
+  /** Its decorations: counted up to a bound when `exact` is false. */
+  count: number;
+  exact: boolean;
+  /** It threw. */
+  error: string | null;
+};
+
+export type DecorationKind =
+  | "widget"
+  | "attributes"
+  | "shape"
+  | "wrapper"
+  | "range attribute"
+  | "range wrapper"
+  | "decoration";
+
+export type DecorationInfo = {
+  source: number;
+  /** Its place in its source's set, for `logDecoration`. */
+  index: number;
+  kind: DecorationKind;
+  from: number;
+  /** A point's `to` is its `from`. */
+  to: number;
+  /** A point's side: "before", "after", or the number. */
+  side: string | null;
+  /** What it adds, as label and value. */
+  details: [string, string][];
+  /** The node holding its position (a range's start); null outside the document. */
+  at: Path | null;
+  /**
+   * The nodes it applies to, as Wordgard draws them: a point's node starting at it, a range's
+   * nodes starting in it that its scope and query admit (capped). None for a widget.
+   */
+  paths: Path[];
+  /** A widget inside a text leaf: the offset into its text. */
+  offset: number | null;
+  /** Why it applies to no node, or less than it seems. */
+  note: string | null;
+};
+
+export type DecorationsInfo = {
+  sources: DecorationSource[];
+  /** In source order, each source's in set order; capped in all. */
+  decorations: DecorationInfo[];
+};
+
 export type FieldInfo = {
   /** Its place among the state's fields (in extension order). */
   index: number;
@@ -427,6 +483,9 @@ export type Requests = {
   viewHTML: { id: number; path: readonly number[] };
   selection: { id: number };
   selectionDetail: { id: number };
+  decorations: { id: number };
+  /** The source's function, or (with `index`) one of its decorations, live. */
+  logDecoration: { id: number; source: number; index?: number };
   /** Resolves any position in the document. */
   resolve: { id: number; pos: number };
   /** Logs `doc.resolve(pos)` in the page's console. */
@@ -499,6 +558,8 @@ export type Results = {
   viewHTML: string;
   selection: SelectionInfo;
   selectionDetail: SelectionDetail;
+  decorations: DecorationsInfo;
+  logDecoration: null;
   resolve: ResolvedPos;
   logPos: null;
   logSlice: null;

@@ -7,7 +7,13 @@ import {
   NodeSelectionIcon,
   TextCursorIcon,
 } from "#icons";
-import type { Path, SelectionInfo, StructureNode } from "@stesura/wordgard-dev-tools";
+import type {
+  DecorationInfo,
+  Path,
+  SelectionInfo,
+  StructureNode,
+} from "@stesura/wordgard-dev-tools";
+import { Fragment, type ReactNode } from "react";
 import { Tag } from "#components/ui/badge";
 import { itemId } from "#lib/paths.ts";
 import { isPrefix } from "#lib/paths.ts";
@@ -15,6 +21,8 @@ import { json } from "#lib/json.ts";
 import { matchClass } from "#components/search-box";
 import { hue, markColour, typeColour } from "#lib/colours.ts";
 import { Tip } from "#components/tip";
+import { DecorationBadge, WidgetChip } from "./decoration-views.tsx";
+import { pathKey, type DecorationIndex } from "./decorations-source.ts";
 
 type Marks = {
   selection: SelectionInfo | null;
@@ -25,6 +33,96 @@ type Marks = {
   /** Boxes whose content is hidden. */
   collapsed: ReadonlySet<string>;
   toggle: (id: string) => void;
+  /** Shown while the toolbar's toggle is on. */
+  decorations: DecorationIndex | null;
+};
+
+/** The widgets between a node's children: each before the first child at or after it. */
+const widgetSlots = (node: StructureNode, index: DecorationIndex | null) => {
+  const widgets = (index?.widgets.get(pathKey(node.path)) ?? [])
+    .filter((w) => w.offset == null)
+    .toSorted((a, b) => a.from - b.from);
+  const slots: DecorationInfo[][] = node.children.map(() => []);
+  const after: DecorationInfo[] = [];
+  for (const widget of widgets) {
+    const at = node.children.findIndex((child) => child.from >= widget.from);
+    (at < 0 ? after : slots[at])?.push(widget);
+  }
+  return { slots, after };
+};
+
+/** A node's children, with the widgets between them. */
+const Content = ({
+  node,
+  marks,
+  render,
+}: {
+  node: StructureNode;
+  marks: Marks;
+  render: (child: StructureNode) => ReactNode;
+}) => {
+  const index = marks.decorations;
+  const { slots, after } = widgetSlots(node, index);
+  const chips = (widgets: DecorationInfo[] | undefined) =>
+    index &&
+    widgets?.map((w, i) => (
+      <WidgetChip key={`w${w.source}.${w.index}.${i}`} item={w} index={index} />
+    ));
+  return (
+    <>
+      {node.children.map((child, i) => (
+        <Fragment key={child.path.join(".")}>
+          {chips(slots[i])}
+          {render(child)}
+        </Fragment>
+      ))}
+      {chips(after)}
+    </>
+  );
+};
+
+/** Longer texts aren't split at their widgets. */
+const LONG_TEXT = 200;
+
+/** Widgets between the node's children (or in it, when it has none). */
+const hasWidgets = (node: StructureNode, index: DecorationIndex | null) =>
+  index?.widgets.get(pathKey(node.path))?.some((w) => w.offset == null) ?? false;
+
+/** A text leaf's text, with the widgets inside it at their offsets. */
+const TextWithWidgets = ({ node, marks }: { node: StructureNode; marks: Marks }) => {
+  const index = marks.decorations;
+  const inside = (index?.widgets.get(pathKey(node.path)) ?? []).filter((w) => w.offset != null);
+  const text = node.text;
+  if (!index || !inside.length || text == null)
+    return <span className="whitespace-pre">{json(node.textPreview)}</span>;
+  // A long text stays truncated: its widgets follow it.
+  if (text.length > LONG_TEXT)
+    return (
+      <span className="whitespace-pre">
+        {json(node.textPreview)}
+        {inside.map((w, i) => (
+          <WidgetChip key={i} item={w} index={index} />
+        ))}
+      </span>
+    );
+  const cuts = [...new Set(inside.map((w) => w.offset ?? 0))].toSorted((a, b) => a - b);
+  const pieces = [0, ...cuts].map((start, i) => text.slice(start, cuts[i] ?? text.length));
+  const quoted = (piece: string) => JSON.stringify(piece).slice(1, -1);
+  return (
+    <span className="whitespace-pre">
+      &quot;
+      {pieces.map((piece, i) => (
+        <span key={i}>
+          {i > 0 &&
+            inside
+              .filter((w) => w.offset == cuts[i - 1])
+              .map((w, j) => <WidgetChip key={j} item={w} index={index} />)}
+          {quoted(piece)}
+        </span>
+      ))}
+      &quot;
+    </span>
+  );
 };
 
 const selectionMark = (path: Path, selection: SelectionInfo | null) => {
@@ -151,7 +249,7 @@ const Chip = ({ node, marks }: { node: StructureNode; marks: Marks }) => {
     >
       <SelectionEnd node={node} marks={marks} at="start" />
       {node.name == "Text" && node.textPreview != null ? (
-        <span className="whitespace-pre">{json(node.textPreview)}</span>
+        <TextWithWidgets node={node} marks={marks} />
       ) : (
         <>
           <span className={typeColour} style={hue("node", node.name)}>
@@ -163,15 +261,23 @@ const Chip = ({ node, marks }: { node: StructureNode; marks: Marks }) => {
         </>
       )}
       <MarkTags node={node} />
+      {marks.decorations && (
+        <DecorationBadge
+          items={marks.decorations.on.get(pathKey(node.path))}
+          index={marks.decorations}
+        />
+      )}
       <span className="text-muted-foreground">
         {node.from}–{node.to}
       </span>
       <SelectionEnd node={node} marks={marks} at="end" />
-      {node.children.length > 0 && (
+      {(node.children.length > 0 || hasWidgets(node, marks.decorations)) && (
         <span role="group" className="inline-flex flex-wrap">
-          {node.children.map((child) => (
-            <Chip key={child.path.join(".")} node={child} marks={marks} />
-          ))}
+          <Content
+            node={node}
+            marks={marks}
+            render={(child) => <Chip node={child} marks={marks} />}
+          />
         </span>
       )}
     </span>
@@ -184,7 +290,8 @@ export const Box = ({ node, marks }: { node: StructureNode; marks: Marks }) => {
   // A textblock's children are inline: a row of chips.
   const inline = node.textPreview != null;
   const id = itemId(node.path);
-  const folder = node.children.length > 0;
+  // An empty node holding a widget (a placeholder) opens to show it.
+  const folder = node.children.length > 0 || hasWidgets(node, marks.decorations);
   const open = folder && !marks.collapsed.has(id);
   return (
     <div
@@ -220,6 +327,12 @@ export const Box = ({ node, marks }: { node: StructureNode; marks: Marks }) => {
           <span className="text-muted-foreground">{node.paramPreview}</span>
         )}
         <MarkTags node={node} />
+        {marks.decorations && (
+          <DecorationBadge
+            items={marks.decorations.on.get(pathKey(node.path))}
+            index={marks.decorations}
+          />
+        )}
         <SelectionEnd node={node} marks={marks} at="end" />
         <span className="ml-auto text-muted-foreground">
           {node.from}–{node.to}
@@ -227,13 +340,13 @@ export const Box = ({ node, marks }: { node: StructureNode; marks: Marks }) => {
       </div>
       {open && (
         <div role="group" className={cn("pt-0.5 pl-0.75", inline && "flex flex-wrap")}>
-          {node.children.map((child) =>
-            inline ? (
-              <Chip key={child.path.join(".")} node={child} marks={marks} />
-            ) : (
-              <Box key={child.path.join(".")} node={child} marks={marks} />
-            )
-          )}
+          <Content
+            node={node}
+            marks={marks}
+            render={(child) =>
+              inline ? <Chip node={child} marks={marks} /> : <Box node={child} marks={marks} />
+            }
+          />
         </div>
       )}
     </div>

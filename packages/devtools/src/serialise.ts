@@ -313,7 +313,7 @@ export const selection = (state: GardState): SelectionInfo => {
   };
 };
 
-const plotPath = (plot: Pos.Plot) => {
+export const plotPath = (plot: Pos.Plot) => {
   const path: number[] = [];
   for (let p = plot; p.parent; p = p.parent) path.unshift(p.index);
   return path;

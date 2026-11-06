@@ -161,11 +161,14 @@ export const NodePane = ({
   focused,
   onShowType,
   onLog,
+  children,
 }: {
   source: DetailSource;
   focused: string | null;
   onShowType: ShowType;
   onLog: (path: Path, part: PaneLog) => void;
+  /** More about the focused node, after its detail; with none focused, about the document. */
+  children?: ReactNode;
 }) => {
   // Deferred: the previous detail stays up while the next one loads, instead of a fallback.
   const version = useDeferredValue(useStore(source.state).version);
@@ -187,7 +190,10 @@ export const NodePane = ({
       onContextMenu={menu.onContextMenu}
     >
       {id == null ? (
-        <p className="text-muted-foreground">Focus a node to see it here.</p>
+        <>
+          <p className="text-muted-foreground">Focus a node to see it here.</p>
+          {children}
+        </>
       ) : (
         <>
           <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
@@ -199,6 +205,7 @@ export const NodePane = ({
               onLog={onLog}
             />
           </Suspense>
+          {children}
           <PaneMenu anchor={menu} onLog={(part) => onLog(pathOf(id), part)} />
         </>
       )}

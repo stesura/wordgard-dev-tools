@@ -83,7 +83,7 @@ const shape = (spec: Spec): string => {
   return "?";
 };
 
-const isQuery = (value: unknown): value is Node.Query =>
+export const isQuery = (value: unknown): value is Node.Query =>
   value instanceof Group ||
   Array.isArray(value) ||
   (typeof value == "object" && value != null && ("and" in value || "name" in value));
@@ -123,7 +123,11 @@ const plain = (value: unknown, depth = 6): unknown => {
   return Object.fromEntries(Object.entries(value).map(([key, v]) => [key, plain(v, depth - 1)]));
 };
 
-export const schemaInfo = (schema: Schema): SchemaInfo => {
+/**
+ * Names for a schema's groups and queries, as the Schema tab shows them: Wordgard's groups by
+ * name, the schema's numbered in the order its specs mention them (groups have no names).
+ */
+export const createQueryNamer = (schema: Schema) => {
   const custom = new Map<Node.Group, string>();
   const groupName = (group: Node.Group) => {
     const known = knownGroups.get(group) ?? custom.get(group);
@@ -132,6 +136,27 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
     custom.set(group, name);
     return name;
   };
+  const describe = (query: Node.Query): string => {
+    if (query instanceof Group) return groupName(query);
+    if (isList(query)) return query.map(describe).join(" | ");
+    if ("and" in query) return `(${query.and.map(describe).join(" & ")})`;
+    return query.name;
+  };
+  // All numbered before any type lists its groups. Groups only an override mentions aren't seen.
+  for (const type of schema.nodes) {
+    const { group } = type.spec;
+    for (const g of group instanceof Group ? [group] : (group ?? [])) groupName(g);
+    if (type.isPlot && type.spec.blockContent) describe(type.spec.blockContent);
+    if (type.isPlot && type.spec.inlineContent && type.spec.inlineContent !== true)
+      describe(type.spec.inlineContent);
+  }
+  for (const type of schema.marks) if (type.spec.target) describe(type.spec.target);
+  return { groupName, describe, custom: () => [...custom.keys()] };
+};
+
+export const schemaInfo = (schema: Schema): SchemaInfo => {
+  const namer = createQueryNamer(schema);
+  const { groupName, describe } = namer;
 
   /** The groups a content or target query names. */
   const groupsIn = (query: Node.Query): Node.Group[] =>
@@ -204,25 +229,8 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
       : "override";
   };
 
-  const describe = (query: Node.Query): string => {
-    if (query instanceof Group) return groupName(query);
-    if (isList(query)) return query.map(describe).join(" | ");
-    if ("and" in query) return `(${query.and.map(describe).join(" & ")})`;
-    return query.name;
-  };
-
-  // Custom groups are numbered in the order the specs mention them, all before any type lists
-  // its groups. Groups only an override mentions aren't seen.
-  for (const type of schema.nodes) {
-    const { group } = type.spec;
-    for (const g of group instanceof Group ? [group] : (group ?? [])) groupName(g);
-    if (type.isPlot && type.spec.blockContent) describe(type.spec.blockContent);
-    if (type.isPlot && type.spec.inlineContent && type.spec.inlineContent !== true)
-      describe(type.spec.inlineContent);
-  }
-  for (const type of schema.marks) if (type.spec.target) describe(type.spec.target);
   const listed = () =>
-    [...knownGroups.keys(), ...custom.keys()].filter((group) => !implied.has(group));
+    [...knownGroups.keys(), ...namer.custom()].filter((group) => !implied.has(group));
 
   const nodes = schema.nodes.map((type): SchemaNodeType => {
     const flags: string[] = [];

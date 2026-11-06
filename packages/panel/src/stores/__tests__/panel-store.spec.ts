@@ -63,6 +63,8 @@ const fakeAgent = (ids: number[], delay = 20) => {
     clearFieldHistory: unsupported,
     logType: unsupported,
     selectionDetail: unsupported,
+    decorations: unsupported,
+    logDecoration: unsupported,
     resolve: unsupported,
     logPos: unsupported,
     logSlice: unsupported,
