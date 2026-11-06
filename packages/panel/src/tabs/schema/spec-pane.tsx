@@ -115,7 +115,21 @@ export const SpecPane = ({
   // The effective view copies its values, without the comments.
   const copied = () => (shown ? json(effective ? effective.value : shown.value) : "");
   return (
-    <aside aria-label="Spec" className="flex h-full min-h-0 flex-col">
+    <aside
+      aria-label="Spec"
+      className="flex h-full min-h-0 flex-col"
+      onKeyDown={(event) => {
+        // In the pane itself: a popup's Escape (its menu, a guide) bubbles here too, through React.
+        if (
+          event.key == "Escape" &&
+          event.target instanceof Node &&
+          event.currentTarget.contains(event.target)
+        ) {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+    >
       <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-2 border-b bg-strip px-2 font-sans">
         {shown ? (
           <>

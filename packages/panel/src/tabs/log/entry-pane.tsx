@@ -1,7 +1,7 @@
-import { cn } from "cn";
 import { CodeBracketIcon, CommandLineIcon } from "#icons";
 import { Suspense, use, useDeferredValue, useState, type ReactNode } from "react";
-import type { EntryPart, LogEntryDetail, LogRow } from "@stesura/wordgard-dev-tools";
+import type { EntryPart, LogEntryDetail, LogRow, Path } from "@stesura/wordgard-dev-tools";
+import { useStore } from "@nanostores/react";
 import { Button } from "#components/ui/button";
 import {
   ContextMenu,
@@ -14,8 +14,18 @@ import { CopySelection, useMenuSelection } from "#components/copy-selection";
 import { copy } from "#lib/clipboard.ts";
 import { Field } from "#components/node-pane";
 import { json } from "#lib/json.ts";
-import { entryFlags, ms, slow, slowText } from "./log-format.ts";
+import { entryFlags } from "./log-format.ts";
+import { Timing } from "./log-rows.tsx";
 import { clock } from "#lib/time.ts";
+import { FlushDecorationsView } from "./flush-decorations.tsx";
+import type { LogView } from "./log-source.ts";
+
+/** The last row of the entry's flush: its document is the one the flush's positions are in. */
+const flushEnd = (entry: LogEntryDetail) => Math.max(...(entry.decorations?.rows ?? [entry.index]));
+
+/** As of the last load: the flush's document is still the editor's. */
+const isCurrent = (view: LogView, entry: LogEntryDetail) =>
+  view.currentFrom != null && flushEnd(entry) >= view.currentFrom;
 
 /** A part of the entry pane, with its menu: log the part live, copy its JSON. Focusable: Shift+F10 opens it too. */
 const Section = ({
@@ -97,12 +107,15 @@ const EntryView = ({
   index,
   flush,
   onRetry,
+  onShowNode,
 }: {
   source: LogSource;
   index: number;
   flush: number | null;
   onRetry: () => void;
+  onShowNode: (path: Path) => void;
 }) => {
+  const view = useStore(source.state);
   const detail = use(source.detail(index, flush));
   if (detail.error != null) {
     return (
@@ -131,10 +144,10 @@ const EntryView = ({
         <Field label="userEvent">{entry.userEvent ?? "–"}</Field>
         <Field label="flags">{entryFlags(entry)}</Field>
         <Field label="dispatch">
-          <span className={cn(slow(entry.dispatchMs) && slowText)}>{ms(entry.dispatchMs)} ms</span>
+          <Timing value={entry.dispatchMs} unit=" ms" />
         </Field>
         <Field label="flush">
-          <span className={cn(slow(entry.flushMs) && slowText)}>{ms(entry.flushMs)} ms</span>
+          <Timing value={entry.flushMs} unit=" ms" />
           {entry.flush != null && <span className="text-muted-foreground"> #{entry.flush}</span>}
           {entry.agentFlush && <span className="text-muted-foreground"> forced by DevTools</span>}
         </Field>
@@ -171,11 +184,42 @@ const EntryView = ({
       >
         <Values values={entry.annotationValues} />
       </Section>
+      <Section
+        title="Decorations"
+        onLog={log("decorations")}
+        copied={() => json(entry.decorations)}
+      >
+        <FlushDecorationsView
+          flush={entry.decorations}
+          // Asked again on click: the document may have changed while the Log didn't record.
+          onShowNode={
+            isCurrent(view, entry)
+              ? (path) =>
+                  void source.isCurrent(flushEnd(entry)).then(
+                    (current) => {
+                      if (current) onShowNode(path);
+                    },
+                    // Unknown: not shown.
+                    () => {}
+                  )
+              : null
+          }
+        />
+      </Section>
     </div>
   );
 };
 
-export const EntryPane = ({ source, row }: { source: LogSource; row: LogRow | null }) => {
+export const EntryPane = ({
+  source,
+  row,
+  onShowNode,
+}: {
+  source: LogSource;
+  row: LogRow | null;
+  /** Shows a node of the editor's current document in the Structure, decorations on. */
+  onShowNode: (path: Path) => void;
+}) => {
   // Deferred: the previous entry stays up while the next one loads.
   const shown = useDeferredValue(row);
   // Remounts the view after a retry, which asks again.
@@ -192,6 +236,7 @@ export const EntryPane = ({ source, row }: { source: LogSource; row: LogRow | nu
             index={shown.index}
             flush={shown.flush}
             onRetry={() => setAttempt((n) => n + 1)}
+            onShowNode={onShowNode}
           />
         </Suspense>
       )}

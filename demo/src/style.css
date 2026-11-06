@@ -37,3 +37,9 @@ iframe {
   border: 1px dashed #ccc;
   border-radius: 6px;
 }
+
+/* The left editor's length badge, a decoration. */
+.length {
+  color: #666;
+  font-size: 0.8em;
+}

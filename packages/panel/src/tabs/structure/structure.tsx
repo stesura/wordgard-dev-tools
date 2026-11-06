@@ -2,6 +2,9 @@ import { createOutline } from "#lib/outline.ts";
 import { whileShown } from "#stores/while-shown.ts";
 import { ExpandCollapse } from "#components/expand-collapse";
 import { LoadError } from "#components/load-error";
+import { Button } from "#components/ui/button";
+import { Tip } from "#components/tip";
+import { NoSymbolIcon } from "#icons";
 import { fire } from "../../transport.ts";
 import { useStore } from "@nanostores/react";
 import { useCallback, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
@@ -10,14 +13,12 @@ import { ROOT, dataPath, itemId, pathOf } from "#lib/paths.ts";
 import { NodeMenu, createNodeMenuAnchor } from "#components/node-menu";
 import { NodePane } from "#components/node-pane";
 import { isPrefix } from "#lib/paths.ts";
-import { SearchBox, useSearch } from "#components/search-box";
+import { SearchBox, searchStrip, useSearch } from "#components/search-box";
 import { SplitPane } from "#components/split-pane";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { createStructureSource } from "./structure-source.ts";
 import { scrollInto } from "#lib/dom.ts";
 import { Box } from "./boxes.tsx";
-import { Button } from "#components/ui/button";
-import { Tip } from "#components/tip";
 import { persistent } from "#stores/persistent.ts";
 import { DecorationList } from "./decoration-views.tsx";
 import { createDecorationsSource, decorationsOf, indexDecorations } from "./decorations-source.ts";
@@ -53,13 +54,39 @@ const folders = (node: StructureNode, out: string[] = []) => {
 const itemOf = (target: EventTarget) =>
   target instanceof Element ? target.closest("[data-path]") : null;
 
+/** The item standing for `id`: itself, or its nearest ancestor still in the document and not in a closed box. */
+const shownItem = (doc: StructureNode, id: string, collapsed: ReadonlySet<string>) => {
+  let node = doc;
+  for (const index of pathOf(id)) {
+    const child = node.children[index];
+    if (!child || collapsed.has(itemId(node.path))) break;
+    node = child;
+  }
+  return itemId(node.path);
+};
+
+/** Whether focus is nowhere to be seen: on the body, in a closing menu, or in a hidden tab. */
+const focusLost = (element: Element) => {
+  let active = element.ownerDocument.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return (
+    !active ||
+    active == element.ownerDocument.body ||
+    active.closest("[role='menu']") != null ||
+    !active.checkVisibility()
+  );
+};
+
 /** The whole document as nested boxes, with positions. Mounted per editor. */
 export const Structure = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createStructureSource(store.transport, editorId));
   const { value: doc, error } = useStore(source.state);
   const { selection } = useStore(store.state);
   const info = selection?.id == editorId ? selection.info : null;
-  const [focused, setFocused] = useState<string>(ROOT);
+  // The selected node (shown in the pane), and the item holding the tree's tab stop. Selection follows
+  // focus; Escape clears the selection, not the focus.
+  const [selected, setSelected] = useState<string | null>(null);
+  const [active, setActive] = useState<string>(ROOT);
   const scroller = useRef<HTMLDivElement | null>(null);
   // A clicked box's node is outlined in the page until another is clicked, or the tab or editor changes.
   const [outline] = useState(() => createOutline(store.transport, editorId));
@@ -69,11 +96,14 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
   const decorations = useStore(decorationsSource.state);
   const index = showing && decorations.value ? indexDecorations(decorations.value) : null;
 
-  // Focuses a node and scrolls to it, once the structure holding it has loaded and rendered.
+  // Selects a node and scrolls to it, once the structure holding it has loaded and rendered. Takes
+  // focus only when it's lost (a "Show in Structure" from another tab's menu), not from the page or
+  // the search box.
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const reveal = useCallback(
     async (path: Path) => {
-      setFocused(itemId(path));
+      setSelected(itemId(path));
+      setActive(itemId(path));
       // Selected, so outlined: the picker's own outline went with the click.
       outline.show(path);
       // Its ancestors open.
@@ -89,6 +119,8 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
         const element = container?.querySelector(`[data-path='${path.join(".")}']`);
         if (!container || !element) continue;
         scrollInto(container, element);
+        if (element instanceof HTMLElement && focusLost(element))
+          element.focus({ preventScroll: true });
         return;
       }
     },
@@ -108,6 +140,11 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
         load: () => void source.load(),
         onHide: outline.hide,
         onReveal: () => {
+          // From the Log: what a flush changed, with the decorations shown.
+          if (store.takeDecorationsReveal(editorId) && !decorationsOn.get()) {
+            decorationsOn.set(true);
+            void decorationsSource.load();
+          }
           const path = store.takeReveal(editorId);
           if (path) void reveal(path);
         },
@@ -134,7 +171,8 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
   const focusItem = (element: Element | null) => {
     const path = dataPath(element);
     if (!element || !path || !(element instanceof HTMLElement)) return;
-    setFocused(itemId(path));
+    setSelected(itemId(path));
+    setActive(itemId(path));
     element.focus({ preventScroll: true });
     // Found from the item, not the scroller ref: the context menu's anchor, built during render,
     // holds this function, and the React Compiler rejects refs reached from render.
@@ -142,7 +180,14 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
     if (tree instanceof HTMLElement) scrollInto(tree, element);
   };
 
-  // Closing a box that holds the focused node moves focus to the box.
+  // A click or a key: the node is selected, focused and outlined in the page.
+  const select = (element: Element | null) => {
+    focusItem(element);
+    const path = dataPath(element);
+    if (path) outline.show(path);
+  };
+
+  // Closing a box that holds the selected or focused node moves them to the box.
   const toggle = (id: string) => {
     const closing = !collapsed.has(id);
     setCollapsed((ids) => {
@@ -150,45 +195,65 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
       if (!next.delete(id)) next.add(id);
       return next;
     });
-    const path = pathOf(id);
-    if (closing && focused != id && isPrefix(path, pathOf(focused))) setFocused(id);
+    const inside = (other: string | null) =>
+      other != null && other != id && isPrefix(pathOf(id), pathOf(other));
+    if (closing && inside(selected)) setSelected(id);
+    if (closing && inside(active)) setActive(id);
   };
 
   // The box a context menu opens on takes focus.
   const [menu] = useState(() => createNodeMenuAnchor((row) => focusItem(row)));
 
-  // Arrows walk the items in document order; Home and End jump to the ends.
+  const clear = () => {
+    setSelected(null);
+    outline.hide();
+  };
+
+  // A tree's keys (WAI-ARIA): Up and Down walk the items shown, in document order; Right opens a
+  // closed box or goes to its first child; Left closes an open one or goes to the parent; Home and
+  // End jump to the ends. Enter scrolls the node into view in the editor (as a double-click);
+  // Escape clears the selection.
   const onKeyDown = (event: KeyboardEvent) => {
     menu.onKeyDown(event);
-    if (event.defaultPrevented) return;
-    const items = [...(scroller.current?.querySelectorAll("[role='treeitem']") ?? [])];
-    const index = items.findIndex((item) => dataPath(item)?.join(".") == pathOf(focused).join("."));
-    // As in a tree: Right opens a closed box, Left closes an open one; otherwise they walk.
-    const item = items[index];
-    if (item?.getAttribute("aria-expanded") == (event.key == "ArrowRight" ? "false" : "true")) {
-      if (event.key == "ArrowRight" || event.key == "ArrowLeft") {
-        event.preventDefault();
-        toggle(focused);
-        return;
-      }
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.key == "Escape" && selected != null) {
+      event.preventDefault();
+      clear();
+      return;
     }
-    const step: Record<string, number> = {
-      ArrowDown: 1,
-      ArrowRight: 1,
-      ArrowUp: -1,
-      ArrowLeft: -1,
+    const item = itemOf(event.target);
+    const path = dataPath(item);
+    if (!item || !path) return;
+    if (event.key == "Enter") {
+      event.preventDefault();
+      fire(store.transport, { type: "scrollIntoView", id: editorId, path });
+      return;
+    }
+    const expanded = item.getAttribute("aria-expanded");
+    if (
+      (event.key == "ArrowRight" && expanded == "false") ||
+      (event.key == "ArrowLeft" && expanded == "true")
+    ) {
+      event.preventDefault();
+      toggle(itemId(path));
+      return;
+    }
+    // The items shown: a closed box's content isn't rendered.
+    const items = [...event.currentTarget.querySelectorAll("[role='treeitem']")];
+    const at = items.indexOf(item);
+    const targets: Partial<Record<string, Element | null>> = {
+      ArrowDown: items[at + 1],
+      ArrowUp: items[at - 1],
+      Home: items[0],
+      End: items.at(-1),
+      ArrowRight: item.querySelector("[role='treeitem']"),
+      ArrowLeft: item.parentElement?.closest("[role='treeitem']"),
     };
-    const target =
-      event.key == "Home"
-        ? items[0]
-        : event.key == "End"
-          ? items.at(-1)
-          : event.key in step
-            ? items[Math.max(0, Math.min(items.length - 1, index + (step[event.key] ?? 0)))]
-            : undefined;
-    if (!target) return;
+    if (!(event.key in targets)) return;
+    // Also at an end: the arrows don't scroll the tree.
     event.preventDefault();
-    focusItem(target);
+    const target = targets[event.key];
+    if (target) select(target);
   };
 
   const find = doc ? (query: string) => search(doc, query) : null;
@@ -196,7 +261,9 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
 
   const marks = {
     selection: info,
-    focused,
+    selected,
+    // Never in a closed box, nor gone with an edit: the tree keeps its tab stop.
+    active: doc ? shownItem(doc, active, collapsed) : ROOT,
     all: searching.all,
     current: searching.current,
     collapsed,
@@ -210,53 +277,74 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
     if (on) void decorationsSource.load();
   };
   const failed = index?.sources.filter((s) => s.error != null) ?? [];
+  // The document isn't shown in the pane.
+  const paneId = selected == ROOT ? null : selected;
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
       <LoadError what="the structure" error={error} onRetry={() => void source.load()} />
-      <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
+      <div className={searchStrip}>
         <SearchBox
           search={searching}
           label="Search the structure"
           placeholder="Search text, node names, params"
         />
-        {index && (
-          <span className="text-xs text-muted-foreground" aria-live="polite">
-            {index.total} decoration{index.total == 1 ? "" : "s"} from {index.sources.length} source
-            {index.sources.length == 1 ? "" : "s"}
-            {failed.length > 0 && (
-              <span className="text-destructive">
-                {" "}
-                · {failed.length} failed: {failed.map((s) => s.error).join("; ")}
-              </span>
-            )}
-          </span>
-        )}
-        {showing && decorations.error != null && (
-          <span className="text-xs text-destructive">{decorations.error}</span>
-        )}
-        <Tip label="Show the editor's decorations: widgets, attributes, shapes and wrappers">
-          <Button
-            variant="ghost"
-            size="xs"
-            aria-pressed={showing}
-            onClick={toggleDecorations}
-            className="aria-pressed:bg-foreground/10"
-          >
-            Decorations
-          </Button>
-        </Tip>
-        <ExpandCollapse
-          onExpand={() => setCollapsed(new Set())}
-          // The document stays open: its blocks show.
-          onCollapse={() => doc && setCollapsed(new Set(folders(doc).filter((id) => id != ROOT)))}
-        />
+        <span className="flex items-center gap-1">
+          {index && (
+            <span className="text-xs text-muted-foreground" aria-live="polite">
+              {index.total} decoration{index.total == 1 ? "" : "s"} from {index.sources.length}{" "}
+              source{index.sources.length == 1 ? "" : "s"}
+              {failed.length > 0 && (
+                <span className="text-destructive">
+                  {" "}
+                  · {failed.length} failed: {failed.map((s) => s.error).join("; ")}
+                </span>
+              )}
+            </span>
+          )}
+          {showing && decorations.error != null && (
+            <span className="text-xs text-destructive">{decorations.error}</span>
+          )}
+          <Tip label="Show the editor's decorations: widgets, attributes, shapes and wrappers">
+            <Button
+              variant="ghost"
+              size="xs"
+              aria-pressed={showing}
+              onClick={toggleDecorations}
+              className="aria-pressed:bg-foreground/10"
+            >
+              Decorations
+            </Button>
+          </Tip>
+          <Tip label="Clear the selection and its outline in the page">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Clear the selection"
+              disabled={selected == null}
+              onClick={clear}
+            >
+              <NoSymbolIcon />
+            </Button>
+          </Tip>
+          <ExpandCollapse
+            onExpand={() => setCollapsed(new Set())}
+            // The document stays open: its blocks show. The selection goes to the block holding it.
+            onCollapse={() => {
+              if (!doc) return;
+              const next = new Set(folders(doc).filter((id) => id != ROOT));
+              setCollapsed(next);
+              if (selected != null) setSelected(shownItem(doc, selected, next));
+              setActive(shownItem(doc, active, next));
+            }}
+          />
+        </span>
       </div>
       <SplitPane
         pane={
           <NodePane
             source={source}
-            focused={focused == ROOT ? null : focused}
+            focused={paneId}
             onShowType={(kind, name) => store.showType(editorId, name, kind)}
             onLog={(path, part) =>
               fire(
@@ -269,8 +357,8 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
           >
             {index && (
               <DecorationList
-                title={focused == ROOT ? "The document's decorations" : "Decorations"}
-                items={decorationsOf(index, focused == ROOT ? [] : pathOf(focused))}
+                title={paneId == null ? "The document's decorations" : "Decorations"}
+                items={decorationsOf(index, paneId == null ? [] : pathOf(paneId))}
                 index={index}
                 onLog={(item) =>
                   fire(store.transport, {
@@ -290,12 +378,7 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
           role="tree"
           aria-label="Document structure"
           className="min-w-0 flex-1 overflow-auto p-2 font-mono text-xs"
-          onClick={(event: MouseEvent) => {
-            const item = itemOf(event.target);
-            focusItem(item);
-            const path = dataPath(item);
-            if (path) outline.show(path);
-          }}
+          onClick={(event: MouseEvent) => select(itemOf(event.target))}
           // Scrolls the node into view in the editor.
           onDoubleClick={(event: MouseEvent) => {
             const path = dataPath(itemOf(event.target));

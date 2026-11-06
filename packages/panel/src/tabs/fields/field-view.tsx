@@ -221,7 +221,9 @@ export const FieldView = ({
           ))}
         </ol>
       ) : (
-        <p className="font-sans text-muted-foreground">No changes seen.</p>
+        <p className="font-sans text-muted-foreground">
+          No changes seen. Interact with the editor to see changes.
+        </p>
       )}
     </Part>
   );

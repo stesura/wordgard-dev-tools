@@ -34,6 +34,8 @@ export const SELECTION_BAR = guide("selection-bar");
 export const RESOLVED_POSITIONS = guide("resolved-positions");
 /** The Log's filter bar. */
 export const LOG_FILTERS = guide("log-filters");
+/** The Log's decoration checks: the toolbar's toggle and an entry's section. */
+export const LOG_DECORATIONS = guide("log-decorations");
 /** The Schema's Nodes section. */
 export const SCHEMA_NODES = guide("schema-nodes");
 /** The Schema's Marks section. */

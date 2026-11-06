@@ -186,7 +186,7 @@ const createHandlers = (
       recorder.clear(entry(id));
       return null;
     },
-    log: ({ id, from, to }) => recorder.slice(entry(id), from, to),
+    log: ({ id, from, to, decorations }) => recorder.slice(entry(id), from, to, decorations),
     entry: ({ id, index }) => recorder.detail(entry(id), index),
     logEntry: ({ id, index, part }) => {
       recorder.log(entry(id), index, part);

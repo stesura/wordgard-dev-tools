@@ -41,8 +41,19 @@ const Text = ({ text }: { text: string }) =>
     );
   });
 
+const List = ({ items }: { items: string[] }) =>
+  items.length > 0 && (
+    <ul className="list-disc space-y-1 pl-4 text-popover-foreground">
+      {items.map((item) => (
+        <li key={item}>
+          <Text text={item} />
+        </li>
+      ))}
+    </ul>
+  );
+
 /**
- * A guide: what something shows, tips, links to Wordgard's reference. Opens on click, or on hover.
+ * A guide: what something shows, Wordgard's notes on it, tips for the panel, links to Wordgard's reference. Opens on click, or on hover.
  * `dim`: faint until pointed at, focused or open, so the guides inside a tab don't compete with its
  * content (the tab bar's own stays as is).
  */
@@ -84,13 +95,13 @@ export const GuidePopover = ({
         <PopoverDescription className="text-popover-foreground">
           <Text text={guide.summary} />
         </PopoverDescription>
-        <ul className="list-disc space-y-1 pl-4 text-popover-foreground">
-          {guide.tips.map((tip) => (
-            <li key={tip}>
-              <Text text={tip} />
-            </li>
-          ))}
-        </ul>
+        <List items={guide.notes} />
+        {guide.tips.length > 0 && (
+          <section aria-label="Tips" className="mt-1 space-y-1 border-t pt-2">
+            <h3 className="font-medium text-popover-foreground">Tips</h3>
+            <List items={guide.tips} />
+          </section>
+        )}
       </PopoverContent>
     </Popover>
   );

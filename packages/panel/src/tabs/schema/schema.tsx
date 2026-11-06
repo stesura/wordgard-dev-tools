@@ -1,12 +1,16 @@
 import { FilterChip } from "#components/filter-chip";
+import { IconButton } from "#components/icon-button";
+import { CodeBracketIcon } from "#icons";
+import { asJSON, persistent } from "#stores/persistent.ts";
 import { ToggleGroup, ToggleGroupItem } from "#components/ui/toggle-group";
 import { whileShown } from "#stores/while-shown.ts";
 import { LoadError } from "#components/load-error";
 import { fire } from "../../transport.ts";
 import { includes } from "#lib/text.ts";
 import { toggled } from "#lib/sets.ts";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import { ClearFilters } from "#components/clear-filters";
+import { SearchInput } from "#components/search-box";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
 import { createSchemaSource } from "./schema-source.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
@@ -35,6 +39,17 @@ import {
 } from "./schema-cards.tsx";
 import { SchemaSection, count } from "./schema-heading.tsx";
 
+/** Scrolls to a card, below its section's sticky bar, and all of it when it fits. */
+const scrollToCard = (container: HTMLElement, card: Element) => {
+  const heading = card.closest("[data-list]")?.querySelector("[data-heading]");
+  const inset = heading instanceof HTMLElement ? heading.offsetHeight : 0;
+  scrollInto(container, card, inset);
+  const view = container.getBoundingClientRect();
+  const shown = card.getBoundingClientRect();
+  const below = shown.bottom - view.bottom;
+  if (below > 0) container.scrollTop += Math.min(below + 8, shown.top - view.top - inset);
+};
+
 /** The editor's node and mark types. Mounted per editor. */
 export const Schema = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createSchemaSource(store.transport, editorId));
@@ -48,12 +63,31 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
   // The card clicked or shown last (a "show type" from the Structure): ringed.
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
-  const [paneOpen, setPaneOpen] = useState(true);
+  // Saved, shared by every editor's Schema.
+  const [savedPaneOpen] = useState(() =>
+    persistent(
+      "wordgard-devtools:schema-json",
+      true,
+      asJSON((json) => json !== false)
+    )
+  );
+  const paneOpen = useStore(savedPaneOpen);
+  const setPaneOpen = (open: boolean) => savedPaneOpen.set(open);
   // Kept from card to card.
   const [jsonView, setJSONView] = useState<JSONView>("spec");
   const showJSON = (card: string) => {
     setSelectedCard(card);
     setPaneOpen(true);
+  };
+  // Closed from inside the pane, focus goes to the selected card (or the first): the pane's
+  // controls go with it.
+  const closePane = (refocus: boolean) => {
+    setPaneOpen(false);
+    if (!refocus) return;
+    const list = scroller.current;
+    const card =
+      list?.querySelector("[data-type][aria-current]") ?? list?.querySelector("[data-type]");
+    if (card instanceof HTMLElement) card.focus({ preventScroll: true });
   };
   const logCard: Log = (kind, name, json) =>
     fire(store.transport, { type: "logType", id: editorId, kind, name, json });
@@ -66,7 +100,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
     )
   );
 
-  // Clears the filters so the card is there, rings it, then scrolls to it once drawn.
+  // Clears the filters so the card is there, rings and focuses it, then scrolls to it once drawn.
   // Stable: the list's ref callback takes reveals with it.
   const go: Go = useCallback(
     (kind, name) => {
@@ -75,13 +109,61 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
       requestAnimationFrame(() => {
         const container = scroller.current;
         const card = container?.querySelector(`[data-type='${kind}-${CSS.escape(name)}']`);
-        const heading = card?.closest("[data-list]")?.querySelector("[data-heading]");
-        if (container && card)
-          scrollInto(container, card, heading instanceof HTMLElement ? heading.offsetHeight : 0);
+        if (!container || !(card instanceof HTMLElement)) return;
+        card.focus({ preventScroll: true });
+        scrollToCard(container, card);
       });
     },
     [savedFilters]
   );
+
+  // Up and Down (Home, End) move between the cards, across the sections, from a card or anything in
+  // it; Right and Left move through a card: the card, then its links and tags. Enter on a card shows
+  // its JSON. A card focused is selected (onFocus). Escape anywhere in the list closes the JSON (not
+  // a popup's, which bubbles here through React).
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    menu.onKeyDown(event);
+    if (event.defaultPrevented) return;
+    const current = event.target;
+    if (!(current instanceof HTMLElement) || !event.currentTarget.contains(current)) return;
+    if (event.key == "Escape" && paneOpen) {
+      event.preventDefault();
+      closePane(false);
+      return;
+    }
+    const card = current.closest("[data-type]");
+    if (!(card instanceof HTMLElement)) return;
+    if (event.key == "Enter" && current == card) {
+      event.preventDefault();
+      showJSON(card.getAttribute("data-type") ?? "");
+      return;
+    }
+    if (event.key == "ArrowRight" || event.key == "ArrowLeft") {
+      const items = [card, ...card.querySelectorAll("[data-card-item]")].filter(
+        (item) => item instanceof HTMLElement
+      );
+      const next = items[items.indexOf(current) + (event.key == "ArrowRight" ? 1 : -1)];
+      if (!next) return;
+      event.preventDefault();
+      next.focus({ preventScroll: true });
+      return;
+    }
+    const cards = [...event.currentTarget.querySelectorAll("[data-type]")].filter(
+      (other) => other instanceof HTMLElement
+    );
+    const at = cards.indexOf(card);
+    const moves: Partial<Record<string, number>> = {
+      ArrowDown: at + 1,
+      ArrowUp: at - 1,
+      Home: 0,
+      End: cards.length - 1,
+    };
+    const next = cards[moves[event.key] ?? -1];
+    if (!next) return;
+    event.preventDefault();
+    next.focus({ preventScroll: true });
+    scrollToCard(event.currentTarget, next);
+  };
 
   // Loads while its tab is shown: on showing (when the configuration changed meanwhile) and on
   // each configuration change.
@@ -160,16 +242,18 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
       <LoadError what="the schema" error={error} onRetry={() => void source.load()} />
       {/* Narrow: the filter on its own line, its buttons under it. */}
       <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-2 border-b bg-strip px-2 pb-1 text-xs @md:flex-nowrap @md:pb-0">
-        <input
-          type="search"
+        <SearchInput
           value={query}
           onChange={(event) => setFilters({ query: event.target.value })}
           onKeyDown={(event) => {
-            if (event.key == "Escape") setFilters({ query: "" });
+            // Clears the filter first; once empty, closes the JSON.
+            if (event.key != "Escape") return;
+            if (query) setFilters({ query: "" });
+            else if (paneOpen) closePane(false);
           }}
           aria-label="Filter the types"
           placeholder="Filter node types, mark types and groups"
-          className="h-6 min-w-0 flex-1 basis-full bg-transparent outline-none @md:basis-0"
+          className="basis-full @md:basis-0"
         />
         {filtered && <ClearFilters onClick={clearAll} />}
         {schema && (
@@ -194,7 +278,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
               view={jsonView}
               onView={setJSONView}
               onLog={logCard}
-              onClose={() => setPaneOpen(false)}
+              onClose={() => closePane(true)}
             />
           ) : null
         }
@@ -215,6 +299,11 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
             if (card) showJSON(card);
           }}
           onContextMenu={menu.onContextMenu}
+          onKeyDown={onKeyDown}
+          onFocus={(event) => {
+            if (event.target.matches("[data-type]"))
+              setSelectedCard(event.target.getAttribute("data-type"));
+          }}
         >
           <SchemaSection
             title="Nodes"
@@ -227,6 +316,13 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
             onToggle={(tag) => toggleTag("nodes", nodeTagList, tag)}
             onClear={() => setFilters({ nodes: none })}
             empty={schema && !nodes.length ? "No node types match." : null}
+            actions={
+              !paneOpen && (
+                <IconButton label="Show the JSON" onClick={() => setPaneOpen(true)}>
+                  <CodeBracketIcon />
+                </IconButton>
+              )
+            }
           >
             {nodes.map((type) => (
               <NodeCard

@@ -116,7 +116,8 @@ it("outlines a clicked box's node in the page and shows it, not a hovered one", 
     () => document.querySelector("[data-wordgard-devtools-overlay]")?.textContent == "Text"
   );
   await until(() => pane()?.textContent?.includes('text"bold"'));
-  expect(strong.className).toContain("ring-2");
+  expect(strong.getAttribute("aria-selected")).toBe("true");
+  expect(getComputedStyle(strong).boxShadow).not.toBe("none");
   // Gone with the tab.
   (await until(() => tab("State"))).click();
   await until(() => !document.querySelector("[data-wordgard-devtools-overlay]"));
@@ -142,7 +143,7 @@ it("shows a pick in the Structure, whichever tab is open, outlined in the page",
   if (!strong) throw new Error("No strong element");
   await userEvent.click(strong);
   await until(() => tab("Structure")?.getAttribute("aria-selected") == "true");
-  await until(() => box("1.1")?.className.includes("ring-2"));
+  await until(() => box("1.1")?.getAttribute("aria-selected") == "true");
   await until(() => pane()?.textContent?.includes('text"bold"'));
   // The picker's outline went with the click: the selected node's stays.
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -208,6 +209,123 @@ it("walks the boxes with the arrow keys", async () => {
   await until(() => box("2.0")?.getAttribute("aria-selected") == "true");
 });
 
+const overlay = () => document.querySelector("[data-wordgard-devtools-overlay]")?.textContent;
+const tabStops = () => [...(structure()?.querySelectorAll("[tabindex='0']") ?? [])];
+const menuItem = (text: string) =>
+  [...shadow().querySelectorAll<HTMLElement>("[role='menuitem']")].find(
+    (element) => element.textContent?.trim() == text
+  );
+
+/** The item at `path` is focused and selected, and the tree's one tab stop. */
+const focusedAt = async (path: string) => {
+  await until(
+    () => shadow().activeElement == box(path) && box(path)?.getAttribute("aria-selected") == "true"
+  );
+  expect(tabStops()).toEqual([box(path)]);
+};
+
+it("walks the tree with its keys, selecting and outlining as it goes", async () => {
+  await setup();
+  await userEvent.click(await showStructure());
+  await focusedAt("1.1");
+  // Left from a chip: to its paragraph, outlined in the page and shown in the pane.
+  await userEvent.keyboard("{ArrowLeft}");
+  await focusedAt("1");
+  await until(() => overlay() == "Paragraph");
+  await until(() => pane()?.textContent?.includes("Paragraph"));
+  // Left closes an open box; from a closed one, to its parent.
+  await userEvent.keyboard("{ArrowLeft}");
+  await until(() => box("1")?.getAttribute("aria-expanded") == "false");
+  expect(shadow().activeElement).toBe(box("1"));
+  await userEvent.keyboard("{ArrowLeft}");
+  await focusedAt("");
+  // Right in an open box: to its first child. On a leaf: nothing.
+  await userEvent.keyboard("{ArrowRight}");
+  await focusedAt("0");
+  await userEvent.keyboard("{ArrowRight}");
+  await focusedAt("0.0");
+  await userEvent.keyboard("{ArrowRight}");
+  await focusedAt("0.0");
+  // Down skips a closed box's content; Right opens it.
+  await userEvent.keyboard("{ArrowDown}");
+  await focusedAt("1");
+  await userEvent.keyboard("{ArrowRight}");
+  await until(() => box("1")?.getAttribute("aria-expanded") == "true");
+  await userEvent.keyboard("{ArrowDown}");
+  await focusedAt("1.0");
+  await until(() => overlay() == "Text");
+  // The ends, and nothing past them.
+  await userEvent.keyboard("{End}");
+  await focusedAt("2.0");
+  await userEvent.keyboard("{ArrowDown}");
+  await focusedAt("2.0");
+  await userEvent.keyboard("{Home}");
+  await focusedAt("");
+  await userEvent.keyboard("{ArrowUp}");
+  await focusedAt("");
+});
+
+it("keeps focus where it is on Escape, and opens the menu on it from the keyboard", async () => {
+  await setup();
+  await userEvent.click(await showStructure());
+  await until(() => overlay() == "Text");
+  await userEvent.keyboard("{Escape}");
+  await until(() => !overlay());
+  expect(box("1.1")?.getAttribute("aria-selected")).toBe("false");
+  expect(shadow().activeElement).toBe(box("1.1"));
+  expect(tabStops()).toEqual([box("1.1")]);
+  // On from there.
+  await userEvent.keyboard("{ArrowUp}");
+  await focusedAt("1.0");
+  await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+  await until(() => menuItem("Show Text type in Schema"));
+  await userEvent.keyboard("{Escape}");
+  await until(() => !menuItem("Show Text type in Schema") && shadow().activeElement == box("1.0"));
+});
+
+it("scrolls the focused node into view in the editor on Enter", async () => {
+  const { transport, counts } = counting();
+  await setup(transport);
+  await userEvent.click(await showStructure());
+  await userEvent.keyboard("{Enter}");
+  await until(() => counts.scrollIntoView == 1);
+});
+
+it("keeps the tab stop and focus out of closed boxes", async () => {
+  await setup();
+  await userEvent.click(await showStructure());
+  // Collapse all: the selection and the tab stop go to the block holding them.
+  const collapseAll = await until(() => structureButton("Collapse all"));
+  await userEvent.click(collapseAll);
+  await until(() => !box("1.1"));
+  expect(box("1")?.getAttribute("aria-selected")).toBe("true");
+  expect(tabStops()).toEqual([box("1")]);
+  await userEvent.tab();
+  expect(shadow().activeElement).toBe(box("1"));
+  (await until(() => structureButton("Expand all"))).click();
+  // A chevron: for the mouse only, out of the item's name. Closing the box holding focus moves focus to the box.
+  await userEvent.click(await until(() => box("1.1")));
+  const chevron = await until(() => box("1")?.querySelector("button"));
+  expect(chevron.getAttribute("aria-hidden")).toBe("true");
+  await userEvent.click(chevron);
+  await until(() => box("1")?.getAttribute("aria-expanded") == "false");
+  await focusedAt("1");
+});
+
+it("takes focus with a Show in Structure from another tab's menu", async () => {
+  await setup();
+  (await until(() => tab("DOM"))).click();
+  const line = await until(() =>
+    shadow().querySelector<HTMLElement>("[aria-label='DOM'] [data-dom='1']")
+  );
+  await userEvent.click(line);
+  await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+  await until(() => menuItem("Show Paragraph in Structure"));
+  await userEvent.keyboard("{ArrowDown}{Enter}");
+  await until(() => tab("Structure")?.getAttribute("aria-selected") == "true");
+  await focusedAt("1");
+});
+
 it("scrolls a double-clicked node into view in the editor", async () => {
   const { transport, counts } = counting();
   await setup(transport);
@@ -234,7 +352,9 @@ it("reveals a pick in another editor once its structure has loaded", async () =>
     if (!em) throw new Error("No em element");
     await userEvent.click(em);
     await until(
-      () => box("1.1")?.className.includes("ring-2") && box("1.1")?.textContent?.includes("three")
+      () =>
+        box("1.1")?.getAttribute("aria-selected") == "true" &&
+        box("1.1")?.textContent?.includes("three")
     );
   } finally {
     other.dom.remove();
@@ -291,19 +411,39 @@ it("expands and collapses every box at once", async () => {
   await until(() => box("1.1"));
 });
 
-it("marks where the selection starts and ends, each its own way", async () => {
+it("clears the selection and its outline", async () => {
+  await setup();
+  const strong = await showStructure();
+  const clear = await until(() => structureButton("Clear the selection"));
+  expect(clear.disabled).toBe(true);
+  strong.click();
+  await until(
+    () => document.querySelector("[data-wordgard-devtools-overlay]")?.textContent == "Text"
+  );
+  expect(clear.disabled).toBe(false);
+  clear.click();
+  await until(() => !document.querySelector("[data-wordgard-devtools-overlay]"));
+  expect(strong.getAttribute("aria-selected")).not.toBe("true");
+  expect(clear.disabled).toBe(true);
+  // Escape in the tree too.
+  await userEvent.click(strong);
+  await until(() => document.querySelector("[data-wordgard-devtools-overlay]"));
+  await userEvent.keyboard("{Escape}");
+  await until(() => !document.querySelector("[data-wordgard-devtools-overlay]"));
+  expect(clear.disabled).toBe(true);
+});
+
+it("marks the nodes the selection is in", async () => {
   const editor = await setup();
   await showStructure();
-  // From "Title" (3) to "bold" (16), backwards: the start is still the earlier position.
+  // From "Title" (3) to "bold" (16), backwards.
   editor.dispatch({ selection: { anchor: 16, head: 3 } });
-  const start = await until(() => box("0.0")?.querySelector("[data-selection-end='start']"));
-  expect(start.getAttribute("aria-label")).toBe("Start of selection - pos 3");
-  expect(box("1.1")?.querySelector("[data-selection-end='end']")?.getAttribute("aria-label")).toBe(
-    "End of selection - pos 16"
-  );
+  await until(() => box("0.0")?.dataset.selection == "innermost");
+  expect(box("1.1")?.dataset.selection).toBe("innermost");
+  expect(box("0")?.dataset.selection).toBe("holds");
   editor.dispatch({ selection: { anchor: 9 } });
-  await until(() => box("1.0")?.querySelector("[aria-label='Cursor - pos 9']"));
-  expect(shadow().querySelector("[data-selection-end='end']")).toBeNull();
+  await until(() => box("1.0")?.dataset.selection == "innermost");
+  expect(box("0.0")?.dataset.selection).toBeUndefined();
 });
 
 it("marks a node selection on the node itself", async () => {
@@ -312,11 +452,9 @@ it("marks a node selection on the node itself", async () => {
   const heading = editor.state.doc.content[0];
   if (!heading) throw new Error("No heading");
   editor.dispatch({ selection: GardSelection.node(0, heading) });
-  const mark = await until(() => box("0")?.querySelector("[data-selection-end='node']"));
-  expect(mark.getAttribute("aria-label")).toBe("Selected node - pos 0–7");
-  expect(box("0")?.dataset.selection).toBe("innermost");
-  // Not on the document holding it.
-  expect(box("")?.querySelector(":scope > div:first-child [data-selection-end]")).toBeNull();
+  await until(() => box("0")?.dataset.selection == "innermost");
+  // Not the document holding it.
+  expect(box("")?.dataset.selection).toBeUndefined();
 });
 
 it("shows what changed while paused once resumed", async () => {

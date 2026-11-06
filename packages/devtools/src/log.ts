@@ -5,6 +5,7 @@ import * as wordgardState from "wordgard/state";
 import type {
   ChangedRange,
   EntryPart,
+  FlushDecorations,
   LogEntryDetail,
   LogRow,
   LogSlice,
@@ -14,10 +15,13 @@ import type {
 import { agentReading } from "./reads.ts";
 import type { Entry, Registry } from "./registry.ts";
 import { toSafe } from "./serialise.ts";
+import { flushDecorations, logFlushDecorations, summaryOf } from "./flushes.ts";
 
 // Loaded with the serialisers, on the first panel request.
 
 export const LOG_SIZE = 500;
+/** Flushes whose decorations one `log` request works out; the rest come back "pending". */
+export const FLUSHES_PER_REQUEST = 100;
 
 type Item = {
   index: number;
@@ -45,6 +49,11 @@ type Log = {
   scheduled: boolean;
   /** Two copies of the package on one editor both deliver each transaction. */
   seen: WeakSet<Transaction>;
+  /**
+   * Each flush's decoration verdicts, not its sets (too large to keep): worked out once, from its
+   * first held row and the row before it, which trimming can change.
+   */
+  flushVerdicts: Map<number, { first: number; before: number | null; value: FlushDecorations }>;
 };
 
 type Timer = {
@@ -228,7 +237,7 @@ const row = ({ index, tr, dispatchMs, flushMs, flush, agentFlush }: Item): LogRo
 const tokens = (doc: GardState["doc"], from: number, to: number) =>
   doc.slice(from, to).map((token) => toSafe(token.toJSON(), 64));
 
-const detail = (item: Item): LogEntryDetail => {
+const detail = (item: Item, decorations: FlushDecorations | null): LogEntryDetail => {
   const { tr } = item;
   const before = tr.startState.doc;
   const after = tr.state.doc;
@@ -264,7 +273,33 @@ const detail = (item: Item): LogEntryDetail => {
     })),
     scrollIntoView: tr.scrollIntoView,
     reconfigured: tr.reconfigured,
+    decorations,
   };
+};
+
+/** A flush's held rows, and the held row before them. */
+const flushItems = (log: Log, flush: number) => {
+  const at = log.items.findIndex((item) => item.flush == flush);
+  if (at < 0) return null;
+  const items: Item[] = [];
+  for (let i = at; i < log.items.length; i++) {
+    const item = log.items[i];
+    if (item?.flush == flush) items.push(item);
+  }
+  return { items, before: log.items[at - 1] ?? null };
+};
+
+/** A flush's verdicts, cached; null when the log holds none of its rows. */
+const verdictsOf = (log: Log, flush: number) => {
+  const found = flushItems(log, flush);
+  const first = found?.items[0];
+  if (!found || !first) return null;
+  const before = found.before?.index ?? null;
+  const cached = log.flushVerdicts.get(flush);
+  if (cached && cached.first == first.index && cached.before == before) return cached.value;
+  const value = flushDecorations(flush, found.items, found.before?.tr ?? null);
+  log.flushVerdicts.set(flush, { first: first.index, before, value });
+  return value;
 };
 
 /** Unset ones are left as they were. */
@@ -275,7 +310,8 @@ export type Recorder = {
   recorded: (entry: Entry, transactions: readonly Transaction[]) => void;
   record: (entry: Entry, on: boolean, options?: RecordOptions) => void;
   clear: (entry: Entry) => void;
-  slice: (entry: Entry, from: number, to: number) => LogSlice;
+  /** With `decorations`, rows carry their flush's `decorationSummary`. */
+  slice: (entry: Entry, from: number, to: number, decorations?: boolean) => LogSlice;
   detail: (entry: Entry, index: number) => LogEntryDetail;
   /** Logs a transaction, or one of its parts, in the page's console. */
   log: (entry: Entry, index: number, part?: EntryPart) => void;
@@ -303,6 +339,7 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
         timer: null,
         scheduled: false,
         seen: new WeakSet(),
+        flushVerdicts: new Map(),
       };
       logs.set(entry, log);
     }
@@ -321,7 +358,44 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
   };
 
   const trim = (log: Log) => {
-    if (log.items.length > log.size) log.items.splice(0, log.items.length - log.size);
+    if (log.items.length <= log.size) return;
+    log.items.splice(0, log.items.length - log.size);
+    const oldest = log.items[0]?.flush;
+    for (const flush of log.flushVerdicts.keys())
+      if (oldest == null || flush < oldest) log.flushVerdicts.delete(flush);
+  };
+
+  // With decorations: each row's flush summary, newest flushes worked out first, a limited number
+  // per request.
+  const rowsOf = (log: Log, from: number, to: number, decorations: boolean) => {
+    const items = log.items.filter((item) => item.index >= from && item.index < to);
+    if (!decorations) return items.map(row);
+    const flushes = [...new Set(items.map((item) => item.flush))].filter((f) => f != null);
+    const summaries = new Map<number, LogRow["decorationSummary"]>();
+    let budget = FLUSHES_PER_REQUEST;
+    for (const flush of flushes.sort((a, b) => b - a)) {
+      const known = log.flushVerdicts.has(flush);
+      if (!known && budget-- <= 0) {
+        summaries.set(flush, "pending");
+        continue;
+      }
+      const verdicts = verdictsOf(log, flush);
+      summaries.set(flush, verdicts ? summaryOf(verdicts) : null);
+    }
+    return items.map((item): LogRow => ({
+      ...row(item),
+      decorationSummary: item.flush == null ? null : (summaries.get(item.flush) ?? null),
+    }));
+  };
+
+  const currentFrom = (log: Log, doc: GardState["doc"]) => {
+    let found: number | null = null;
+    for (let i = log.items.length - 1; i >= 0; i--) {
+      const item = log.items[i];
+      if (item?.tr.state.doc !== doc) break;
+      found = item.index;
+    }
+    return found;
   };
 
   const held = (entry: Entry, index: number) => {
@@ -376,9 +450,10 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
       if (!log) return;
       log.items = [];
       log.unflushed = [];
+      log.flushVerdicts.clear();
       changed(entry, log);
     },
-    slice: (entry, from, to) => {
+    slice: (entry, from, to, decorations = false) => {
       const log = logs.get(entry);
       if (!log)
         return {
@@ -388,6 +463,7 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
           recording: entry.recording,
           size: LOG_SIZE,
           rows: [],
+          currentFrom: null,
         };
       return {
         start: log.items[0]?.index ?? log.end,
@@ -395,12 +471,24 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
         pending: log.unflushed[0]?.index ?? log.end,
         recording: entry.recording,
         size: log.size,
-        rows: log.items.filter((item) => item.index >= from && item.index < to).map(row),
+        rows: rowsOf(log, from, to, decorations),
+        currentFrom: currentFrom(log, entry.wg.state.doc),
       };
     },
-    detail: (entry, index) => detail(held(entry, index)),
+    detail: (entry, index) => {
+      const item = held(entry, index);
+      const log = logs.get(entry);
+      return detail(item, log && item.flush != null ? verdictsOf(log, item.flush) : null);
+    },
     log: (entry, index, part = "transaction") => {
-      const { tr } = held(entry, index);
+      const { tr, flush } = held(entry, index);
+      if (part == "decorations") {
+        const log = logs.get(entry);
+        const found = log && flush != null ? flushItems(log, flush) : null;
+        if (flush == null || !found) throw new Error(`Transaction ${index} isn't drawn yet`);
+        logFlushDecorations(flush, found.items);
+        return;
+      }
       const value =
         part == "changes"
           ? tr.changes

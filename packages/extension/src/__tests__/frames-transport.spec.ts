@@ -106,6 +106,21 @@ describe("frames transport", () => {
     );
   });
 
+  it("forwards the log's decorations flag", async () => {
+    const frames = twoFrames();
+    const { transport, announce } = setup(frames);
+    announce(0);
+    await transport.send({ type: "listEditors" });
+    await transport.send({ type: "log", id: 2, from: 3, to: 9, decorations: true });
+    expect(frames[0].seen.at(-1)).toEqual({
+      type: "log",
+      id: 2,
+      from: 3,
+      to: 9,
+      decorations: true,
+    });
+  });
+
   it("translates pushes and ignores frames without an agent", async () => {
     const { transport, receive, announce, pushed } = setup(twoFrames());
     announce(7);

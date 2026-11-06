@@ -66,8 +66,10 @@ export type PanelStore = {
   /** Shows a node type's card in the Schema tab, or a mark type's (taken once with `takeTypeReveal`). */
   showType: (id: number, name: string, kind?: ColourKind) => void;
   takeTypeReveal: (id: number) => { kind: ColourKind; name: string } | null;
-  /** Shows a node in the Structure tab. */
-  showNode: (id: number, path: Path) => void;
+  /** Shows a node in the Structure tab; with `decorations`, its decorations shown too. */
+  showNode: (id: number, path: Path, options?: { decorations?: boolean }) => void;
+  /** The reveal waiting for this editor's Structure asks for its decorations: taken once. */
+  takeDecorationsReveal: (id: number) => boolean;
   /** Shows the Log tab with an entry selected (taken once with `takeLogReveal`). */
   showLogEntry: (id: number, index: number) => void;
   takeLogReveal: (id: number) => number | null;
@@ -107,6 +109,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   };
   const revealListeners = new Set<() => void>();
   let reveal: { id: number; path: Path } | null = null;
+  let decorationsReveal: number | null = null;
   let logReveal: { id: number; index: number } | null = null;
   let typeReveal: { id: number; kind: ColourKind; name: string } | null = null;
   let domReveal: { id: number; path: Path } | null = null;
@@ -217,6 +220,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       // Ends picking in the other frames too.
       pick(false);
       reveal = { id: push.id, path: push.path };
+      decorationsReveal = null;
       // Shown in the Structure, whichever tab was open.
       set({ tab: "structure" });
       void select(push.id);
@@ -294,14 +298,20 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       set({ tab: "schema" });
       for (const listener of revealListeners) listener();
     },
+    takeDecorationsReveal: (id) => {
+      if (decorationsReveal != id) return false;
+      decorationsReveal = null;
+      return true;
+    },
     takeTypeReveal: (id) => {
       if (typeReveal?.id != id) return null;
       const { kind, name } = typeReveal;
       typeReveal = null;
       return { kind, name };
     },
-    showNode: (id, path) => {
+    showNode: (id, path, { decorations = false } = {}) => {
       reveal = { id, path };
+      decorationsReveal = decorations ? id : null;
       set({ tab: "structure" });
       for (const listener of revealListeners) listener();
     },

@@ -374,7 +374,7 @@ it("shows the shown tab's guide, with links to Wordgard's reference", async () =
   const popup = await until(() =>
     shadow().querySelector<HTMLElement>("[data-slot='popover-content']")
   );
-  expect(popup.textContent).toContain("The document as nested boxes");
+  expect(popup.textContent).toContain("tree of nested boxes");
   const link = popup.querySelector<HTMLAnchorElement>("a[href^='https://wordgard.net/docs/ref/']");
   expect(link?.target).toBe("_blank");
   await userEvent.keyboard("{Escape}");

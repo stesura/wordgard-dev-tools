@@ -29,10 +29,14 @@ const SCOPES: [number, string][] = [
   [4, "all"],
 ];
 
-type Source = { kind: "point" | "range"; fn: (state: GardState) => unknown; builtIn: boolean };
+export type Source = {
+  kind: "point" | "range";
+  fn: (state: GardState) => unknown;
+  builtIn: boolean;
+};
 
 /** Point sources, then range sources. `combine` appends Wordgard's node selection to the points. */
-const sourcesOf = (state: GardState): Source[] => {
+export const sourcesOf = (state: GardState): Source[] => {
   const { Decoration } = wordgardEditor;
   let points: readonly ((state: GardState) => unknown)[];
   let ranges: readonly ((state: GardState) => unknown)[];
@@ -49,7 +53,8 @@ const sourcesOf = (state: GardState): Source[] => {
   ];
 };
 
-const sourceName = ({ fn, builtIn }: Source) => (builtIn ? "node selection" : fn.name || null);
+export const sourceName = ({ fn, builtIn }: Source) =>
+  builtIn ? "node selection" : fn.name || null;
 
 // The decoration classes aren't exported: their constructors, from the public factories.
 let classes: Map<unknown, DecorationKind> | null = null;
@@ -312,12 +317,17 @@ const noteShapes = (list: DecorationInfo[]) => {
   }
 };
 
+/** As the console shows a source: `Decoration.Point.source #1 (name)`. */
+export const sourceLabel = (source: Source, index: number) => {
+  const name = sourceName(source);
+  return `Decoration.${source.kind == "point" ? "Point" : "Range"}.source #${index + 1}${name ? ` (${name})` : ""}`;
+};
+
 /** Logs a source's function, or one of its decorations (walked again: the state may have moved on). */
 export const logDecoration = (state: GardState, source: number, index?: number) => {
   const found = sourcesOf(state)[source];
   if (!found) throw new Error(`No decoration source ${source}`);
-  const name = sourceName(found);
-  const label = `Decoration.${found.kind == "point" ? "Point" : "Range"}.source #${source + 1}${name ? ` (${name})` : ""}`;
+  const label = sourceLabel(found, source);
   if (index == null) {
     console.log(`[wordgard-devtools] ${label}`, found.fn);
     return;

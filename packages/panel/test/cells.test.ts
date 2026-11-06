@@ -93,15 +93,10 @@ it("lists the cells in the Selection tab", async () => {
   expect(card.textContent).toContain("cells[0, 0, 1][0, 1, 1]");
 });
 
-it("marks the selected cells in the Structure, with the anchor and head cells", async () => {
-  const { b, d } = await setup();
+it("marks the selected cells in the Structure", async () => {
+  await setup();
   (await until(() => tab("Structure"))).click();
-  const head = await until(() => box("0.0.1")?.querySelector("[data-selection-end='start']"));
-  expect(head.getAttribute("aria-label")).toBe(`Head cell - pos ${b}`);
-  expect(
-    box("0.1.1")?.querySelector("[data-selection-end='end']")?.getAttribute("aria-label")
-  ).toBe(`Anchor cell - pos ${d}`);
-  expect(box("0.0.1")?.dataset.selection).toBe("innermost");
+  await until(() => box("0.0.1")?.dataset.selection == "innermost");
   expect(box("0.1.1")?.dataset.selection).toBe("innermost");
   expect(box("0.0")?.dataset.selection).toBe("holds");
   expect(box("0.0.0")?.dataset.selection).toBeUndefined();

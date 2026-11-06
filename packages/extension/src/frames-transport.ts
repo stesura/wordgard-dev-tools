@@ -194,7 +194,8 @@ export const createFramesTransport = (
         focusChanges,
       })),
     clear: ({ id }) => routed<"clear">(id, (page) => ({ type: "clear", id: page })),
-    log: ({ id, from, to }) => routed<"log">(id, (page) => ({ type: "log", id: page, from, to })),
+    log: ({ id, from, to, decorations }) =>
+      routed<"log">(id, (page) => ({ type: "log", id: page, from, to, decorations })),
     entry: ({ id, index }) => routed<"entry">(id, (page) => ({ type: "entry", id: page, index })),
     logEntry: ({ id, index, part }) =>
       routed<"logEntry">(id, (page) => ({ type: "logEntry", id: page, index, part })),

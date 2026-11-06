@@ -40,3 +40,27 @@ export const flushTitle = (row: LogRow) =>
 
 export const label = (disabled: boolean) =>
   cn("font-semibold", disabled && "text-muted-foreground");
+
+/** What a row's flush did to the decoration sources, as the Log flags and filters it. */
+export type DecorationFlag = "wasted" | "stale";
+export const DECORATION_FLAGS: readonly DecorationFlag[] = ["wasted", "stale"];
+export const DECORATION_TIPS: Record<DecorationFlag, string> = {
+  wasted: "Wasted decoration work: a source rebuilt its set and the editor had nothing to redraw",
+  stale: "Decorations not mapped: a source kept its set across a change that moved what it holds",
+};
+
+/** The row's flush's flags; null while unknown (not drawn, or not worked out yet). */
+export const decorationFlags = (row: LogRow): DecorationFlag[] | null => {
+  const summary = row.decorationSummary;
+  if (summary == null || summary == "pending") return null;
+  return DECORATION_FLAGS.filter((flag) =>
+    flag == "wasted" ? summary.wasted > 0 : summary.notMapped > 0
+  );
+};
+
+/** The rows closing their flush: they carry its badges. */
+export const flushEnds = (rows: LogRow[]) => {
+  const last = new Map<number, number>();
+  for (const row of rows) if (row.flush != null) last.set(row.flush, row.index);
+  return new Set(last.values());
+};

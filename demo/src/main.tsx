@@ -2,7 +2,7 @@ import "./style.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import type { Plot } from "wordgard/doc";
-import { Wordgard } from "wordgard/editor";
+import { Decoration, Widget, Wordgard } from "wordgard/editor";
 import { history } from "wordgard/history";
 import { basicSchema } from "wordgard/schema";
 import { GardState } from "wordgard/state";
@@ -33,10 +33,28 @@ plain(
     "<tr><td>Log</td><td>Transactions</td></tr></table>",
   [tables(), wordCount, wordgardDevtools({ name: "plain", fields: { wordCount }, enabled: true })]
 );
+// A decoration source that builds a new widget on every call, where mapping the old one would
+// do: the Log's Decorations check flags its flushes as wasted work.
+const Length = Widget.define<number>({
+  render: (length) => {
+    const badge = document.createElement("span");
+    badge.className = "length";
+    badge.textContent = ` ${length}`;
+    return badge;
+  },
+});
+const lengthBadge = (state: GardState) => {
+  const first = state.doc.content[0];
+  if (!first) return Decoration.Point.none;
+  const length = state.doc.textContent({ blockSeparator: " " }).length;
+  return Decoration.Point.set([[Decoration.Point.widget(Length.of(length)), first.length - 1]]);
+};
+
 // Two plugins on one editor: still one entry, named by the one with a name.
 plain("left", "<p>Left editor.</p>", [
   wordgardDevtools({ enabled: true }),
   wordgardDevtools({ name: "left", enabled: true }),
+  Decoration.Point.source.of(lengthBadge),
 ]);
 plain("right", "<p>Right editor.</p>", wordgardDevtools({ name: "right", enabled: true }));
 

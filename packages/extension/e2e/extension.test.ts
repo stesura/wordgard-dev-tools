@@ -187,6 +187,14 @@ it("records the transaction log, with timing", async () => {
   await list.locator("[data-flush]").first().waitFor();
   await list.getByRole("option").filter({ hasText: "input.type" }).click();
   await panel.getByLabel("Transaction").getByText("x", { exact: true }).waitFor();
+  // The flushes' decoration checks (the transport forwards the flag): a flush that moves only the
+  // selection, where the demo's length badge is rebuilt for nothing.
+  await demo.keyboard.press("ArrowLeft");
+  await expect.poll(() => list.locator("[data-flush]").count()).toBe(4);
+  const decorations = panel.getByRole("button", { name: "Decorations", exact: true });
+  await decorations.click();
+  await list.locator("[data-decorations='wasted']").first().waitFor();
+  await decorations.click();
   await panel.getByRole("button", { name: "Pause", exact: true }).click();
   await panel.getByRole("tab", { name: "Structure" }).click();
 });

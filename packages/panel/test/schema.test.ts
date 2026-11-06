@@ -137,7 +137,11 @@ it("rings the card a link or a click lands on", async () => {
   [...(card("mark-Strong")?.querySelectorAll("button") ?? [])]
     .find((b) => b.textContent == "Text")
     ?.click();
-  await until(() => card("node-Text")?.className.includes("ring-2"));
+  // And focused (a frame later): else that focus would select it again after the click below.
+  await until(
+    () =>
+      card("node-Text")?.className.includes("ring-2") && shadow().activeElement == card("node-Text")
+  );
   expect(card("mark-Strong")?.className).not.toContain("ring-2");
   card("node-Paragraph")?.click();
   await until(() => card("node-Paragraph")?.className.includes("ring-2"));
@@ -196,10 +200,65 @@ it("collapses a section to its bar from its title or the bar's empty stretch, an
   toggle(section("Nodes") ?? shadow(), "textblock")?.click();
   await until(() => !card("node-Text"));
   expect(card("node-Paragraph")).not.toBeNull();
-  section("Marks")?.querySelector<HTMLButtonElement>("[aria-label='Expand the marks']")?.click();
+  const title = section("Marks")?.querySelector<HTMLButtonElement>("h3 button");
+  expect(title?.getAttribute("aria-expanded")).toBe("false");
+  title?.click();
   await until(() => card("mark-Strong"));
   stretch("Nodes")?.click();
   await until(() => !card("node-Paragraph") && card("mark-Strong"));
+});
+
+it("gives the cards and the bars their roles, names and descriptions", async () => {
+  const paragraph = await setup();
+  // An article, not a region: no landmark per card; its heading, for heading navigation.
+  expect(paragraph.tagName).toBe("ARTICLE");
+  await expect.element(paragraph).toHaveAccessibleName("Paragraph node");
+  expect(paragraph.querySelector("h4")?.textContent).toBe("Paragraph");
+  const tags = paragraph.querySelector("[role='list'][aria-label='tags']");
+  expect(
+    [...(tags?.querySelectorAll("[role='listitem']") ?? [])].map((tag) => tag.textContent)
+  ).toContain("textblock");
+  expect(paragraph.textContent).toContain("shape <p>");
+  expect([...paragraph.querySelectorAll("dl > div > dt")].map((dt) => dt.textContent)).toEqual([
+    "groups",
+    "content",
+    "holds",
+    "marks",
+  ]);
+
+  // A link's name: its text, then what it links to.
+  const link = (scope: Element | null, text: string) =>
+    [...(scope?.querySelectorAll<HTMLButtonElement>("dd button") ?? [])].find(
+      (button) => button.textContent == text
+    ) ?? null;
+  await expect.element(link(paragraph, "Text")).toHaveAccessibleName("Text node type");
+  await expect.element(link(paragraph, "Content")).toHaveAccessibleName("Content node group");
+  await expect.element(link(card("node-Text"), "Strong")).toHaveAccessibleName("Strong mark type");
+
+  // A bar: named by its title, its count says of what, its tags a group.
+  const nodes = await until(() => section("Nodes"));
+  const title = nodes.querySelector<HTMLButtonElement>("h3 button");
+  await expect.element(title).toHaveAccessibleName("Nodes");
+  expect(title?.getAttribute("aria-expanded")).toBe("true");
+  expect(nodes.querySelector("h3")?.nextElementSibling?.textContent).toMatch(/^\d+ nodes$/);
+  expect(
+    toggle(
+      nodes.querySelector("[role='group'][aria-label='Filter the nodes by tag']") ?? document,
+      "textblock"
+    )
+  ).toBeDefined();
+
+  // "automatic" says what it means; the arrows reach it from its card, not Tab.
+  const automatic = () =>
+    card("group-Block")?.querySelector<HTMLElement>("[aria-describedby]") ?? null;
+  expect(automatic()?.textContent).toBe("automatic");
+  await expect.element(automatic()).toHaveAccessibleDescription(/^Not declared/);
+  expect(automatic()?.tabIndex).toBe(-1);
+  card("group-Block")?.click();
+  await until(() => card("group-Block")?.getAttribute("aria-current") == "true");
+  // In forced colours, which drop the ring's box shadow.
+  expect(card("group-Block")?.className).toContain("forced-colors:outline-[Highlight]");
+  expect(paragraph.className).not.toContain("forced-colors:outline-[Highlight]");
 });
 
 it("puts the filter on its own line in a narrow panel", async () => {
@@ -239,11 +298,120 @@ it("lists the node groups, linked both ways", async () => {
     .find((button) => button.textContent == "Content")
     ?.click();
   await until(() => card("group-Content")?.getAttribute("aria-current") == "true");
+  // From a node's tag to its automatic group's card.
+  [...paragraph.querySelectorAll<HTMLButtonElement>("button")]
+    .find((button) => button.textContent == "textblock")
+    ?.click();
+  await until(() => card("group-Textblock")?.getAttribute("aria-current") == "true");
   // From the group's card to a node's.
   [...textblock.querySelectorAll<HTMLButtonElement>("button")]
     .find((button) => button.textContent == "Heading")
     ?.click();
   await until(() => card("node-Heading")?.getAttribute("aria-current") == "true");
+});
+
+it("moves between the cards with Up and Down, and through a card with Right and Left", async () => {
+  const paragraph = await setup();
+  const cards = () => [...shadow().querySelectorAll<HTMLElement>("[data-type]")];
+  const ids = cards().map((element) => element.getAttribute("data-type") ?? "");
+  const active = () => shadow().activeElement;
+  const focused = () => active()?.getAttribute("data-type");
+  const firstOf = (kind: string) => ids.find((id) => id.startsWith(`${kind}-`));
+  // Every card is a tab stop; what's in them isn't.
+  expect(cards().every((element) => element.tabIndex == 0)).toBe(true);
+  expect(
+    [...shadow().querySelectorAll<HTMLElement>("[data-card-item]")].every(
+      (item) => item.tabIndex == -1
+    )
+  ).toBe(true);
+
+  const lastNode = ids.findLastIndex((id) => id.startsWith("node-"));
+  cards()[lastNode]?.focus();
+  await userEvent.keyboard("{ArrowDown}");
+  expect(focused()).toBe(firstOf("mark"));
+  await until(() => card(firstOf("mark") ?? "")?.getAttribute("aria-current") == "true");
+  await userEvent.keyboard("{End}");
+  expect(focused()).toBe(ids.at(-1));
+  await userEvent.keyboard("{Home}{ArrowUp}");
+  expect(focused()).toBe(ids[0]);
+
+  // Right goes into the card, link by link (the tags naming groups first); Left back out. The
+  // card stays selected meanwhile.
+  const afterParagraph = ids[ids.indexOf("node-Paragraph") + 1];
+  paragraph.focus();
+  await userEvent.keyboard("{ArrowRight}");
+  expect(active()?.getAttribute("aria-label")).toBe("plot node group");
+  await userEvent.keyboard("{ArrowRight}");
+  expect(active()?.getAttribute("aria-label")).toBe("block node group");
+  expect(paragraph.getAttribute("aria-current")).toBe("true");
+  await userEvent.keyboard("{ArrowLeft}{ArrowLeft}");
+  expect(active()).toBe(paragraph);
+  // From inside a card, Down and Tab both go to the next card.
+  await userEvent.keyboard("{ArrowRight}{ArrowDown}");
+  expect(focused()).toBe(afterParagraph);
+  paragraph.focus();
+  await userEvent.keyboard("{ArrowRight}{Tab}");
+  expect(focused()).toBe(afterParagraph);
+  // A group's "automatic" tag is reached the same way.
+  card("group-Block")?.focus();
+  await userEvent.keyboard("{ArrowRight}");
+  expect(active()?.textContent).toBe("automatic");
+
+  // Enter on a card shows the JSON pane, closed.
+  const spec = () => shadow().querySelector<HTMLElement>("[aria-label='Spec']");
+  spec()?.querySelector<HTMLButtonElement>("[aria-label='Close the JSON']")?.click();
+  await until(() => !spec());
+  paragraph.focus();
+  await userEvent.keyboard("{Enter}");
+  await until(() => spec()?.textContent?.includes("Paragraph"));
+});
+
+it("focuses the card a link goes to", async () => {
+  await setup();
+  [...(card("mark-Strong")?.querySelectorAll("button") ?? [])]
+    .find((b) => b.textContent == "Text")
+    ?.click();
+  await until(() => shadow().activeElement == card("node-Text"));
+});
+
+it("closes the JSON on Escape, from a card, the pane or the emptied filter", async () => {
+  const paragraph = await setup();
+  const spec = () => shadow().querySelector<HTMLElement>("[aria-label='Spec']");
+  const showJSON = async () => {
+    (
+      await until(() => shadow().querySelector<HTMLElement>("[aria-label='Show the JSON']"))
+    ).click();
+    await until(() => spec());
+  };
+  if (!spec()) await showJSON();
+
+  // From a card: focus stays on it.
+  paragraph.focus();
+  await userEvent.keyboard("{Escape}");
+  await until(() => !spec());
+  expect(shadow().activeElement).toBe(paragraph);
+
+  // From the pane: focus goes to the selected card.
+  await showJSON();
+  (
+    await until(() => spec()?.querySelector<HTMLButtonElement>("[aria-label='Close the JSON']"))
+  ).focus();
+  // The first Escape closes the button's tooltip, opened on focus.
+  await userEvent.keyboard("{Escape}{Escape}");
+  await until(() => !spec());
+  expect(shadow().activeElement).toBe(paragraph);
+
+  // From the filter: the query first, then the pane.
+  await showJSON();
+  const filter = await until(() =>
+    shadow().querySelector<HTMLInputElement>("[aria-label='Filter the types']")
+  );
+  await userEvent.click(filter);
+  await userEvent.keyboard("para{Escape}");
+  expect(filter.value).toBe("");
+  expect(spec()).not.toBeNull();
+  await userEvent.keyboard("{Escape}");
+  await until(() => !spec());
 });
 
 it("shows the selected type's spec as JSON beside the list", async () => {
@@ -329,6 +497,30 @@ it("closes the JSON pane, and shows it again on a double click or from a card's 
   (await until(() => item("Log JSON"))).click();
   await until(() => logged.some((args) => args[0] == "[wordgard-devtools] the Content node group"));
   vi.restoreAllMocks();
+});
+
+it("saves the JSON pane closed, and shows it again from the Nodes bar", async () => {
+  await setup();
+  const spec = () => shadow().querySelector<HTMLElement>("[aria-label='Spec']");
+  const show = () =>
+    shadow().querySelector<HTMLButtonElement>(
+      "section[aria-label='Nodes'] [aria-label='Show the JSON']"
+    );
+  expect(show()).toBeNull();
+  (
+    await until(() => spec()?.querySelector<HTMLButtonElement>("[aria-label='Close the JSON']"))
+  ).click();
+  await until(() => !spec());
+  expect(localStorage.getItem("wordgard-devtools:schema-json")).toBe("false");
+  mounted?.unmount();
+  wg?.dom.remove();
+
+  await setup();
+  expect(spec()).toBeNull();
+  (await until(show)).click();
+  await until(() => spec());
+  expect(show()).toBeNull();
+  expect(localStorage.getItem("wordgard-devtools:schema-json")).toBe("true");
 });
 
 it("switches a type's JSON between its spec and what applies", async () => {

@@ -1,8 +1,9 @@
 # Decorations, Extensions tab and keymap — plan
 
 Status: PARTIALLY EXECUTED. Phase 9b done on 2026-11-06, see
-[its implementation notes](#implementation-notes-phase-9b-2026-11-06), and phase 10, see
-[its notes](#implementation-notes-phase-10-2026-11-06); phases 10b–12 not started.
+[its implementation notes](#implementation-notes-phase-9b-2026-11-06), phase 10, see
+[its notes](#implementation-notes-phase-10-2026-11-06), and phase 10b on 2026-11-07, see
+[its notes](#implementation-notes-phase-10b-2026-11-07); phases 11–12 not started.
 Drafted 2026-11-06, revised the same day after Fable reviews (see [Review](#review-2026-11-06)).
 Follows the main plan ([plan.md](plan.md)), whose scope listed "facet inspector"
 and "decorations view" as out of scope; the user asked for them (2026-11-06). Phases 9b–12
@@ -255,6 +256,9 @@ Attributes.none, Elt.hole))`, `Point.shape(…)`, `Range.attribute("x", "")`,
   section, reload after a selection-only change (a node selection's built-in decoration appears).
 
 ## Phase 10b: decorations in the Log
+
+**Executed (2026-11-07)**, with deviations: see
+[its implementation notes](#implementation-notes-phase-10b-2026-11-07).
 
 Per flush, per source: did the source keep its set, update it, or recreate it, and what did the
 editor have to redraw because of it. Needs phase 10's source walk and phase 9b's `compareSets`; independent of 11 and 12.
@@ -674,3 +678,86 @@ included).
 - Open question 2 (`highlightRange`) stays open.
 - No test of an atom plot under a range (basicSchema has none).
 - The extension e2e doesn't cover `decorations` / `logDecoration`.
+
+## Implementation notes: phase 10b (2026-11-07)
+
+**Executed.** Checks: `format:check`, `lint`, `typecheck`, `dependency-check`, `build`,
+`compiler:check` pass; tests: devtools 129, panel 235, extension 26, e2e 11, all passing.
+
+### How it works
+
+- Page side `flushes.ts` (lazy): `pairSources` (by function; a leftover of one kind in the same
+  place pairs as `slot` when both lists are as long; else `added` / `removed`),
+  `flushDecorations` (the flush's changes composed; per source, `compareSets` from `sets.ts`;
+  changed ranges with paths in the flush's last document; `ms` for new sets), `summaryOf`,
+  `logFlushDecorations`. `decorations.ts` exports its source walk (`sourcesOf`, `sourceName`,
+  `sourceLabel`); `sets.ts` exports `redrawn` (the editor's gap comparison over several pairs).
+- `log.ts`: verdicts cached per flush (not the sets), checked against the flush's first held row
+  and the row before it, pruned on trim and clear. `log {decorations: true}` adds
+  `decorationSummary` to rows: newest flushes first, 100 uncached per request, the rest
+  `"pending"`; `null` for rows not drawn. `entry` carries `decorations`; `logEntry` part
+  `"decorations"` logs each source's sets before and after. `PROTOCOL` 3.
+- Extension: `frames-transport.ts` forwards `decorations`.
+- Panel: the Log's "Decorations" toggle (saved, off by default; switching on reloads every row,
+  and the source asks again while rows are pending; status "decorations checked for n of m
+  flushes"). Badges `↻ 0` and `stale` on the last shown row of a flush; filter chips `wasted` and
+  `stale` (pending rows shown). The entry pane's Decorations section (`flush-decorations.tsx`):
+  per source its match, verdict badge, `wasted`, time, error and redrawn positions, which open
+  the Structure with its decorations on (`store.showNode(…, {decorations: true})`). Guide
+  `log-decorations.md`, shown beside the toggle.
+- Demo: the left editor has a source that rebuilds a widget on every call, so the e2e shows a
+  wasted badge.
+
+### Deviations
+
+- **The wasted rule.** The plan's "no decorations added or dropped" would never flag a recreated
+  set (counted by identity) and would flag a correct `map`. Wasted is now: a new set (updated or
+  recreated) of a source matched by function, nothing for the editor to redraw, the old set
+  mapped equal to the new one by position and `eq`, and, across a document change, an entry
+  rebuilt outside the top-level blocks the changes touched (a rebuild inside them is
+  incremental: `decoratePlots` recreates the plots a change falls in). Across a document change,
+  a set rebuilt from the same values can't be told from a map: only flushes that change no
+  document catch it. The guide says so.
+- **`gapBefore`** compares states (the recorded row before the flush leaves the state the flush
+  starts from), not flush numbers: flushes are numbered only when they draw a recorded row.
+- **A flush whose transactions don't chain** (a doc change between them wasn't recorded) gets no
+  verdicts, with an error: its changes are unknown.
+- **Slot pairs**: verdicts and counts compare the two sets, but the redrawn positions are the
+  editor's (old and new each against empty: it pairs sets by function); never wasted.
+- **Added and removed sources** are compared with an empty set (what the editor does), so they
+  show as updated with their counts.
+- **Links**: `LogSlice.currentFrom` (new) says which rows leave the editor's current document;
+  positions link only then, and the page is asked again on click (an edit while not recording
+  pushes nothing to the Log).
+- The toggle is a text button; filter flags are named `wasted` and `stale`.
+
+### Audit (Fable)
+
+Accepted and fixed:
+
+1. Slot pairs were judged as if the editor compared old with new; it pairs by function and
+   redraws both. Fixed and tested (equal sets in a new function: redrawn, not wasted).
+2. Wordgard's `decoratePlots` was flagged as wasted on every edit inside a decorated plot (it
+   recreates that plot's decorations). Rebuilds inside the touched blocks are spared. Tested.
+3. Typing can't tell a same-value rebuild from a map: documented in the guide and here.
+4. Badges went missing when a flush's last row was filtered out: they go on its last shown row.
+5. Link currency was a snapshot (recording, no later doc change): replaced by `currentFrom`,
+   checked again on click. Tested.
+6. Test gaps: the cache on trim and clear, the "wasn't recorded" error, slot pairs with equal
+   sets, `flushesChecked`.
+
+Not acted on:
+
+- The `PROTOCOL` bump "makes installed extensions refuse un-upgraded pages": nothing was
+  published (no tags, version 0.0.0), and both packages ship together.
+- A request can work out one flush past the budget (a cached flush whose first row was trimmed is
+  recomputed): harmless.
+- The status line re-announces on each request round while checking: brief, and it says how far
+  it got.
+- The panel test that waits for the status to clear doesn't prove it appeared (it's shown for one
+  frame between requests); `flushesChecked` is unit-tested instead.
+
+### Open points
+
+- No panel test for a badge moved to the last shown row by a filter.
+- The time is measured cold, off-frame: only indicative.

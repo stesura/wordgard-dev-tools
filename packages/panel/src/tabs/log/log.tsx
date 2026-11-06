@@ -5,7 +5,7 @@ import { NoSymbolIcon, RecordIcon, PauseIcon } from "#icons";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import { SLOW_MS } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
-import { createLogSource } from "./log-source.ts";
+import { createLogSource, flushesChecked } from "./log-source.ts";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { Tip } from "#components/tip";
@@ -21,7 +21,9 @@ import {
   noFilters,
 } from "./log-filters.tsx";
 import { RowMenu, type RowTarget } from "./row-menu.tsx";
-import { isSlow, slowText } from "./log-format.ts";
+import { flushEnds, isSlow, slowText } from "./log-format.ts";
+import { GuidePopover } from "#components/guide-popover";
+import { LOG_DECORATIONS } from "../../guides/guides.ts";
 import { Timeline } from "./log-timeline.tsx";
 import { EntryPane } from "./entry-pane.tsx";
 
@@ -45,7 +47,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
   };
   const [savedFilters] = useState(createLogFilters);
   const filters = useStore(savedFilters);
-  const filtered = filteredRows(rows, filters);
+  const filtered = filteredRows(rows, filters, view.decorations);
   const shown = sorted(filtered, sort);
   // The newest rows come last: new ones are followed.
   const chronological = (sort.key == "index" || sort.key == "time") && !sort.descending;
@@ -58,7 +60,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
     (index: number) => {
       setSelected(index);
       const order = sorted(
-        filteredRows(source.state.get().rows, savedFilters.get()),
+        filteredRows(source.state.get().rows, savedFilters.get(), source.state.get().decorations),
         sortNow.current
       );
       // Two rows of room: the sticky column header covers the first.
@@ -169,6 +171,9 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
   // Only a rendered row can be the active descendant.
   const activeRow = indices.some((index) => shown[index]?.index == selected) ? selectedRow : null;
   const slowCount = rows.filter(isSlow).length;
+  // Badges go on the last row shown of each flush.
+  const ends = view.decorations ? flushEnds(filtered) : null;
+  const checked = view.decorations ? flushesChecked(rows) : null;
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
@@ -204,7 +209,26 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
         >
           <NoSymbolIcon /> Clear
         </Button>
+        {checked && checked.checked < checked.flushes && (
+          <span className="text-muted-foreground" aria-live="polite">
+            decorations checked for {checked.checked} of {checked.flushes} flushes
+          </span>
+        )}
         <span className="ml-auto flex items-center gap-2">
+          <span className="flex items-center gap-0.5">
+            <Tip label="Check what each flush did to the decoration sources: wasted rebuilds, sets not mapped. Calls every source twice per flush.">
+              <Button
+                variant="ghost"
+                size="xs"
+                aria-pressed={view.decorations}
+                onClick={() => void source.setDecorations(!view.decorations)}
+                className="aria-pressed:bg-foreground/10"
+              >
+                Decorations
+              </Button>
+            </Tip>
+            <GuidePopover guide={LOG_DECORATIONS} label="About decorations in the Log" />
+          </span>
           <SettingBox
             source={source}
             setting="selectPointer"
@@ -225,10 +249,19 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
       <FilterBar
         rows={rows}
         filters={filters}
+        decorations={view.decorations}
         onChange={(update) => savedFilters.set(update(savedFilters.get()))}
       />
       <Timeline rows={filtered} selected={selected} onSelect={select} />
-      <SplitPane pane={<EntryPane source={source} row={selectedRow} />}>
+      <SplitPane
+        pane={
+          <EntryPane
+            source={source}
+            row={selectedRow}
+            onShowNode={(path) => store.showNode(editorId, path, { decorations: true })}
+          />
+        }
+      >
         {/* The header sits outside the listbox, which holds only rows. */}
         <div ref={container} className="relative min-h-0 min-w-0 flex-1 overflow-auto">
           <div className="min-w-[34rem]">
@@ -308,6 +341,11 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
                       row={row}
                       start={index * ROW}
                       selected={row.index == selected}
+                      decorations={
+                        ends?.has(row.index) && typeof row.decorationSummary == "object"
+                          ? row.decorationSummary
+                          : null
+                      }
                     />
                   )
                 );

@@ -40,7 +40,6 @@ type HeadingProps = {
 export const Heading = ({
   title,
   count,
-  open,
   onToggleOpen,
   tags,
   pressed,
@@ -53,25 +52,35 @@ export const Heading = ({
     data-heading
     className="sticky top-0 z-10 flex min-h-7 flex-wrap items-center gap-1 border-b bg-strip px-2 py-1 font-sans"
   >
+    {/* Named by its title; aria-expanded says open or not. */}
     <h3 className="font-semibold">
-      <CollapsibleTrigger
-        aria-label={`${open ? "Collapse" : "Expand"} the ${title.toLowerCase()}`}
-        className="cursor-pointer rounded hover:underline"
-      >
+      <CollapsibleTrigger className="cursor-pointer rounded hover:underline">
         {title}
       </CollapsibleTrigger>
     </h3>
-    <span className="text-muted-foreground">{count}</span>
+    <span className="text-muted-foreground">
+      {count}
+      <span className="sr-only"> {title.toLowerCase()}</span>
+    </span>
     <span className="mr-1">
       <GuidePopover guide={guide} label={`About the ${title.toLowerCase()}`} align="start" />
     </span>
-    {tags.map((tag) => (
-      <FilterChip key={tag} pressed={pressed.has(tag)} onPressedChange={() => onToggle(tag)}>
-        {tag}
-      </FilterChip>
-    ))}
-    {pressed.size > 0 && (
-      <Clear label={`Clear the ${title.toLowerCase()} filters`} onClick={onClear} />
+    {/* `contents`: the chips stay items of the bar, wrapping as before. */}
+    {tags.length > 0 && (
+      <div
+        role="group"
+        aria-label={`Filter the ${title.toLowerCase()} by tag`}
+        className="contents"
+      >
+        {tags.map((tag) => (
+          <FilterChip key={tag} pressed={pressed.has(tag)} onPressedChange={() => onToggle(tag)}>
+            {tag}
+          </FilterChip>
+        ))}
+        {pressed.size > 0 && (
+          <Clear label={`Clear the ${title.toLowerCase()} filters`} onClick={onClear} />
+        )}
+      </div>
     )}
     {/* A mouse target only: the title is the keyboard's. */}
     <div

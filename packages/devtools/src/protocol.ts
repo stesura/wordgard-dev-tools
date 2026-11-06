@@ -1,7 +1,7 @@
 // The wire protocol between the panel and the page agent. Everything here is
 // structured-cloneable: it crosses `postMessage` in the extension.
 
-export const PROTOCOL = 2;
+export const PROTOCOL = 3;
 export const SOURCE = "wordgard-devtools";
 
 /** Child indices from the document down to a node. `[]` is the document. */
@@ -168,6 +168,57 @@ export type LogRow = {
   flush: number | null;
   /** That flush was forced by the panel's own reads (an outline, a pick), not the app. */
   agentFlush: boolean;
+  /**
+   * With `log {decorations: true}`: what the flush did to the decoration sources, shared by its
+   * rows; "pending" when not worked out yet (ask again), null when not drawn yet.
+   */
+  decorationSummary?: DecorationSummary | "pending" | null;
+};
+
+/** A flush's decoration sources, counted by verdict. */
+export type DecorationSummary = {
+  /** New sets the editor can't tell from the old ones mapped (Wordgard's node selection aside). */
+  wasted: number;
+  updated: number;
+  recreated: number;
+  /** The same non-empty set, kept across a change that moved what it holds. */
+  notMapped: number;
+};
+
+/** What one flush did to a decoration source's set. */
+export type FlushSource = {
+  /** Its index in the flush's last state (its first state's, when removed): `logDecoration`'s. */
+  index: number;
+  kind: "point" | "range";
+  name: string | null;
+  /** Wordgard's own (the node selection's). */
+  builtIn: boolean;
+  /**
+   * In both states by function; `slot`: a new function in the same place (a re-run extension);
+   * `added`, `removed`: in one state only.
+   */
+  match: "same" | "slot" | "added" | "removed";
+  /** Null when it was added or removed, threw, or returned no set. */
+  set: SetVerdict | null;
+  /** Where the editor redraws because of it (`set.changed`'s ranges), with the node holding each in the last state. */
+  changed: { from: number; to: number; path: Path | null }[];
+  /** A new set the editor can't tell from the old one mapped: rebuilt for nothing. */
+  wasted: boolean;
+  /** Calling it on the last state, for a new set: measured when asked, not when the editor ran it. */
+  ms: number | null;
+  error: string | null;
+};
+
+/** What a flush did to the decoration sources: from its first row's start state to its last row's state. */
+export type FlushDecorations = {
+  flush: number;
+  /** Its recorded rows. */
+  rows: number[];
+  /** Something unrecorded came before its first row: the editor may have drawn another state last. */
+  gapBefore: boolean;
+  /** Why there are no verdicts (its transactions don't chain: one between them wasn't recorded). */
+  error: string | null;
+  sources: FlushSource[];
 };
 
 export type LogSlice = {
@@ -181,6 +232,11 @@ export type LogSlice = {
   /** The ring buffer's size. */
   size: number;
   rows: LogRow[];
+  /**
+   * The held rows from this index on leave the editor's current document (the same object): their
+   * positions are today's. Null when the newest doesn't.
+   */
+  currentFrom: number | null;
 };
 
 /** Values serialised with `toSafe`, named when the type is one of Wordgard's own. */
@@ -201,7 +257,14 @@ export type ChangedRange = {
 };
 
 /** A transaction in the log, or one of its parts, to log live. */
-export type EntryPart = "transaction" | "changes" | "selection" | "effects" | "annotations";
+export type EntryPart =
+  | "transaction"
+  | "changes"
+  | "selection"
+  | "effects"
+  | "annotations"
+  /** Each decoration source's sets before and after the entry's flush. */
+  | "decorations";
 
 export type LogEntryDetail = LogRow & {
   /** `changes.toJSON()`. */
@@ -213,6 +276,8 @@ export type LogEntryDetail = LogRow & {
   annotationValues: NamedValue[];
   scrollIntoView: boolean;
   reconfigured: boolean;
+  /** For the entry's flush; null until drawn. */
+  decorations: FlushDecorations | null;
 };
 
 export type SchemaParam = {
@@ -519,8 +584,11 @@ export type Requests = {
     focusChanges?: boolean;
   };
   clear: { id: number };
-  /** Rows with `from <= index < to`, of those still held. */
-  log: { id: number; from: number; to: number };
+  /**
+   * Rows with `from <= index < to`, of those still held; with `decorations`, their flushes'
+   * `decorationSummary` (a limited number of flushes worked out per request).
+   */
+  log: { id: number; from: number; to: number; decorations?: boolean };
   entry: { id: number; index: number };
   /** Logs a transaction in the log (by default), or one of its parts, live in the page's console. */
   logEntry: { id: number; index: number; part?: EntryPart };

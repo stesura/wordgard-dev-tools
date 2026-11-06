@@ -209,13 +209,14 @@ it("disables the filters while there are no transactions", async () => {
   const bar = await until(() =>
     shadow().querySelector<HTMLElement>("[role='group'][aria-label='Filters']")
   );
-  expect(
-    [...bar.querySelectorAll("button")].every((b) => b.disabled || b.hasAttribute("data-disabled"))
-  ).toBe(true);
+  // The guide's button stays enabled.
+  const filters = () =>
+    bar.querySelectorAll<HTMLButtonElement>("button:not([aria-label='About the filters'])");
+  expect([...filters()].every((b) => b.disabled || b.hasAttribute("data-disabled"))).toBe(true);
   await record();
   type(editor, "a");
   await until(() => rows().length == 1);
-  await until(() => [...bar.querySelectorAll("button")].every((b) => !b.disabled));
+  await until(() => [...filters()].every((b) => !b.disabled));
 });
 
 it("counts every annotation in the table, as the entry does", async () => {
@@ -603,4 +604,77 @@ it("scrolls the row the keyboard selects into view, below the header", async () 
   const first = await until(() => drawnRow(oldest));
   await until(() => first.getAttribute("aria-selected") == "true" && inView(first, scroller));
   expect(scroller.scrollTop).toBe(0);
+});
+
+/** Runs `run` with every clock reading 20 ms on from the last: what it times is slow. */
+const slowly = (run: () => void) => {
+  let now = performance.now();
+  const clock = vi.spyOn(performance, "now").mockImplementation(() => (now += 20));
+  try {
+    run();
+  } finally {
+    clock.mockRestore();
+  }
+};
+
+const valueOf = (label: string) =>
+  [...(pane()?.querySelectorAll<HTMLElement>("[data-value]") ?? [])].find(
+    (value) => value.previousElementSibling?.textContent == label
+  );
+
+it("marks a slow timing by more than its colour: a sign, bold, and read as slow", async () => {
+  const editor = await setup();
+  await record();
+  type(editor, "a");
+  editor.flush();
+  slowly(() => {
+    type(editor, "b");
+    editor.flush();
+  });
+  await until(() => rows().length == 2 && rows()[1]?.querySelector("[data-flush]"));
+  const [fast, slow] = rows();
+  if (!fast || !slow) throw new Error("No rows");
+  const [dispatch, flush] = [...slow.children].slice(-2);
+  if (!(dispatch instanceof HTMLElement) || !(flush instanceof HTMLElement))
+    throw new Error("No timings");
+  for (const cell of [dispatch, flush]) {
+    expect(cell.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+    expect(cell.textContent).toContain(", slow");
+    const value = cell.querySelector<HTMLElement>(".font-semibold");
+    expect(value && getComputedStyle(value).fontWeight).toBe("600");
+  }
+  // Its name replaces its content.
+  expect(flush.getAttribute("aria-label")).toMatch(/^\d+\.\d ms, slow, Flush #\d+$/);
+  expect(fast.querySelector("svg")).toBeNull();
+  expect(fast.textContent).not.toContain("slow");
+  expect(fast.querySelector("[data-flush]")?.getAttribute("aria-label")).not.toContain("slow");
+
+  slow.click();
+  const shown = await until(() => valueOf("flush")?.querySelector("svg") && valueOf("dispatch"));
+  for (const value of [shown, valueOf("flush")]) {
+    expect(value?.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+    expect(value?.textContent).toMatch(/\d ms, slow/);
+  }
+  fast.click();
+  await until(() => !valueOf("dispatch")?.textContent?.includes("slow"));
+  expect(valueOf("flush")?.querySelector("svg")).toBeNull();
+});
+
+it("marks the selected bar in the timeline below it, not by its shade alone", async () => {
+  const editor = await setup();
+  await record();
+  type(editor, "a");
+  type(editor, "b");
+  await until(() => rows().length == 2);
+  const markers = () =>
+    [...shadow().querySelectorAll("[data-selected-marker]")].map((marker) =>
+      marker.parentElement?.getAttribute("data-bar")
+    );
+  expect(markers()).toEqual([]);
+  rows()[1]?.click();
+  await until(() => markers().length == 1);
+  expect(markers()).toEqual([rows()[1]?.getAttribute("data-index")]);
+  const marker = shadow().querySelector("[data-selected-marker]");
+  // A border, which forced colours keep.
+  expect(marker && getComputedStyle(marker).borderTopWidth).toBe("2px");
 });

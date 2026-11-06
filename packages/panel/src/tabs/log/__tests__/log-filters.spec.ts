@@ -9,10 +9,16 @@ afterEach(() => localStorage.clear());
 it("reads saved filters, leaving out what isn't one", () => {
   localStorage.setItem(
     KEY,
-    JSON.stringify({ events: ["input.type", 3], hidden: ["doc", "bogus"], annotations: "remote" })
+    JSON.stringify({
+      events: ["input.type", 3],
+      hidden: ["doc", "bogus"],
+      annotations: "remote",
+      decorations: ["stale", "bogus"],
+    })
   );
   const filters = createLogFilters().get();
   expect([...filters.events]).toEqual(["input.type"]);
+  expect([...filters.decorations]).toEqual(["stale"]);
   expect([...filters.hidden]).toEqual(["doc"]);
   expect([...filters.annotations]).toEqual([]);
   localStorage.setItem(KEY, "[]");
@@ -25,10 +31,12 @@ it("saves the filters, but not unnamed annotations: their numbers change on relo
     events: new Set(["select.pointer"]),
     hidden: new Set(["focus"]),
     annotations: new Set(["annotation #1", "remote"]),
+    decorations: new Set(["wasted"]),
   });
   expect(saved()).toEqual({
     events: ["select.pointer"],
     hidden: ["focus"],
     annotations: ["remote"],
+    decorations: ["wasted"],
   });
 });

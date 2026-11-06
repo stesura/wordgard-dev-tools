@@ -9,9 +9,21 @@ import { ClearFilters } from "#components/clear-filters";
 import { Popover, PopoverContent, PopoverTrigger } from "#components/ui/popover";
 import type { LogSource, RecordSetting } from "./log-source.ts";
 import { Tip } from "#components/tip";
+import { GuidePopover } from "#components/guide-popover";
+import { LOG_FILTERS } from "../../guides/guides.ts";
 import { asJSON, persistent } from "#stores/persistent.ts";
 import { isRecord, stringSet } from "#lib/json.ts";
-import { FLAGS, FLAG_TIPS, type Flag, flags, label } from "./log-format.ts";
+import {
+  DECORATION_FLAGS,
+  DECORATION_TIPS,
+  FLAGS,
+  FLAG_TIPS,
+  type DecorationFlag,
+  type Flag,
+  decorationFlags,
+  flags,
+  label,
+} from "./log-format.ts";
 
 // Rows without a user event, in the user event filter.
 const NONE = "(none)";
@@ -19,16 +31,26 @@ const eventOf = (row: LogRow) => row.userEvent ?? NONE;
 
 /**
  * Hidden user events (unticked, so ones first seen later show) and what-changed flags (a row shows
- * while it has one still on, or none at all); the annotations a row must have.
+ * while it has one still on, or none at all); the annotations a row must have; the decoration
+ * flags its flush must have (while the Log asks for them).
  */
 type Filters = {
   events: ReadonlySet<string>;
   hidden: ReadonlySet<Flag>;
   annotations: ReadonlySet<string>;
+  decorations: ReadonlySet<DecorationFlag>;
 };
-export const noFilters: Filters = { events: new Set(), hidden: new Set(), annotations: new Set() };
-const filtering = (filters: Filters) =>
-  filters.events.size > 0 || filters.hidden.size > 0 || filters.annotations.size > 0;
+export const noFilters: Filters = {
+  events: new Set(),
+  hidden: new Set(),
+  annotations: new Set(),
+  decorations: new Set(),
+};
+const filtering = (filters: Filters, decorations: boolean) =>
+  filters.events.size > 0 ||
+  filters.hidden.size > 0 ||
+  filters.annotations.size > 0 ||
+  (decorations && filters.decorations.size > 0);
 
 // Numbered as first seen, page-wide: "annotation #1" may be another annotation after a reload.
 const unnamed = /^annotation #\d+$/;
@@ -43,27 +65,43 @@ export const createLogFilters = () =>
       (json): Filters => {
         if (!isRecord(json)) return noFilters;
         const hidden = stringSet(json.hidden);
+        const decorations = stringSet(json.decorations);
         return {
           events: stringSet(json.events),
           hidden: new Set(FLAGS.filter((flag) => hidden.has(flag))),
           annotations: stringSet(json.annotations),
+          decorations: new Set(DECORATION_FLAGS.filter((flag) => decorations.has(flag))),
         };
       },
       (filters) => ({
         events: [...filters.events],
         hidden: [...filters.hidden],
         annotations: [...filters.annotations].filter((name) => !unnamed.test(name)),
+        // Only when set: what was saved before them stays as it was.
+        ...(filters.decorations.size > 0 && { decorations: [...filters.decorations] }),
       })
     )
   );
 
-const matches = (row: LogRow, { events, hidden, annotations }: Filters) =>
+// A row whose flush isn't worked out yet is unknown to the decoration flags, not a no: it shows.
+const decorationsMatch = (row: LogRow, wanted: ReadonlySet<DecorationFlag>) => {
+  const found = decorationFlags(row);
+  return found == null || [...wanted].every((flag) => found.includes(flag));
+};
+
+const matches = (
+  row: LogRow,
+  { events, hidden, annotations, decorations }: Filters,
+  withDecorations: boolean
+) =>
   !events.has(eventOf(row)) &&
   (!flags(row).length || flags(row).some((flag) => !hidden.has(flag))) &&
-  [...annotations].every((name) => row.annotations.includes(name));
+  [...annotations].every((name) => row.annotations.includes(name)) &&
+  (!withDecorations || decorationsMatch(row, decorations));
 
-export const filteredRows = (rows: LogRow[], filters: Filters) =>
-  filtering(filters) ? rows.filter((row) => matches(row, filters)) : rows;
+/** With `decorations`, the decoration flags filter too (the Log asks for them). */
+export const filteredRows = (rows: LogRow[], filters: Filters, decorations = false) =>
+  filtering(filters, decorations) ? rows.filter((row) => matches(row, filters, decorations)) : rows;
 
 /** The rows' user events, sorted, "none" last for rows without one. */
 const userEvents = (rows: LogRow[]) => {
@@ -154,10 +192,13 @@ type FilterUpdate = (update: (filters: Filters) => Filters) => void;
 export const FilterBar = ({
   rows,
   filters,
+  decorations,
   onChange,
 }: {
   rows: LogRow[];
   filters: Filters;
+  /** The Log asks for the flushes' decorations: their flags show. */
+  decorations: boolean;
   onChange: FilterUpdate;
 }) => {
   // A saved one stays listed, pressed, until a row has it: it can be switched off.
@@ -170,7 +211,10 @@ export const FilterBar = ({
       aria-label="Filters"
       className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b bg-strip px-2 py-1 text-xs"
     >
-      <span className={label(disabled)}>Filters</span>
+      <span className="flex items-center gap-0.5">
+        <span className={label(disabled)}>Filters</span>
+        <GuidePopover guide={LOG_FILTERS} label="About the filters" align="start" />
+      </span>
       <span className="flex items-center gap-1">
         <span className={label(disabled)}>userEvent:</span>
         <UserEventFilter
@@ -220,7 +264,32 @@ export const FilterBar = ({
           ))}
         </span>
       )}
-      {filtering(filters) && <ClearFilters onClick={() => onChange(() => noFilters)} />}
+      {decorations && (
+        <span
+          role="group"
+          aria-label="Filter by decoration work"
+          className="flex items-center gap-1"
+        >
+          <span className={label(disabled)}>decorations:</span>
+          {DECORATION_FLAGS.map((flag) => (
+            <Tip key={flag} label={`${DECORATION_TIPS[flag]}: only rows whose flush has it`}>
+              <FilterChip
+                className="font-mono"
+                disabled={disabled}
+                pressed={filters.decorations.has(flag)}
+                onPressedChange={() =>
+                  onChange((f) => ({ ...f, decorations: toggled(f.decorations, flag) }))
+                }
+              >
+                {flag}
+              </FilterChip>
+            </Tip>
+          ))}
+        </span>
+      )}
+      {filtering(filters, decorations) && (
+        <ClearFilters onClick={() => onChange(() => noFilters)} />
+      )}
     </div>
   );
 };

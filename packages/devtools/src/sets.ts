@@ -81,23 +81,24 @@ const mapped = (typed: TypedSet, changes: ChangeSet): TypedSet =>
     : { kind: "range", set: typed.set.map(changes) };
 
 /**
- * Where two sets differ for the editor: its own comparison, over the gaps the changes left
- * (changed ranges are redrawn anyway). Positions in the new document. Null when the values can't
- * be compared (`compareRange` calls their `eq`, which app values may lack).
+ * Where sets differ for the editor: its own comparison of each old set with its new one, over the
+ * gaps the changes left (changed ranges are redrawn anyway). Positions in the new document. Null
+ * when the values can't be compared (`compareRange` calls their `eq`, which app values may lack).
  */
-const changedRanges = (old: TypedSet, next: TypedSet, changes: ChangeSet) => {
+export const redrawn = (pairs: [TypedSet, TypedSet][], changes: ChangeSet) => {
   // A range set's layers are compared one after another: sorted and merged at the end.
   const found: { from: number; to: number }[] = [];
   const add = (from: number, to: number) => {
     if (found.length < COMPARE_LIMIT) found.push({ from, to });
   };
   try {
-    changes.iterGaps((fromA, toA, fromB) => {
-      if (old.kind == "point" && next.kind == "point")
-        old.set.compareRange(fromA, next.set, fromB, toA - fromA, (pos) => add(pos, pos));
-      else if (old.kind == "range" && next.kind == "range")
-        old.set.compareRange(fromA, next.set, fromB, toA - fromA, add);
-    });
+    for (const [old, next] of pairs)
+      changes.iterGaps((fromA, toA, fromB) => {
+        if (old.kind == "point" && next.kind == "point")
+          old.set.compareRange(fromA, next.set, fromB, toA - fromA, (pos) => add(pos, pos));
+        else if (old.kind == "range" && next.kind == "range")
+          old.set.compareRange(fromA, next.set, fromB, toA - fromA, add);
+      });
   } catch {
     return null;
   }
@@ -183,7 +184,7 @@ export const compareSets = (
     added: added.length,
     dropped: dropped.length,
     partial: !before.exact || !after.exact,
-    changed: changedRanges(old, next, changes),
+    changed: redrawn([[old, next]], changes),
     addedItems: added.slice(0, items),
     droppedItems: dropped.slice(0, items),
   };
