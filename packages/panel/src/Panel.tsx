@@ -1,12 +1,12 @@
 import { cn } from "cn";
 import {
-  MonitorIcon,
+  ComputerDesktopIcon,
   MoonIcon,
-  MousePointerClickIcon,
+  CursorArrowRaysIcon,
   PauseIcon,
   PlayIcon,
   SunIcon,
-} from "lucide-react";
+} from "#icons";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import type { EditorInfo } from "@stesura/wordgard-dev-tools";
 import { PortalContainer } from "#components/portal";
@@ -77,7 +77,7 @@ const PauseButton = ({ store }: { store: PanelStore }) => {
       pressed={paused}
       onClick={() => store.pause(!paused)}
     >
-      {paused ? <PlayIcon /> : <PauseIcon className="fill-current" />}
+      {paused ? <PlayIcon /> : <PauseIcon />}
     </IconButton>
   );
 };
@@ -105,7 +105,7 @@ const PickButton = ({ store }: { store: PanelStore }) => {
       pressed={picking}
       onClick={() => store.pick(!picking)}
     >
-      <MousePointerClickIcon className={cn(picking && "text-primary")} />
+      <CursorArrowRaysIcon className={cn(picking && "text-primary")} />
     </IconButton>
   );
 };
@@ -174,7 +174,7 @@ export const ChoiceMenu = <T extends string>({
 };
 
 const themes: Choice<ThemeChoice>[] = [
-  { value: "system", label: "System", icon: <MonitorIcon /> },
+  { value: "system", label: "System", icon: <ComputerDesktopIcon /> },
   { value: "light", label: "Light", icon: <SunIcon /> },
   { value: "dark", label: "Dark", icon: <MoonIcon /> },
 ];

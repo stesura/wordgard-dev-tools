@@ -213,16 +213,17 @@ it("scrolls a node into view in the page, without a transaction", async () => {
   window.scrollTo(0, 0)
 })
 
-it("shows a crosshair over the editors while picking, and the editor's own cursor after", async () => {
+it("shows the pick icon over the editors while picking, and the editor's own cursor after", async () => {
   const wg = open(wordgardDevtools())
   const before = getComputedStyle(wg.contentDOM).cursor
   await ask({type: "pick", on: true})
-  expect(getComputedStyle(wg.contentDOM).cursor).toBe("crosshair")
+  const picking = getComputedStyle(wg.contentDOM).cursor
+  expect(picking).toMatch(/^url\("data:image\/svg\+xml,.+"\) 12 11, crosshair$/)
   const strong = wg.contentDOM.querySelector("strong")
   if (!strong) throw new Error("No strong element")
-  expect(getComputedStyle(strong).cursor).toBe("crosshair")
+  expect(getComputedStyle(strong).cursor).toBe(picking)
   // Not over the rest of the page.
-  expect(getComputedStyle(document.body).cursor).not.toBe("crosshair")
+  expect(getComputedStyle(document.body).cursor).not.toBe(picking)
   await ask({type: "pick", on: false})
   expect(getComputedStyle(wg.contentDOM).cursor).toBe(before)
 })

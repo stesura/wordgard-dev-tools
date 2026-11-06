@@ -1,6 +1,6 @@
 import {useVirtualizer} from "@tanstack/react-virtual"
 import {cn} from "cn"
-import {BanIcon, CircleIcon, PauseIcon} from "lucide-react"
+import {NoSymbolIcon, RecordIcon, PauseIcon} from "#icons"
 import {Suspense, use, useCallback, useDeferredValue, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode} from "react"
 import {SLOW_MS, type LogEntryDetail, type LogRow} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
@@ -399,7 +399,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
           aria-pressed={view.recording}
           onClick={() => void source.record(!view.recording)}
         >
-          {view.recording ? <PauseIcon /> : <CircleIcon className="fill-destructive text-destructive" />}
+          {view.recording ? <PauseIcon /> : <RecordIcon className="text-destructive" />}
           {view.recording ? "Pause" : "Record"}
         </Button>
         <Button
@@ -411,7 +411,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
             void source.clear()
           }}
         >
-          <BanIcon /> Clear
+          <NoSymbolIcon /> Clear
         </Button>
         <span className="text-muted-foreground" aria-live="polite">
           {rows.length} transaction{rows.length == 1 ? "" : "s"}

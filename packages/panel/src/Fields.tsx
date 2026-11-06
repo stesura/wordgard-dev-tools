@@ -1,5 +1,5 @@
 import {cn} from "cn"
-import {InfoIcon} from "lucide-react"
+import {InformationCircleIcon} from "#icons"
 import {Suspense, use, useCallback, useDeferredValue, useState, useSyncExternalStore, type KeyboardEvent} from "react"
 import type {FieldChange} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
@@ -171,7 +171,7 @@ export const Fields = ({store, editorId}: {store: PanelStore; editorId: number})
           }
         >
           <button type="button" aria-label="About the fields" className="flex text-muted-foreground hover:text-foreground [&_svg]:size-3.5">
-            <InfoIcon />
+            <InformationCircleIcon />
           </button>
         </Tip>
       </div>

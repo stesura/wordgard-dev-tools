@@ -1,6 +1,6 @@
 import {useVirtualizer} from "@tanstack/react-virtual"
 import {cn} from "cn"
-import {ChevronDownIcon, ChevronRightIcon, ChevronsDownUpIcon, ChevronsUpDownIcon, ClipboardCopyIcon} from "lucide-react"
+import {ChevronDownIcon, ChevronRightIcon, ArrowsPointingInIcon, ArrowsPointingOutIcon, ClipboardDocumentIcon} from "#icons"
 import {useCallback, useMemo, useState, useSyncExternalStore, type KeyboardEvent} from "react"
 import {Button} from "#components/ui/button"
 import {copy} from "./node-menu.tsx"
@@ -248,7 +248,7 @@ export const State = ({store, editorId}: {store: PanelStore; editorId: number}) 
         <span className="ml-auto flex items-center gap-1">
           <Tip label="Expand all">
             <Button variant="ghost" size="icon-xs" aria-label="Expand all" onClick={() => setCollapsed(new Set())}>
-              <ChevronsUpDownIcon />
+              <ArrowsPointingOutIcon />
             </Button>
           </Tip>
           <Tip label="Collapse all">
@@ -259,12 +259,12 @@ export const State = ({store, editorId}: {store: PanelStore; editorId: number}) 
               // The root stays open: its keys show.
               onClick={collapseAll}
             >
-              <ChevronsDownUpIcon />
+              <ArrowsPointingInIcon />
             </Button>
           </Tip>
           <Tip label="Copy the JSON">
             <Button variant="ghost" size="icon-xs" aria-label="Copy the JSON" onClick={() => void copy(JSON.stringify(json, null, 2))}>
-              <ClipboardCopyIcon />
+              <ClipboardDocumentIcon />
             </Button>
           </Tip>
         </span>

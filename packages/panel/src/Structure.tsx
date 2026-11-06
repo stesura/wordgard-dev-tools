@@ -1,15 +1,15 @@
 import {cn} from "cn"
 import {
-  ArrowLeftToLineIcon,
-  ArrowRightToLineIcon,
+  SelectionEndIcon,
+  SelectionStartIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-  ChevronsDownUpIcon,
-  ChevronsUpDownIcon,
+  ArrowsPointingInIcon,
+  ArrowsPointingOutIcon,
   ChevronUpIcon,
-  SquareDashedMousePointerIcon,
+  NodeSelectionIcon,
   TextCursorIcon,
-} from "lucide-react"
+} from "#icons"
 import {
   useCallback,
   useMemo,
@@ -88,7 +88,7 @@ const SelectionEnd = ({node, marks, at}: {node: StructureNode; marks: Marks; at:
     return (
       <Tip label={label}>
         <span data-selection-end="node" aria-label={label} className="flex text-primary [&_svg]:size-3">
-          <SquareDashedMousePointerIcon />
+          <NodeSelectionIcon />
         </span>
       </Tip>
     )
@@ -100,8 +100,8 @@ const SelectionEnd = ({node, marks, at}: {node: StructureNode; marks: Marks; at:
   const [label, icon] = selection.empty
     ? [`Cursor - pos ${selection.head}`, <TextCursorIcon key="cursor" />]
     : at == "start"
-      ? [`Start of selection - pos ${selection.from}`, <ArrowRightToLineIcon key="start" />]
-      : [`End of selection - pos ${selection.to}`, <ArrowLeftToLineIcon key="end" />]
+      ? [`Start of selection - pos ${selection.from}`, <SelectionStartIcon key="start" />]
+      : [`End of selection - pos ${selection.to}`, <SelectionEndIcon key="end" />]
   return (
     <Tip label={label}>
       <span data-selection-end={at} aria-label={label} className="flex text-primary [&_svg]:size-3">
@@ -451,7 +451,7 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
         </Button>
         <Tip label="Expand all">
           <Button variant="ghost" size="icon-xs" aria-label="Expand all" onClick={() => setCollapsed(new Set())}>
-            <ChevronsUpDownIcon />
+            <ArrowsPointingOutIcon />
           </Button>
         </Tip>
         <Tip label="Collapse all">
@@ -462,7 +462,7 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
             // The document stays open: its blocks show.
             onClick={() => doc && setCollapsed(new Set(folders(doc).filter(id => id != ROOT)))}
           >
-            <ChevronsDownUpIcon />
+            <ArrowsPointingInIcon />
           </Button>
         </Tip>
       </div>

@@ -4,13 +4,13 @@ import {
   ArrowDownRightIcon,
   ArrowUpLeftIcon,
   ArrowUpRightIcon,
-  PanelBottomIcon,
-  PanelLeftIcon,
-  PanelRightIcon,
-  PanelTopIcon,
-  SettingsIcon,
-  XIcon,
-} from "lucide-react"
+  DockBottomIcon,
+  DockLeftIcon,
+  DockRightIcon,
+  DockTopIcon,
+  Cog6ToothIcon,
+  XMarkIcon,
+} from "#icons"
 import {useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent} from "react"
 import {PortalContainer} from "#components/portal"
 import {Button} from "#components/ui/button"
@@ -87,10 +87,10 @@ const placement: Record<DockSide, {dock: string; handle: string; grow: (dx: numb
 }
 
 const sides: Choice<DockSide>[] = [
-  {value: "bottom", label: "Bottom", icon: <PanelBottomIcon />},
-  {value: "right", label: "Right", icon: <PanelRightIcon />},
-  {value: "top", label: "Top", icon: <PanelTopIcon />},
-  {value: "left", label: "Left", icon: <PanelLeftIcon />},
+  {value: "bottom", label: "Bottom", icon: <DockBottomIcon />},
+  {value: "right", label: "Right", icon: <DockRightIcon />},
+  {value: "top", label: "Top", icon: <DockTopIcon />},
+  {value: "left", label: "Left", icon: <DockLeftIcon />},
 ]
 
 // The keys that grow the dock, per side (the others shrink it).
@@ -132,7 +132,7 @@ const ButtonMenu = ({
       <TooltipTrigger
         render={<DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label="Reopen button settings" />} />}
       >
-        <SettingsIcon />
+        <Cog6ToothIcon />
       </TooltipTrigger>
       <TooltipContent side="top">Reopen button</TooltipContent>
     </Tooltip>
@@ -161,7 +161,7 @@ const ButtonMenu = ({
             With its label
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="cog" closeOnClick className="text-xs">
-            <SettingsIcon />
+            <Cog6ToothIcon />
             Minimized: a cog
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
@@ -254,7 +254,7 @@ export const Dock = ({store, theme, initial, setActive}: DockProps) => {
               />
             }
           >
-            {minimized ? <SettingsIcon /> : "Wordgard DevTools"}
+            {minimized ? <Cog6ToothIcon /> : "Wordgard DevTools"}
           </TooltipTrigger>
           <TooltipContent side={corner.startsWith("top") ? "bottom" : "top"}>Open Wordgard DevTools</TooltipContent>
         </Tooltip>
@@ -305,7 +305,7 @@ export const Dock = ({store, theme, initial, setActive}: DockProps) => {
               }}
             />
             <IconButton label="Close" onClick={() => collapse(true)}>
-              <XIcon />
+              <XMarkIcon />
             </IconButton>
           </>
         }

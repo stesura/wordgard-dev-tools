@@ -1,6 +1,6 @@
 import {useVirtualizer} from "@tanstack/react-virtual"
 import {cn} from "cn"
-import {ChevronDownIcon, ChevronRightIcon, ChevronsDownUpIcon, ChevronsUpDownIcon, TerminalIcon} from "lucide-react"
+import {ChevronDownIcon, ChevronRightIcon, ArrowsPointingInIcon, ArrowsPointingOutIcon, CommandLineIcon} from "#icons"
 import {useCallback, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent} from "react"
 import type {ViewInfo, ViewNode} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
@@ -254,12 +254,12 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
         <span className="ml-auto flex items-center gap-1">
           <Tip label="Log the selected element to the page's console">
             <Button variant="ghost" size="icon-xs" aria-label="Log to the console" onClick={() => void element(focused ?? "", "log")}>
-              <TerminalIcon />
+              <CommandLineIcon />
             </Button>
           </Tip>
           <Tip label="Expand all">
             <Button variant="ghost" size="icon-xs" aria-label="Expand all" onClick={() => setCollapsed(new Set())}>
-              <ChevronsUpDownIcon />
+              <ArrowsPointingOutIcon />
             </Button>
           </Tip>
           <Tip label="Collapse all">
@@ -273,7 +273,7 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
                 if (focused) setFocused(focused.split(".")[0] ?? "")
               }}
             >
-              <ChevronsDownUpIcon />
+              <ArrowsPointingInIcon />
             </Button>
           </Tip>
         </span>

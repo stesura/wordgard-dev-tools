@@ -2,6 +2,7 @@ import type {Wordgard} from "wordgard/editor"
 import type {Path, Push} from "./protocol.ts"
 import {byAgent} from "./reads.ts"
 import type {Entry, Registry} from "./registry.ts"
+import {PICK_CURSOR} from "./pick-cursor.ts"
 import {locate} from "./serialise.ts"
 
 // Loaded with the serialisers, on the first panel request.
@@ -246,7 +247,7 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
 
   const swallowed = ["pointerdown", "mousedown", "mouseup", "pointerup", "dblclick", "contextmenu"]
 
-  // A crosshair over the editors' content while picking: a stylesheet adopted by the document and
+  // The pick icon as the cursor over the editors' content: a stylesheet adopted by the document and
   // by each shadow root holding an editor (no attribute on the editor's DOM, which Wordgard owns).
   let cursor: {sheet: CSSStyleSheet; roots: (Document | ShadowRoot)[]} | null = null
   const setCursor = (on: boolean) => {
@@ -256,7 +257,7 @@ export const createInspector = (registry: Registry, push: (message: Push) => voi
     }
     if (!on) return
     const sheet = new CSSStyleSheet()
-    sheet.replaceSync("wg-content, wg-content * { cursor: crosshair !important; }")
+    sheet.replaceSync(`wg-content, wg-content * { cursor: ${PICK_CURSOR} !important; }`)
     const roots = new Set<Document | ShadowRoot>([document])
     for (const {wg} of registry.editors.values()) if (wg.root instanceof ShadowRoot) roots.add(wg.root)
     for (const root of roots) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet]

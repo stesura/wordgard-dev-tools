@@ -1,4 +1,4 @@
-import {CrosshairIcon} from "lucide-react"
+import {ViewfinderCircleIcon} from "#icons"
 import {Suspense, use, useDeferredValue, useSyncExternalStore, type ReactNode} from "react"
 import type {Path, SelectionInfo} from "@stesura/wordgard-dev-tools"
 import {Button} from "#components/ui/button"
@@ -27,7 +27,7 @@ export const SelectionStrip = ({selection, onReveal}: {selection: SelectionInfo 
         {selection.empty && <span className="text-muted-foreground">empty</span>}
         <Tip label="Show the node holding the selection's head">
           <Button variant="ghost" size="xs" className="ml-auto" onClick={onReveal}>
-            <CrosshairIcon /> Reveal
+            <ViewfinderCircleIcon /> Reveal
           </Button>
         </Tip>
       </>

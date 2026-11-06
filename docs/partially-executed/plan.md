@@ -882,7 +882,7 @@ was asked; a fixed assignment would need every type known up front.
   black at the user's request); a cog
   menu in the dock's toolbar puts it in any corner, or minimizes it to a cog. Saved with the dock
   layout. The dock and theme menus close on a pick.
-- **Pick mode's cursor**: a crosshair over the editors' content while picking (a stylesheet adopted by
+- **Pick mode's cursor**: the panel's pick icon (Heroicons cursor-arrow-rays, as an SVG cursor; crosshair as the fallback) over the editors' content while picking (a stylesheet adopted by
   the document and by the shadow roots holding editors, removed when picking ends); the rest of the
   page and the panel keep theirs.
 

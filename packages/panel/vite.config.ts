@@ -32,7 +32,6 @@ export default defineConfig(({command}) => ({
       "@tanstack/react-virtual",
       "class-variance-authority",
       "cn",
-      "lucide-react",
       "react",
       "react-dom/client",
       "react-resizable-panels",

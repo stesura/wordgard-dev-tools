@@ -1,5 +1,5 @@
 import {cn} from "cn"
-import {XIcon} from "lucide-react"
+import {XMarkIcon} from "#icons"
 import {useCallback, useRef, useState, useSyncExternalStore, type ReactNode} from "react"
 import type {SchemaMarkType, SchemaNodeType, SchemaParam} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
@@ -172,7 +172,7 @@ const Clear = ({label, onClick}: {label: string; onClick: () => void}) => (
       onClick={onClick}
       className="flex size-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground [&_svg]:size-3.5"
     >
-      <XIcon />
+      <XMarkIcon />
     </button>
   </Tip>
 )

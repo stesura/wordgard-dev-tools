@@ -1,4 +1,4 @@
-import {BookTypeIcon, ClipboardCopyIcon, CrosshairIcon, ScanIcon, TerminalIcon} from "lucide-react"
+import {BookOpenIcon, ClipboardDocumentIcon, MapPinIcon, EyeIcon, CommandLineIcon} from "#icons"
 import {useSyncExternalStore, type KeyboardEvent, type MouseEvent} from "react"
 import type {Path} from "@stesura/wordgard-dev-tools"
 import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger} from "#components/ui/context-menu"
@@ -106,27 +106,27 @@ export const NodeMenu = ({
           className="text-xs"
           onClick={() => store.transport.send({type: "scrollIntoView", id: editorId, path}).catch(() => {})}
         >
-          <ScanIcon /> Scroll into view in the page
+          <EyeIcon /> Scroll into view in the page
         </ContextMenuItem>
         <ContextMenuItem
           className="text-xs"
           disabled={target?.name == null}
           onClick={() => target?.name != null && store.showType(editorId, target.name)}
         >
-          <BookTypeIcon /> Show {target?.name ?? "its"} type in Schema
+          <BookOpenIcon /> Show {target?.name ?? "its"} type in Schema
         </ContextMenuItem>
         <ContextMenuItem
           className="text-xs"
           onClick={() => store.transport.send({type: "logNode", id: editorId, path}).catch(() => {})}
         >
-          <TerminalIcon /> Log to the page's console
+          <CommandLineIcon /> Log to the page's console
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem className="text-xs" disabled={!path.length} onClick={() => void copyJSON().catch(() => {})}>
-          <ClipboardCopyIcon /> Copy JSON
+          <ClipboardDocumentIcon /> Copy JSON
         </ContextMenuItem>
         <ContextMenuItem className="text-xs" onClick={() => void copy(`[${path.join(", ")}]`)}>
-          <CrosshairIcon /> Copy path
+          <MapPinIcon /> Copy path
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
