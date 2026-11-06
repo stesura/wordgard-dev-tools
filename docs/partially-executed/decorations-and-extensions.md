@@ -1,8 +1,9 @@
 # Decorations, Extensions tab and keymap — plan
 
-Status: NOT EXECUTED. Drafted 2026-11-06, revised the same day after a Fable review (see
-[Review](#review-2026-11-06)). Follows the main plan
-([partially-executed/plan.md](partially-executed/plan.md)), whose scope listed "facet inspector"
+Status: PARTIALLY EXECUTED. Phase 9b done on 2026-11-06, see
+[its implementation notes](#implementation-notes-phase-9b-2026-11-06); phases 10–12 not started.
+Drafted 2026-11-06, revised the same day after Fable reviews (see [Review](#review-2026-11-06)).
+Follows the main plan ([plan.md](plan.md)), whose scope listed "facet inspector"
 and "decorations view" as out of scope; the user asked for them (2026-11-06). Phases 9b–12
 continue the main plan's numbering. Paths follow the current layout (CONTRIBUTING.md): the panel's
 `tabs/<tab>/`, `lib/`, `guides/*.md`; unit tests in `__tests__/`, integration tests in `test/`.
@@ -17,7 +18,7 @@ and schema: decorations, the extensions behind them, the key bindings. None of i
   drawing); decorations are editor extensions (`wordgard/editor`, facet values in `state.config`).
   The DOM tab shows their output (widgets as "chrome", wrappers and attributes as plain DOM) but
   not where it comes from.
-- Wordgard has four kinds ([decoration.ts](../../wordgard/src/editor/decoration.ts)):
+- Wordgard has four kinds ([decoration.ts](../../../wordgard/src/editor/decoration.ts)):
 
   | Kind         | What                                                                                                                              | Registered through                                                                                                         | Readable                                                                 |
   | ------------ | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -74,9 +75,12 @@ and schema: decorations, the extensions behind them, the key bindings. None of i
 
 ## Phase 9b: sets
 
+**Executed (2026-11-06)**, with deviations: see
+[its implementation notes](#implementation-notes-phase-9b-2026-11-06).
+
 Wordgard's `wordgard/set` module (`PointSet`, `RangeSet`) holds decorations, but also "other
-data": Wordgard's own placeholder ([placeholder.ts:24](../../wordgard/src/editor/placeholder.ts#L24))
-and table cell selection ([cellselection.ts:9](../../wordgard/src/table/cellselection.ts#L9))
+data": Wordgard's own placeholder ([placeholder.ts:24](../../../wordgard/src/editor/placeholder.ts#L24))
+and table cell selection ([cellselection.ts:9](../../../wordgard/src/table/cellselection.ts#L9))
 fields, one field per `decoratePlots` call, and app fields (comments, search results, collab
 cursors, tracked changes). Today `toSafe` has no case for them: the Fields tab's values and
 previews and the Log's effect and annotation values show their internal chunk arrays. (The State
@@ -340,7 +344,7 @@ toA, fromB) => old.compareRange(fromA, new, fromB, toA - fromA, add))`, the edit
 ### Page side
 
 - `extensions.ts`: `extensions(state): ExtensionNode`, the tree from `state.config.base`, walked
-  as Wordgard's `flatten` does ([state.ts:787](../../wordgard/src/state/state.ts#L787)).
+  as Wordgard's `flatten` does ([state.ts:787](../../../wordgard/src/state/state.ts#L787)).
   - **Two passes.** `flatten` keeps an extension's highest-precedence occurrence and drops the
     others (ties: the first); a later, higher one removes an earlier one. Pass 1 replays that
     (`known <= prec`) to find each extension's winning occurrence; pass 2 renders, labelling the
@@ -546,3 +550,62 @@ above includes them:
 11. Phase 10 uses `walkSet` instead of restating it.
 12. `lib/sets.ts` exists in the panel (name the view differently); `optimizeDeps`; README
     regeneration.
+
+## Implementation notes: phase 9b (2026-11-06)
+
+**Executed.** Checks: `format:check`, `typecheck`, `lint`, `dependency-check`, `build`,
+`compiler:check` pass; tests: devtools 106, panel 204, extension 25, all passing.
+
+### How it works
+
+- Page side `sets.ts` (lazy, with the serialisers): `asSet` (guarded `instanceof` through the
+  `wordgard/set` namespace), `walkSet` (cursor walk, cap, count bound, `exact`), `compareSets`
+  (the verdict table of phase 9b; changed ranges from `changes.iterGaps` + `compareRange`, sorted
+  and merged at the end since a range set's layers are compared one after another), `verdictOf`.
+- `serialise.ts`: `toSafe` has a set branch (`{"[RangeSet]": [[from, to, value]…]}`, points
+  `[pos, side, value]`, 200 entries) with the cap threaded through its recursion; `preview` shows
+  `RangeSet(n)` (counted up to 2000); `pathIn` is `pathAt` returning null outside the document.
+- `fields.ts`: each history change's verdict is computed once (`Change.set`), against
+  `tr.startState.field(field, false)`. `fieldChange` returns `{value, set}`; `PROTOCOL` is 2.
+- Panel: `lib/set-value.ts` (`readSet`, `placeOf`), `components/set-view.tsx` (`SetView`,
+  `SetVerdictBadge`, `SetChange`). The Fields value shows a set's entries; a position resolves
+  (`resolve`) and shows its node. History rows carry the verdict badge; an expanded set change
+  lists added and dropped entries. Guide and README updated.
+
+### Deviations
+
+- **Unmapped set fields are recorded in the history.** It recorded only value changes, so a field
+  that forgot to `map` (its value unchanged) never appeared and the amber verdict could never
+  show. A doc change that leaves a set field's value identical is recorded when `compareSets`
+  says "moved". Cost: a map and two walks per such field per doc-changing transaction, while
+  tracking.
+- **History entry links only while their document is the current one** (page side checks
+  `tr.state.doc === wg.state.doc`; the panel caches a change's detail per load, so the check is
+  redone). Dropped entries are never linked (an older document).
+- **`more` / `exact` only when a set was cut short.**
+- **The amber badge reads "kept, not mapped"**: the rule also covers deletions that should have
+  dropped entries, not only moves.
+
+### Audit (Fable)
+
+Accepted and fixed:
+
+1. The panel cached a change's detail forever, so added-entry links went stale after typing: the
+   cache key includes the field's load version.
+2. Changed ranges from a range set's layers arrived out of order and were counted twice: sorted
+   and merged at the end. Tested (overlapping ranges in two layers).
+3. A failed position resolve kept showing after selecting another field: the error is kept per
+   field.
+4. "Moved" also covers removals: reworded (badge, guide, protocol comment).
+5. `walkSet(set, 0)` had a zero count bound: at least 10.
+6. Test gaps: point sets, a stale set whose positions don't fit, the walk's partial bound,
+   `toSafe`'s `exact: false`, a mark-only change not recorded, `last` carrying the verdict, the
+   node a panel link selects.
+
+Not acted on: the cost notes (within the scope: huge documents are out of it), and the badge's
+`tabIndex` on a role-less element (it gives the tooltip to keyboard users).
+
+### Open points
+
+- Phase 10's `walkSet` call and 10b's `compareSets` call are ready; 10b's flush-level comparison
+  passes the flush's composed changes.

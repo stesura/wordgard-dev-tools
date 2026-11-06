@@ -1,7 +1,7 @@
 // The wire protocol between the panel and the page agent. Everything here is
 // structured-cloneable: it crosses `postMessage` in the extension.
 
-export const PROTOCOL = 1;
+export const PROTOCOL = 2;
 export const SOURCE = "wordgard-devtools";
 
 /** Child indices from the document down to a node. `[]` is the document. */
@@ -293,6 +293,39 @@ export type SchemaInfo = {
   groups: SchemaGroup[];
 };
 
+/**
+ * How a Wordgard point or range set changed from one state to the next. `same`: the same set,
+ * nothing it holds moved; `moved`: the same set kept across a change that moved or removed what it holds (not mapped);
+ * `updated`: a new set sharing values (by identity) with the old; `recreated`: sharing none.
+ */
+export type SetVerdict = {
+  kind: "point" | "range";
+  verdict: "same" | "moved" | "updated" | "recreated";
+  /** Counted by position. */
+  kept: number;
+  added: number;
+  dropped: number;
+  /** A set too large to walk whole: counts stopped at the limit. */
+  partial: boolean;
+  /**
+   * Where the two differ for the editor (its own comparison, over what the changes left
+   * untouched), in the new document, capped; null when the values can't be compared.
+   */
+  changed: { count: number; ranges: { from: number; to: number }[] } | null;
+};
+
+/** A set's entry: a point has `from == to` and a side. */
+export type SetEntry = {
+  from: number;
+  to: number;
+  side: number | null;
+  value: string | null;
+  /** The node it falls in; null outside the document, or when its document isn't the current one. */
+  path: Path | null;
+};
+
+export type SetChangeDetail = SetVerdict & { addedEntries: SetEntry[]; droppedEntries: SetEntry[] };
+
 export type FieldChange = {
   /** Identifies the change in its field's history, for `fieldChange` and `logField`. */
   seq: number;
@@ -302,7 +335,12 @@ export type FieldChange = {
   log: number | null;
   /** The value it set, truncated. */
   preview: string | null;
+  /** When the field holds a set before and after. */
+  set: SetVerdict | null;
 };
+
+/** The value a change set; with what it added and dropped, for a set. */
+export type FieldChangeDetail = { value: unknown; set: SetChangeDetail | null };
 
 export type FieldInfo = {
   /** Its place among the state's fields (in extension order). */
@@ -468,7 +506,7 @@ export type Results = {
   logNodeDOM: null;
   fields: FieldsInfo;
   field: FieldDetail;
-  fieldChange: unknown;
+  fieldChange: FieldChangeDetail;
   logField: null;
   clearFieldHistory: null;
   logType: null;

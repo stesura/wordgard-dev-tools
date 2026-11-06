@@ -3,6 +3,7 @@ import { Leaf } from "wordgard/doc";
 import { Wordgard } from "wordgard/editor";
 import { history } from "wordgard/history";
 import { basicSchema } from "wordgard/schema";
+import { RangeSet } from "wordgard/set";
 import { GardState, Transaction } from "wordgard/state";
 import { wordgardDevtools } from "@stesura/wordgard-dev-tools";
 import {
@@ -351,4 +352,51 @@ it("clears every field's history at once", async () => {
   await until(() => !shadow().querySelector("[aria-label='State fields'] [data-changes]"));
   expect(clearAll.disabled).toBe(true);
   expect(row("counter")?.textContent).toContain("2");
+});
+
+// A comment field that forgets to map its set.
+type Note = RangeSet.Value & { text: string };
+const note = (text: string): Note => ({
+  text,
+  inclusiveStart: false,
+  inclusiveEnd: false,
+  eq: (other) => "text" in other && other.text == text,
+});
+const notes = GardState.Field.define<RangeSet<Note>>({
+  create: () => RangeSet.create([[note("hi"), 1, 3]]),
+  update: (set) => set,
+});
+
+it("shows a set field's entries, links them to the Structure, and flags it unmapped", async () => {
+  const editor = Wordgard.create({
+    parent: document.body,
+    doc: "<p>Hi</p>",
+    config: [basicSchema(), notes, wordgardDevtools({ name: "s", fields: { notes } })],
+  });
+  wg = editor;
+  localStorage.setItem(
+    "wordgard-devtools:dock",
+    JSON.stringify({ side: "bottom", size: 640, collapsed: false })
+  );
+  mounted = mountDevtools();
+  await mounted.ready;
+  (await until(() => tab("Fields"))).click();
+  (await until(() => row("notes"))).click();
+  expect(row("notes")?.textContent).toContain("RangeSet(1)");
+  await tracking();
+  editor.dispatch({ changes: { from: 1, insert: [Leaf.text("XY")] } });
+  const badge = await until(() => pane()?.querySelector<HTMLElement>("[data-set-verdict]"));
+  expect(badge.dataset.setVerdict).toBe("moved");
+  expect(badge.textContent).toBe("kept, not mapped");
+  const entries = await until(() => pane()?.querySelector("[aria-label='Entries']"));
+  expect(pane()?.textContent).toContain("RangeSet: 1 ranges");
+  expect(entries.textContent).toContain('{"text":"hi"');
+  [...entries.querySelectorAll<HTMLButtonElement>("button")]
+    .find((b) => b.textContent == "1–3")
+    ?.click();
+  await until(() => tab("Structure")?.getAttribute("aria-selected") == "true");
+  // Position 1, before the text: the paragraph.
+  await until(
+    () => shadow().querySelector("[data-path='0']")?.getAttribute("aria-selected") == "true"
+  );
 });

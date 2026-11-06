@@ -2,7 +2,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "#components
 import { useStore } from "@nanostores/react";
 import { ChevronDownIcon, ChevronRightIcon, ClipboardDocumentIcon, CommandLineIcon } from "#icons";
 import { Suspense, use, useState } from "react";
-import type { FieldChange } from "@stesura/wordgard-dev-tools";
+import type { FieldChange, Path } from "@stesura/wordgard-dev-tools";
+import { SetChange, SetVerdictBadge, SetView } from "#components/set-view";
+import { readSet } from "#lib/set-value.ts";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -44,19 +46,31 @@ export const When = ({
   </span>
 );
 
-/** The value a change set, fetched when its row is expanded. */
+/** The value a change set, fetched when its row is expanded; for a set, what it added and dropped. */
 const ChangeValue = ({
   source,
   index,
   seq,
+  version,
+  onShowNode,
 }: {
   source: FieldsSource;
   index: number;
   seq: number;
+  version: number;
+  onShowNode: (path: Path) => void;
 }) => {
-  const result = use(source.change(index, seq));
+  const result = use(source.change(index, seq, version));
   if (result.error != null) return <p className="font-sans text-destructive">{result.error}</p>;
-  return <pre className="whitespace-pre-wrap">{json(result.value)}</pre>;
+  const { value, set } = result.detail;
+  // Its positions are in that change's document: not linked.
+  const shown = readSet(value);
+  return (
+    <>
+      {set && <SetChange detail={set} onPath={onShowNode} />}
+      {shown ? <SetView set={shown} /> : <pre className="whitespace-pre-wrap">{json(value)}</pre>}
+    </>
+  );
 };
 
 /** A change in the history: its preview, expanding to the value it set. Its menu logs or copies it. */
@@ -64,12 +78,16 @@ export const HistoryItem = ({
   source,
   index,
   change,
+  version,
   onLog,
+  onShowNode,
 }: {
   source: FieldsSource;
   index: number;
   change: FieldChange;
+  version: number;
   onLog: (index: number) => void;
+  onShowNode: (path: Path) => void;
 }) => {
   const [open, setOpen] = useState(false);
   return (
@@ -86,10 +104,17 @@ export const HistoryItem = ({
           {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
         </CollapsibleTrigger>
         <When change={change} onLog={onLog} />
+        {change.set && <SetVerdictBadge verdict={change.set} />}
       </div>
       <CollapsibleContent>
         <Suspense fallback={<p className="font-sans text-muted-foreground">Loading…</p>}>
-          <ChangeValue source={source} index={index} seq={change.seq} />
+          <ChangeValue
+            source={source}
+            index={index}
+            seq={change.seq}
+            version={version}
+            onShowNode={onShowNode}
+          />
         </Suspense>
       </CollapsibleContent>
       {!open && (
@@ -123,7 +148,7 @@ export const HistoryMenu = ({
   const target = useStore(opened);
   const copyValue = async (seq: number) => {
     const result = await source.change(index, seq);
-    if (result.error == null) await copy(json(result.value));
+    if (result.error == null) await copy(json(result.detail.value));
   };
   return (
     <ContextMenu>

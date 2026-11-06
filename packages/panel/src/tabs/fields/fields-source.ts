@@ -1,5 +1,5 @@
 import { createPromiseCache } from "#lib/promise-cache.ts";
-import type { FieldDetail, FieldsInfo } from "@stesura/wordgard-dev-tools";
+import type { FieldChangeDetail, FieldDetail, FieldsInfo } from "@stesura/wordgard-dev-tools";
 import { createResource, type ResourceSource } from "#stores/resource.ts";
 import { errorMessage } from "#lib/json.ts";
 import { fire, type Transport } from "../../transport.ts";
@@ -7,14 +7,15 @@ import { fire, type Transport } from "../../transport.ts";
 export type FieldResult =
   { field: FieldDetail; error?: undefined } | { field?: undefined; error: string };
 export type ChangeResult =
-  { value: unknown; error?: undefined } | { value?: undefined; error: string };
+  { detail: FieldChangeDetail; error?: undefined } | { detail?: undefined; error: string };
 
 /** The fields; a field's detail is cached per load (`version`). */
 export type FieldsSource = ResourceSource<FieldsInfo> & {
   /** A promise per (version, field), cached: for `use()`. */
   detail: (index: number, version: number) => Promise<FieldResult>;
-  /** The value a change in a field's history set: a promise per change, cached (it never changes). */
-  change: (index: number, seq: number) => Promise<ChangeResult>;
+  /** The value a change in a field's history set (for a set, what it added and dropped): a promise per change, cached (it never changes). */
+  /** `version`: the load it's shown at; its links are fetched again for each (they follow the document). */
+  change: (index: number, seq: number, version?: number) => Promise<ChangeResult>;
   /** Logs it in the page's console. */
   logChange: (index: number, seq: number) => void;
   /** Logs a field's whole history in the page's console. */
@@ -36,10 +37,10 @@ export const createFieldsSource = (transport: Transport, id: number): FieldsSour
           (e): FieldResult => ({ error: errorMessage(e) })
         )
       ),
-    change: (index, seq) =>
-      changes.get(`${index}|${seq}`, () =>
+    change: (index, seq, version) =>
+      changes.get(`${index}|${seq}|${version ?? ""}`, () =>
         transport.send({ type: "fieldChange", id, index, seq }).then(
-          (value): ChangeResult => ({ value }),
+          (detail): ChangeResult => ({ detail }),
           (e): ChangeResult => ({ error: errorMessage(e) })
         )
       ),

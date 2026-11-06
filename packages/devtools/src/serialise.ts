@@ -17,6 +17,7 @@ import type {
   TreeNode,
 } from "./protocol.ts";
 import type { Entry } from "./registry.ts";
+import { asSet, walkSet } from "./sets.ts";
 
 export const PREVIEW_LENGTH = 80;
 const DEPTH = 6;
@@ -39,8 +40,16 @@ const tryToJSON = (value: {
   }
 };
 
+/** Entries a serialised Wordgard set holds; the rest are counted. */
+export const SET_ENTRIES = 200;
+
 /** A structured-cloneable copy of a value, with depth and cycle limits. */
-export const toSafe = (value: unknown, depth = DEPTH, seen = new Set<object>()): unknown => {
+export const toSafe = (
+  value: unknown,
+  depth = DEPTH,
+  seen = new Set<object>(),
+  setEntries = SET_ENTRIES
+): unknown => {
   if (typeof value == "bigint") return `${value}n`;
   if (typeof value == "symbol") return value.toString();
   if (typeof value == "function") return `[Function ${value.name || "anonymous"}]`;
@@ -53,17 +62,32 @@ export const toSafe = (value: unknown, depth = DEPTH, seen = new Set<object>()):
   if (depth <= 0) return Array.isArray(value) ? `[Array(${value.length})]` : "[Object]";
   seen.add(value);
   try {
-    if (Array.isArray(value)) return value.map((v) => toSafe(v, depth - 1, seen));
-    if (value instanceof Map)
-      return { "[Map]": [...value].map((entry) => toSafe(entry, depth - 1, seen)) };
-    if (value instanceof Set) return { "[Set]": [...value].map((v) => toSafe(v, depth - 1, seen)) };
+    const inner = (v: unknown) => toSafe(v, depth - 1, seen, setEntries);
+    if (Array.isArray(value)) return value.map(inner);
+    if (value instanceof Map) return { "[Map]": [...value].map(inner) };
+    if (value instanceof Set) return { "[Set]": [...value].map(inner) };
+    // Its entries, not its chunks: points as [pos, side, value], ranges as [from, to, value].
+    const set = asSet(value);
+    if (set) {
+      const { items, total, exact } = walkSet(set, setEntries);
+      const out: Record<string, unknown> = {
+        [set.kind == "point" ? "[PointSet]" : "[RangeSet]"]: items.map((item) =>
+          set.kind == "point"
+            ? [item.from, item.side, inner(item.value)]
+            : [item.from, item.to, inner(item.value)]
+        ),
+      };
+      // `exact: false`: at least that many more.
+      if (total > items.length) Object.assign(out, { more: total - items.length, exact });
+      return out;
+    }
     // Wordgard nodes and marks, dates. Some toJSON methods need arguments (a state): then the object's own properties.
     if (hasToJSON(value)) {
       const json = tryToJSON(value);
-      if (json.ok) return toSafe(json.value, depth, seen);
+      if (json.ok) return toSafe(json.value, depth, seen, setEntries);
     }
     const out: Record<string, unknown> = {};
-    for (const [key, v] of Object.entries(value)) out[key] = toSafe(v, depth - 1, seen);
+    for (const [key, v] of Object.entries(value)) out[key] = inner(v);
     return out;
   } finally {
     seen.delete(value);
@@ -72,7 +96,12 @@ export const toSafe = (value: unknown, depth = DEPTH, seen = new Set<object>()):
 
 export const preview = (value: unknown): string | null => {
   if (value == null) return null;
-  return truncate(JSON.stringify(toSafe(value, 3)) ?? String(value));
+  const set = asSet(value);
+  if (set) {
+    const { total, exact } = walkSet(set, 0, 2000);
+    return `${set.kind == "point" ? "PointSet" : "RangeSet"}(${total}${exact ? "" : "+"})`;
+  }
+  return truncate(JSON.stringify(toSafe(value, 3, undefined, 5)) ?? String(value));
 };
 
 /**
@@ -235,6 +264,16 @@ export const pathAt = (doc: Plot.Doc, pos: number): Path => {
   }
   if (resolved.inText) path.push(resolved.index);
   return path;
+};
+
+/** `pathAt`, or null for a position outside the document (a stale set's). */
+export const pathIn = (doc: Plot.Doc, pos: number): Path | null => {
+  if (!Number.isInteger(pos) || pos < 0 || pos > doc.length) return null;
+  try {
+    return pathAt(doc, pos);
+  } catch {
+    return null;
+  }
 };
 
 // By shape, not `instanceof`: importing `wordgard/table` would bundle it into every page.

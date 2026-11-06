@@ -17,6 +17,9 @@ import { Field as Line } from "#components/node-pane";
 import { json } from "#lib/json.ts";
 import { SplitPane, type Orientation, type SplitKind } from "#components/split-pane";
 import { HistoryItem, HistoryMenu, type HistoryTarget } from "./field-history.tsx";
+import type { Path } from "@stesura/wordgard-dev-tools";
+import { SetView } from "#components/set-view";
+import { readSet } from "#lib/set-value.ts";
 
 // Value | history, inside the field pane: laid out as the tab is (`wide` unused).
 const FIELD_SPLIT: SplitKind = {
@@ -81,6 +84,8 @@ export const FieldView = ({
   version,
   onLog,
   onClearHistory,
+  onShowNode,
+  onShowPos,
   orientation,
 }: {
   source: FieldsSource;
@@ -88,8 +93,13 @@ export const FieldView = ({
   version: number;
   onLog: (index: number) => void;
   onClearHistory: (index: number) => void;
+  onShowNode: (path: Path) => void;
+  /** Shows the node at a position of the current document; resolves to an error, or null. */
+  onShowPos: (pos: number) => Promise<string | null>;
   orientation: Orientation;
 }) => {
+  // Per field: the pane stays mounted when another is selected.
+  const [posError, setPosError] = useState<{ index: number; error: string | null } | null>(null);
   const [menu] = useState(() =>
     createMenuAnchor<HistoryTarget>(
       "[data-seq]",
@@ -107,6 +117,7 @@ export const FieldView = ({
   const result = use(source.detail(index, version));
   if (result.error != null) return <p className="p-2 text-destructive">{result.error}</p>;
   const { field } = result;
+  const set = readSet(field.value);
   // Newest first, as shown; a change gone meanwhile is left out.
   const copyHistory = async () => {
     const changes = field.history.toReversed();
@@ -116,7 +127,7 @@ export const FieldView = ({
     const copied = changes.flatMap((change, i) => {
       const found = values[i];
       return found && found.error == null
-        ? [{ transaction: change.log, time: change.time, value: found.value }]
+        ? [{ transaction: change.log, time: change.time, value: found.detail.value }]
         : [];
     });
     return json(copied);
@@ -156,7 +167,9 @@ export const FieldView = ({
               source={source}
               index={field.index}
               change={change}
+              version={version}
               onLog={onLog}
+              onShowNode={onShowNode}
             />
           ))}
         </ol>
@@ -174,9 +187,23 @@ export const FieldView = ({
       <SplitPane kind={FIELD_SPLIT} orientation={orientation} pane={history}>
         <Part title="Value">
           <div onContextMenu={valueMenu.onContextMenu}>
-            <pre data-field-value className="whitespace-pre-wrap">
-              {json(field.value)}
-            </pre>
+            {set ? (
+              <div data-field-value>
+                <SetView
+                  set={set}
+                  onPos={(pos) =>
+                    void onShowPos(pos).then((error) => setPosError({ index: field.index, error }))
+                  }
+                />
+                {posError?.index == field.index && posError.error != null && (
+                  <p className="font-sans text-destructive">{posError.error}</p>
+                )}
+              </div>
+            ) : (
+              <pre data-field-value className="whitespace-pre-wrap">
+                {json(field.value)}
+              </pre>
+            )}
           </div>
         </Part>
       </SplitPane>

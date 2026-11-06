@@ -9,6 +9,7 @@ import { Tag } from "#components/ui/badge";
 import { Button } from "#components/ui/button";
 import { createFieldsSource } from "./fields-source.ts";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
+import { errorMessage } from "#lib/json.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { SplitPane, type Orientation, type SplitKind } from "#components/split-pane";
 import { Tip } from "#components/tip";
@@ -47,6 +48,15 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
   const selected = picked ?? info?.fields.find((f) => f.name == saved)?.index ?? null;
   const shownIndex = useDeferredValue(selected);
   const onLog = (index: number) => store.showLogEntry(editorId, index);
+  // A set entry's position, in the document shown.
+  const showPos = (pos: number) =>
+    store.transport.send({ type: "resolve", id: editorId, pos }).then(
+      (at) => {
+        store.showNode(editorId, at.inText ? [...at.parent.path, at.index] : at.parent.path);
+        return null;
+      },
+      (e: unknown) => errorMessage(e)
+    );
   // State: the menu gives the list focus back when it closes.
   const [list, setList] = useState<HTMLDivElement | null>(null);
   // The field a context menu opens on is selected.
@@ -137,6 +147,8 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
             version={version}
             onLog={onLog}
             onClearHistory={(index) => void clearHistory(index)}
+            onShowNode={(path) => store.showNode(editorId, path)}
+            onShowPos={showPos}
             orientation={orientation}
           />
         </Suspense>

@@ -131,7 +131,7 @@ const createHandlers = (
     },
     fields: ({ id }) => tracker.list(entry(id)),
     field: ({ id, index }) => tracker.detail(entry(id), index),
-    fieldChange: ({ id, index, seq }) => tracker.changeValue(entry(id), index, seq),
+    fieldChange: ({ id, index, seq }) => tracker.changeDetail(entry(id), index, seq),
     logField: ({ id, index, seq, history }) => {
       tracker.log(entry(id), index, seq, history);
       return null;
