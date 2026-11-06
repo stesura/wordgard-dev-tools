@@ -1,5 +1,5 @@
 import type { ResolvedPos, SelectionDetail } from "@stesura/wordgard-dev-tools";
-import { errorMessage } from "#stores/panel-store.ts";
+import { errorMessage } from "#lib/json.ts";
 import type { Transport } from "../../transport.ts";
 
 /** A position the user typed, resolved. */

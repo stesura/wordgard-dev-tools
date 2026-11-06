@@ -1,7 +1,8 @@
 // Loaded by mountDevtools() on demand: React and the styles stay out of the page until then.
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { Dock, readLayout } from "./panel/dock.tsx";
+import { Dock } from "./panel/dock.tsx";
+import { readLayout } from "./panel/dock-layout.ts";
 import { createPanelStore } from "#stores/panel-store.ts";
 import css from "./styles.css?inline";
 import { createThemeStore } from "#stores/theme.ts";

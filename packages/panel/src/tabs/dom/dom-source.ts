@@ -1,5 +1,5 @@
 import type { Path, ViewInfo } from "@stesura/wordgard-dev-tools";
-import { errorMessage } from "#stores/panel-store.ts";
+import { errorMessage } from "#lib/json.ts";
 import type { Transport } from "../../transport.ts";
 
 export type ViewState = { info: ViewInfo | null; error: string | null };

@@ -1,4 +1,4 @@
-import { errorMessage } from "#stores/panel-store.ts";
+import { errorMessage } from "#lib/json.ts";
 import type { Transport } from "../../transport.ts";
 
 export type StateView = { json: unknown; loaded: boolean; error: string | null };

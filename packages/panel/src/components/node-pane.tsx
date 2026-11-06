@@ -1,4 +1,4 @@
-import { ClipboardDocumentIcon, CommandLineIcon, EyeIcon } from "#icons";
+import { ClipboardDocumentIcon, CommandLineIcon } from "#icons";
 import {
   Suspense,
   use,
@@ -8,118 +8,23 @@ import {
   type ReactNode,
 } from "react";
 import type { NodePart, Path } from "@stesura/wordgard-dev-tools";
-import { Button } from "#components/ui/button";
+import { Button } from "./ui/button.tsx";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-} from "#components/ui/context-menu";
-import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "./node-menu.tsx";
-import { pathOf, type DetailSource } from "#lib/detail-cache.ts";
+} from "./ui/context-menu.tsx";
+import { CopySelection } from "./copy-selection.tsx";
+import { copy } from "#lib/clipboard.ts";
+import { createMenuAnchor, type MenuAnchor } from "#lib/menu-anchor.ts";
+import type { DetailSource } from "#lib/detail-cache.ts";
+import { pathOf } from "#lib/paths.ts";
 import type { ColourKind } from "#lib/colours.ts";
 import { CopyButton } from "./copy-button.tsx";
-import { GuidePopover } from "./guide-popover.tsx";
-import { SELECTION_BAR } from "../guides/guides.ts";
-import type { PanelStore } from "#stores/panel-store.ts";
 import { Tip } from "./tip.tsx";
 import { TypeLink } from "./type-link.tsx";
-
-export const isPrefix = (prefix: Path, path: Path) =>
-  prefix.length <= path.length && prefix.every((n, i) => n == path[i]);
-
-export const selectionType = (json: unknown) =>
-  typeof json == "object" && json != null && "type" in json ? String(json.type) : "?";
-
-/** The selected editor's selection, under every tab. */
-export const SelectionBar = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
-  const { selection } = useSyncExternalStore(store.subscribe, store.get);
-  const info = selection?.id == editorId ? selection.info : null;
-  return (
-    <div
-      className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-3 border-t bg-strip px-2 font-mono text-xs whitespace-nowrap"
-      aria-label="Selection"
-    >
-      <span className="flex items-center gap-0.5">
-        <button
-          type="button"
-          className="cursor-pointer font-sans font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid"
-          onClick={() => store.setView("selection")}
-        >
-          Selection
-        </button>
-        <GuidePopover guide={SELECTION_BAR} label="About the selection bar" align="start" />
-      </span>
-      {info ? (
-        <>
-          <span>
-            <span className="text-muted-foreground">type:</span> {selectionType(info.json)}
-          </span>
-          <span>
-            <span className="text-muted-foreground">anchor:</span> {info.anchor}
-          </span>
-          <span>
-            <span className="text-muted-foreground">head:</span> {info.head}
-          </span>
-          {info.empty && <span className="text-muted-foreground">empty</span>}
-          {(info.activeMarks.length > 0 || info.storedMarks) && (
-            <span className="inline-flex flex-wrap items-center gap-1" data-active-marks>
-              <span className="text-muted-foreground">marks:</span>
-              {info.activeMarks.length ? (
-                info.activeMarks.map((mark) => (
-                  <TypeLink
-                    key={mark.name}
-                    kind="mark"
-                    name={mark.name}
-                    onShow={(kind, name) => store.showType(editorId, name, kind)}
-                  />
-                ))
-              ) : (
-                <span>none</span>
-              )}
-              {info.storedMarks && (
-                <Tip label="The cursor's own marks: typing gets these, not the marks around it">
-                  <span className="text-muted-foreground" tabIndex={0}>
-                    (stored)
-                  </span>
-                </Tip>
-              )}
-            </span>
-          )}
-          <span className="ml-auto flex items-center gap-1">
-            <Tip label="Show the node holding the selection's head in the Structure">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Show the node holding the selection's head in the Structure"
-                onClick={() => store.showNode(editorId, info.headPath)}
-              >
-                <EyeIcon />
-              </Button>
-            </Tip>
-            <Tip label="Log the selection to the page's console">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Log the selection to the page's console"
-                onClick={() =>
-                  store.transport
-                    .send({ type: "logState", id: editorId, keys: ["selection"] })
-                    .catch(() => {})
-                }
-              >
-                <CommandLineIcon />
-              </Button>
-            </Tip>
-            <CopyButton label="Copy the selection's JSON" text={() => json(info.json)} />
-          </span>
-        </>
-      ) : (
-        <span className="text-muted-foreground">No selection</span>
-      )}
-    </div>
-  );
-};
+import { json } from "#lib/json.ts";
 
 export const Field = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="grid grid-cols-[4.5rem_1fr] gap-2 py-0.5">
@@ -129,8 +34,6 @@ export const Field = ({ label, children }: { label: string; children: ReactNode 
     </span>
   </div>
 );
-
-export const json = (value: unknown) => JSON.stringify(value, null, 2) ?? String(value);
 
 type ShowType = (kind: ColourKind, name: string) => void;
 

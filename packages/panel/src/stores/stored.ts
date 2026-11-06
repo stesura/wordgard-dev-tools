@@ -62,6 +62,3 @@ export const stored = <T>(
 /** A stored list of strings, as a set; anything else, empty. */
 export const stringSet = (json: unknown): ReadonlySet<string> =>
   new Set(Array.isArray(json) ? json.filter((item) => typeof item == "string") : []);
-
-export const isRecord = (json: unknown): json is Record<string, unknown> =>
-  typeof json == "object" && json != null && !Array.isArray(json);

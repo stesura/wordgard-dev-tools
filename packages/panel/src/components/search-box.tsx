@@ -1,6 +1,6 @@
 import { ChevronDownIcon, ChevronUpIcon } from "#icons";
 import { useMemo, useState } from "react";
-import { Button } from "#components/ui/button";
+import { Button } from "./ui/button.tsx";
 import { Tip } from "./tip.tsx";
 
 /** Matches' ids in display order, for a query; null while there's nothing to search. */
@@ -40,19 +40,6 @@ export const useSearch = (find: Find, reveal: (id: string) => void) => {
 };
 
 export type Search = ReturnType<typeof useSearch>;
-
-/** Scrolls a virtualized list's row to the middle, when it's out of view. After a frame: the rows opened to it render first. */
-export const centreRow = (scroller: HTMLElement | null, position: number, height: number) =>
-  requestAnimationFrame(() => {
-    if (!scroller || position < 0) return;
-    const top = position * height;
-    if (top >= scroller.scrollTop && top + height <= scroller.scrollTop + scroller.clientHeight)
-      return;
-    scroller.scrollTop = Math.max(0, top - (scroller.clientHeight - height) / 2);
-  });
-
-export const includes = (haystack: string, needle: string) =>
-  haystack.toLowerCase().includes(needle.toLowerCase());
 
 // In dark, a yellow tint strong enough to see drowns the text: a ring marks the match instead.
 export const matchClass = (

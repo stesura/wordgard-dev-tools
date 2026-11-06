@@ -8,6 +8,7 @@ import type {
 } from "@stesura/wordgard-dev-tools";
 import type { ColourKind } from "#lib/colours.ts";
 import type { Transport } from "../transport.ts";
+import { errorMessage } from "#lib/json.ts";
 
 export type View = "structure" | "selection" | "state" | "view" | "schema" | "fields" | "log";
 const VIEWS: readonly View[] = [
@@ -101,8 +102,6 @@ export type PanelStore = {
   /** Pausing detaches as stopping does; resuming starts again. */
   pause: (on: boolean) => void;
 };
-
-export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export const createPanelStore = (transport: Transport): PanelStore => {
   const saved = readSaved();

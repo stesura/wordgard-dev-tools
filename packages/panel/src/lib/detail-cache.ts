@@ -1,14 +1,7 @@
 import type { NodeDetail, Path } from "@stesura/wordgard-dev-tools";
-import { errorMessage } from "#stores/panel-store.ts";
+import { errorMessage } from "./json.ts";
 import type { Transport } from "../transport.ts";
-
-export const ROOT = "root";
-export const itemId = (path: Path) => (path.length ? path.join(".") : ROOT);
-export const pathOf = (id: string): Path => (id == ROOT ? [] : id.split(".").map(Number));
-export const parentOf = (id: string) => {
-  const path = pathOf(id);
-  return path.length ? itemId(path.slice(0, -1)) : null;
-};
+import { itemId } from "./paths.ts";
 
 export type Detail = { node: NodeDetail; error?: undefined } | { node?: undefined; error: string };
 

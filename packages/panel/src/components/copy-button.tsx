@@ -1,7 +1,7 @@
 import { ClipboardDocumentIcon } from "#icons";
 import type { AnimationEvent } from "react";
 import { Button } from "#components/ui/button";
-import { copy } from "./node-menu.tsx";
+import { copy } from "#lib/clipboard.ts";
 import { Tip } from "./tip.tsx";
 
 // Set straight on the element, not through state: re-setting it restarts the animation on a repeat click.

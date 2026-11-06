@@ -1,6 +1,6 @@
 # Panel restructure — plan
 
-Status: PARTIALLY EXECUTED. Phases 0, 1 and 2 done on 2026-11-06, see
+Status: PARTIALLY EXECUTED. Phases 0 to 3 done on 2026-11-06, see
 [Implementation notes](#implementation-notes). Drafted 2026-11-06 from an audit of
 `packages/panel`, scope agreed with the user the same day; revised after a Fable review the same
 day, see [Review](#review-2026-11-06).
@@ -73,11 +73,11 @@ packages/panel/src/
     registry.tsx         TABS plus each tab's component and guide, for panel-body.tsx
     structure/  structure.tsx, boxes.tsx, structure-source.ts
     selection/  selection.tsx, selection-cards.tsx, selection-bar.tsx, selection-source.ts
-    state/      state.tsx, json-lines.ts, state-menu.tsx, state-file.tsx, state-source.ts
-    dom/        dom.tsx, dom-rows.tsx, dom-menu.tsx, dom-status.tsx, dom-source.ts
+    state/      state.tsx, json-lines.ts, state-row.tsx, state-menu.tsx, state-file.ts, state-source.ts
+    dom/        dom.tsx, dom-lines.ts, dom-row.tsx, dom-menu.tsx, dom-status.tsx, dom-source.ts
     schema/     schema.tsx, schema-cards.tsx, schema-heading.tsx, spec-pane.tsx,
                 schema-menu.tsx, schema-filters.ts, schema-source.ts
-    fields/     fields.tsx, field-view.tsx, field-history.tsx, field-menus.tsx, fields-source.ts
+    fields/     fields.tsx, field-view.tsx, field-history.tsx, field-menu.tsx, fields-source.ts
     log/        log.tsx, log-rows.tsx, log-timeline.tsx, log-filters.tsx, entry-pane.tsx,
                 row-menu.tsx, log-format.ts, log-source.ts
     (tests: test/<tab>.test.ts stays flat; view.test.ts → dom.test.ts)
@@ -89,7 +89,7 @@ packages/panel/src/
   components/ui/         shadcn only, generated, then icons rewritten to #icons
   lib/                   no React
     colours.ts  clipboard.ts  selected-text.ts  menu-anchor.ts  paths.ts  json.ts  time.ts (clock)
-    dom.ts (scrollInto, centreRow)  sets.ts (toggled)  promise-cache.ts  detail-cache.ts
+    dom.ts (scrollInto, centreRow)  text.ts (includes)  sets.ts (toggled)  promise-cache.ts  detail-cache.ts
   hooks/                 React hooks shared by tabs, no components: use-rows.ts (useRows)
   icons/
   guides/                *.md, plus parse.ts (pure) and guides.ts (loads them, Vite only)
@@ -194,7 +194,7 @@ git records renames and the diff is reviewable.
   `Panel`, `createPanelStore`, `createThemeStore`, `isThemeChoice`, `prefersDark` and the theme
   types from `@stesura/wordgard-dev-tools-panel/ui`, and `AgentError`/`Transport` from `/transport`.
 
-## Phase 3: split the large files (code moved verbatim)
+## Phase 3: split the large files (code moved verbatim) (executed 2026-11-06)
 
 Code moves between files; nothing is rewritten. Each piece keeps its comments.
 
@@ -541,3 +541,39 @@ Found while applying them: the tab-to-tab rule's `pathNot` must also let a tab i
   until phase 3, as planned.
 - Checks: typecheck, lint, tests (87 + 145 + 12), build, `compiler:check`, `format:check`,
   `readme:check`, `dependency-check`, e2e (11): all pass.
+
+### Phase 3 (2026-11-06)
+
+- Split with a script on the TypeScript AST: each top-level declaration moved verbatim with its
+  leading comments; each new file got the imports it uses (unused ones removed by TypeScript's
+  `organizeImports`, "remove unused" mode), and `export` was added only where another file
+  imports the name. Importers elsewhere were repointed the same way. Then Prettier.
+- Imports whose names are all types became `import type {…}`: under `verbatimModuleSyntax`,
+  `import { type A }` stays a runtime import, which would count in dependency-cruiser's cycle check.
+- The largest files now: `stores/panel-store.ts` 397 lines (phases 5 and 6), `tabs/state/state.tsx`
+  393, `tabs/log/log.tsx` 330, `tabs/schema/schema.tsx` 327. Every tab file holds the tab
+  component and its wiring; helpers and sub-components are beside it.
+- Cross-tab imports are gone: `clock` → `lib/time.ts`, `scrollInto` and `centreRow` →
+  `lib/dom.ts`. `json`, `isRecord` and `errorMessage` → `lib/json.ts` (State's own `isRecord`
+  removed); `isPrefix` and the path helpers from `detail-cache.ts` → `lib/paths.ts`.
+- New `test/pure.test.ts` (6 tests): `lib/paths`, `lib/time`, `json-lines`, `log-format`,
+  `schema-filters`.
+- Deviations from the planned names (the code decided):
+  - State: `state-file.ts` (no JSX: `download`, `fileName`, `replaceFrom`, the notice's type and
+    timings; the notice's state stays in the tab) and `state-row.tsx` (`Row`, its colours).
+  - DOM: `dom-lines.ts` (pure: `flatten`, `search`, `lineOf`, `folders`, `pathOf`), mirroring
+    State's `json-lines.ts`, and `dom-row.tsx`.
+  - Fields: `field-menu.tsx` (the list's menu); the history's menu sits in `field-history.tsx`, the
+    value's in `field-view.tsx`, next to what they open on.
+  - Structure: `search`, `folders`, `itemOf`, `pathOfItem` stay in `structure.tsx` (small, used
+    only there); `boxes.tsx` holds `Box`, `Chip` and their helpers.
+  - Dock: `sides`, `corners` and `ReopenSettings` stay in `dock.tsx` (they hold JSX icons);
+    `dock-layout.ts` has the layout, its storage and the placement tables.
+  - Schema: the `Kind` and `Go` types live in `schema-cards.tsx`; `schema-filters.ts` imports
+    `Kind` as a type.
+  - Log: `label` (a heading class helper) in `log-format.ts`.
+  - Done early, from phase 6 item 14: `includes` → `lib/text.ts`. The pure `json-lines.ts` and
+    `dom-lines.ts` would otherwise import it from a React component file.
+- Checks: typecheck, lint, tests (87 + 151 + 12), build, `compiler:check` (counts unchanged:
+  panel 133, extension 128, demo 134), `format:check`, `readme:check`, `dependency-check` (no
+  cycles, no orphans): all pass.
