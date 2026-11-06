@@ -108,12 +108,14 @@ const EntryView = ({
   flush,
   onRetry,
   onShowNode,
+  onShowExtensions,
 }: {
   source: LogSource;
   index: number;
   flush: number | null;
   onRetry: () => void;
   onShowNode: (path: Path) => void;
+  onShowExtensions: () => void;
 }) => {
   const view = useStore(source.state);
   const detail = use(source.detail(index, flush));
@@ -142,7 +144,14 @@ const EntryView = ({
         <Field label="index">{entry.index}</Field>
         <Field label="time">{clock(entry.time)}</Field>
         <Field label="userEvent">{entry.userEvent ?? "–"}</Field>
-        <Field label="flags">{entryFlags(entry)}</Field>
+        <Field label="flags">
+          {entryFlags(entry)}
+          {entry.reconfigured && (
+            <Button variant="link" size="xs" className="h-auto px-1" onClick={onShowExtensions}>
+              Show the extensions
+            </Button>
+          )}
+        </Field>
         <Field label="dispatch">
           <Timing value={entry.dispatchMs} unit=" ms" />
         </Field>
@@ -214,11 +223,14 @@ export const EntryPane = ({
   source,
   row,
   onShowNode,
+  onShowExtensions,
 }: {
   source: LogSource;
   row: LogRow | null;
   /** Shows a node of the editor's current document in the Structure, decorations on. */
   onShowNode: (path: Path) => void;
+  /** Shows the Extensions tab: a reconfigured entry's. */
+  onShowExtensions: () => void;
 }) => {
   // Deferred: the previous entry stays up while the next one loads.
   const shown = useDeferredValue(row);
@@ -237,6 +249,7 @@ export const EntryPane = ({
             flush={shown.flush}
             onRetry={() => setAttempt((n) => n + 1)}
             onShowNode={onShowNode}
+            onShowExtensions={onShowExtensions}
           />
         </Suspense>
       )}

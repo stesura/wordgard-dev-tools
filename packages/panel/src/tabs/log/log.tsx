@@ -259,6 +259,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
             source={source}
             row={selectedRow}
             onShowNode={(path) => store.showNode(editorId, path, { decorations: true })}
+            onShowExtensions={() => store.setTab("extensions")}
           />
         }
       >

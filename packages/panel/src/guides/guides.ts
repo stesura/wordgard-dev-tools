@@ -22,6 +22,7 @@ export const GUIDES: Record<Tab, Guide> = {
   dom: guide("dom"),
   schema: guide("schema"),
   fields: guide("fields"),
+  extensions: guide("extensions"),
   log: guide("log"),
 };
 

@@ -463,6 +463,59 @@ export type DecorationsInfo = {
   decorations: DecorationInfo[];
 };
 
+export type Precedence = "highest" | "high" | "default" | "low" | "lowest";
+/** Wordgard's precedences, highest first (its `Prec` numbers them 0 to 4). */
+export const PRECEDENCES: readonly Precedence[] = ["highest", "high", "default", "low", "lowest"];
+
+export type ExtensionKind =
+  | "configuration"
+  | "group"
+  | "precedence"
+  | "compartment"
+  | "field"
+  | "derived field"
+  | "facet"
+  | "object"
+  | "unknown";
+
+/** One extension of the editor's configuration, nested as the app wrote it. */
+export type ExtensionNode = {
+  kind: ExtensionKind;
+  /** "compartment #1", a field's name, a facet's name or "facet #n", an object's class name… */
+  label: string;
+  /** The precedence it applies at. */
+  prec: Precedence;
+  /** A static facet value's preview, or "computed"; a compartment's or a facet's note. */
+  value: string | null;
+  /** Wordgard drops it: the same extension is kept at this precedence or higher elsewhere. */
+  duplicate: boolean;
+  /** A field's index in the Fields tab. */
+  field: number | null;
+  /** A static decoration source's index, as the `decorations` request numbers sources. */
+  source: number | null;
+  /** The first row providing a facet Wordgard exports: its resolved value is in `extension`. */
+  facet: string | null;
+  children: ExtensionNode[];
+  /** Children left out past the size cap. */
+  more: number;
+};
+
+export type ExtensionsInfo = {
+  root: ExtensionNode;
+  /** Rows sent. */
+  count: number;
+  /** Some were left out (see each node's `more`). */
+  capped: boolean;
+};
+
+/** A row's values in the current state. */
+export type ExtensionDetail = {
+  /** A known facet's value (`state.facet`), on its first row. */
+  resolved: string | null;
+  /** A derived field's value; a field's. */
+  value: string | null;
+};
+
 export type FieldInfo = {
   /** Its place among the state's fields (in extension order). */
   index: number;
@@ -551,6 +604,12 @@ export type Requests = {
   decorations: { id: number };
   /** The source's function, or (with `index`) one of its decorations, live. */
   logDecoration: { id: number; source: number; index?: number };
+  /** The configuration's extensions, as a tree. */
+  extensions: { id: number };
+  /** A row of `extensions`' values in the current state, by its child indices. */
+  extension: { id: number; path: Path };
+  /** Logs a row's extension live in the page's console; with `resolved`, its facet's value. */
+  logExtension: { id: number; path: Path; resolved?: boolean };
   /** Resolves any position in the document. */
   resolve: { id: number; pos: number };
   /** Logs `doc.resolve(pos)` in the page's console. */
@@ -628,6 +687,9 @@ export type Results = {
   selectionDetail: SelectionDetail;
   decorations: DecorationsInfo;
   logDecoration: null;
+  extensions: ExtensionsInfo;
+  extension: ExtensionDetail;
+  logExtension: null;
   resolve: ResolvedPos;
   logPos: null;
   logSlice: null;

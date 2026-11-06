@@ -2,6 +2,7 @@
 import type { ComponentType } from "react";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { Dom } from "./dom/dom.tsx";
+import { Extensions } from "./extensions/extensions.tsx";
 import { Fields } from "./fields/fields.tsx";
 import { Log } from "./log/log.tsx";
 import { Schema } from "./schema/schema.tsx";
@@ -20,5 +21,6 @@ export const TAB_COMPONENTS: Record<Tab, ComponentType<TabProps>> = {
   dom: Dom,
   schema: Schema,
   fields: Fields,
+  extensions: Extensions,
   log: Log,
 };

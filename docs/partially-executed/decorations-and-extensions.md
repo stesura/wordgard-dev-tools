@@ -3,7 +3,8 @@
 Status: PARTIALLY EXECUTED. Phase 9b done on 2026-11-06, see
 [its implementation notes](#implementation-notes-phase-9b-2026-11-06), phase 10, see
 [its notes](#implementation-notes-phase-10-2026-11-06), and phase 10b on 2026-11-07, see
-[its notes](#implementation-notes-phase-10b-2026-11-07); phases 11–12 not started.
+[its notes](#implementation-notes-phase-10b-2026-11-07), and phase 11 on 2026-11-07, see
+[its notes](#implementation-notes-phase-11-2026-11-07); phase 12 not started.
 Drafted 2026-11-06, revised the same day after Fable reviews (see [Review](#review-2026-11-06)).
 Follows the main plan ([plan.md](plan.md)), whose scope listed "facet inspector"
 and "decorations view" as out of scope; the user asked for them (2026-11-06). Phases 9b–12
@@ -349,6 +350,9 @@ toA, fromB) => old.compareRange(fromA, new, fromB, toA - fromA, add))`, the edit
 - E2E (extension): toggle on → badge (the transport forwards `decorations`).
 
 ## Phase 11: Extensions tab
+
+**Executed (2026-11-07)**, with deviations: see
+[its implementation notes](#implementation-notes-phase-11-2026-11-07).
 
 ### Page side
 
@@ -761,3 +765,68 @@ Not acted on:
 
 - No panel test for a badge moved to the last shown row by a filter.
 - The time is measured cold, off-frame: only indicative.
+
+## Implementation notes: phase 11 (2026-11-07)
+
+**Executed.** Checks: `format:check`, `lint`, `typecheck`, `dependency-check`, `readme:check`,
+`build`, `compiler:check` pass; tests: devtools 135, panel 241, extension 27, e2e 11, all passing.
+
+### How it works
+
+- Page side `internals.ts`: guarded readers of `PrecExtension`, `CompartmentInstance`,
+  `FacetProvider` (static by `flags & 1`), `facet.extensions`, `Field.provides`, and the field
+  classes.
+- `extensions.ts` (lazy): `keptOccurrences` replays `flatten` (keyed by each occurrence's walk
+  path) to find what Wordgard keeps and at which precedence; the tree renders kept occurrences,
+  and dropped ones as `duplicate` rows that only walk into what they hold that Wordgard keeps.
+  One-item arrays show in their parent's place. Labels: precedence names, `compartment #n`,
+  `facet #n`, `derived field #n` (numbered page-wide by first sight), field names (the devtools
+  `fields` option, else the Fields tab's `field #n`), exported facets by name, class names of
+  objects with an `extension`. Static facet values previewed, else "computed". Static decoration
+  sources carry the `decorations` request's source index; an exported facet's first row its name.
+  The tree is cached per configuration (and field names), capped at 5000 rows.
+- `fields.ts`: `findFields` walks what fields provide and facets enable; `fieldsOf` is the one
+  numbering for both tabs.
+- Requests `extensions {id}`, `extension {id, path}` (a row's values now: a field's or derived
+  field's value, an exported facet's resolved value), `logExtension {id, path, resolved?}`;
+  routed in `frames-transport.ts`.
+- Panel `tabs/extensions/`: a virtualized tree (search, expand/collapse, keys as in the State
+  tab), reloaded on reconfigure; a pane with the row's kind, precedence, values now (reloaded on
+  each state change), log, copy, "Show in Fields" (`store.showField`), and a decoration source's
+  decorations, each linking to the Structure with decorations on. The Log's reconfigured entries
+  link to the tab. Guide `extensions.md`, README regenerated, `docs/screenshots/extensions.png`
+  (`scripts/screenshots.ts` takes tab names now).
+
+### Deviations
+
+- **Own tree**, not the State tab's: tabs can't import each other, and moving the State tab's
+  into `components/` would have touched other uncommitted work there.
+- **Values now in a separate request** (`extension`): the tree depends only on the
+  configuration, so it reloads on reconfigure only; the selected row's values on state changes.
+- **A source's output in the pane**, not as tree children.
+- **Menu.source** is named through `wordgard/command` (already in the bundle through
+  `wordgard/editor`).
+- An unknown object can't be tested through `Wordgard.create` (Wordgard throws on it); its row is
+  "unknown extension" with the value previewed.
+
+### Audit (Fable)
+
+Accepted and fixed:
+
+1. A dropped array holding a kept occurrence recursed forever (stack overflow on
+   `[shared, prec.high(shared)]` when `shared` holds something already kept): dropped rows now
+   walk their items by the paths the replay recorded. Tested with the audit's cases.
+2. A dropped row was described as if kept (value, facet name, source, field link; the kept row
+   lost its resolved value): dropped rows now only walk their children. Tested.
+3. `as const` (twice): replaced by typed declarations.
+4. A failed row's error stayed under the next row selected: cleared.
+5. Test gaps: the re-walk cases (a shared array and a nested precedence used at two
+   precedences); a misnamed test renamed.
+
+Not acted on: the plan update (done here).
+
+### Open points
+
+- After a reconfigure, the selected row's path may point at another extension: the pane shows
+  that one.
+- Phase 12's tag facet names in this tab are still to come.

@@ -13,6 +13,7 @@ import {
 } from "./protocol.ts";
 import type { Agent, Entry, Registry } from "./registry.ts";
 import type * as Decorations from "./decorations.ts";
+import type * as Extensions from "./extensions.ts";
 import type * as Fields from "./fields.ts";
 import type * as Inspect from "./inspect.ts";
 import type * as Log from "./log.ts";
@@ -59,6 +60,7 @@ const createHandlers = (
   schema: typeof Schema,
   view: typeof View,
   decorations: typeof Decorations,
+  extensions: typeof Extensions,
   inspector: Inspect.Inspector,
   recorder: Log.Recorder,
   tracker: Fields.FieldTracker,
@@ -101,6 +103,19 @@ const createHandlers = (
     decorations: ({ id }) => decorations.decorations(entry(id).wg.state),
     logDecoration: ({ id, source, index }) => {
       decorations.logDecoration(entry(id).wg.state, source, index);
+      return null;
+    },
+    extensions: ({ id }) => {
+      const e = entry(id);
+      return extensions.extensions(e.wg.state, e.fields);
+    },
+    extension: ({ id, path }) => {
+      const e = entry(id);
+      return extensions.extensionDetail(e.wg.state, e.fields, path);
+    },
+    logExtension: ({ id, path, resolved }) => {
+      const e = entry(id);
+      extensions.logExtension(e.wg.state, e.fields, path, resolved);
       return null;
     },
     resolve: ({ id, pos }) => s.resolve(entry(id).wg.state.doc, pos),
@@ -316,8 +331,9 @@ export const createAgent = (registry: Registry): Agent => {
       import("./fields.ts"),
       import("./view.ts"),
       import("./decorations.ts"),
+      import("./extensions.ts"),
     ]).then(
-      ([s, inspect, log, schema, fields, view, decorations]) => {
+      ([s, inspect, log, schema, fields, view, decorations, extensions]) => {
         inspector = inspect.createInspector(registry, push);
         const logged = log.createRecorder(registry, push);
         recorder = logged;
@@ -328,6 +344,7 @@ export const createAgent = (registry: Registry): Agent => {
           schema,
           view,
           decorations,
+          extensions,
           inspector,
           logged,
           tracker,

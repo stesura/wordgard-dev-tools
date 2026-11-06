@@ -106,6 +106,24 @@ describe("frames transport", () => {
     );
   });
 
+  it("routes the extensions requests with their paths", async () => {
+    const frames = twoFrames();
+    const { transport, announce } = setup(frames);
+    announce(0);
+    await transport.send({ type: "listEditors" });
+    await transport.send({ type: "extensions", id: 2 });
+    expect(frames[0].seen.at(-1)).toEqual({ type: "extensions", id: 2 });
+    await transport.send({ type: "extension", id: 2, path: [1, 0] });
+    expect(frames[0].seen.at(-1)).toEqual({ type: "extension", id: 2, path: [1, 0] });
+    await transport.send({ type: "logExtension", id: 2, path: [3], resolved: true });
+    expect(frames[0].seen.at(-1)).toEqual({
+      type: "logExtension",
+      id: 2,
+      path: [3],
+      resolved: true,
+    });
+  });
+
   it("forwards the log's decorations flag", async () => {
     const frames = twoFrames();
     const { transport, announce } = setup(frames);

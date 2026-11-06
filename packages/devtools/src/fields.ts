@@ -14,6 +14,14 @@ import type {
 import type { Entry, Registry } from "./registry.ts";
 import { pathIn, preview, toSafe } from "./serialise.ts";
 import { asSet, compareSets, verdictOf, type SetItem } from "./sets.ts";
+import {
+  compartmentOf,
+  facetExtensions,
+  fieldProvides,
+  isField,
+  precedenceOf,
+  providerOf,
+} from "./internals.ts";
 
 // Loaded with the serialisers, on the first panel request.
 
@@ -29,10 +37,9 @@ type Change = { seq: number; tr: Transaction; value: unknown; set?: SetVerdict |
 type Tracked = { watching: Set<string>; history: Map<Field, Change[]> };
 
 /**
- * The state fields of a configuration, in extension order, found by walking its extensions:
- * arrays, Wordgard's precedence and compartment wrappers (their `inner`; a compartment's current
- * content), objects with an `extension`. Fields that only a facet or another field provides
- * aren't reachable this way.
+ * The state fields of a configuration, in extension order, found by walking its extensions as
+ * Wordgard does: arrays, precedence and compartment wrappers (a compartment's current content),
+ * what fields provide and facets enable, objects with an `extension`.
  */
 const findFields = (state: GardState): Field[] => {
   const found: Field[] = [];
@@ -40,14 +47,16 @@ const findFields = (state: GardState): Field[] => {
   const walk = (ext: unknown) => {
     if (typeof ext != "object" || ext == null || seen.has(ext)) return;
     seen.add(ext);
-    if (ext instanceof wordgardState.GardState.Field) found.push(ext);
-    else if (Array.isArray(ext)) ext.forEach(walk);
-    else if (
-      "compartment" in ext &&
-      ext.compartment instanceof wordgardState.GardState.Compartment
-    ) {
-      walk(ext.compartment.get(state) ?? ("inner" in ext ? ext.inner : null));
-    } else if ("inner" in ext) walk(ext.inner);
+    const compartment = compartmentOf(ext);
+    const precedence = precedenceOf(ext);
+    const provider = providerOf(ext);
+    if (isField(ext)) {
+      found.push(ext);
+      walk(fieldProvides(ext));
+    } else if (Array.isArray(ext)) ext.forEach(walk);
+    else if (compartment) walk(compartment.compartment.get(state) ?? compartment.inner);
+    else if (precedence) walk(precedence.inner);
+    else if (provider) walk(facetExtensions(provider.facet));
     else if ("extension" in ext) walk(ext.extension);
   };
   walk(state.config.base);
@@ -55,7 +64,8 @@ const findFields = (state: GardState): Field[] => {
 };
 
 const byConfig = new WeakMap<GardState.Configuration, Field[]>();
-const fieldsOf = (state: GardState) => {
+/** The state's fields, numbered as the Fields tab numbers them. Cached per configuration. */
+export const fieldsOf = (state: GardState) => {
   let found = byConfig.get(state.config);
   if (!found) {
     found = findFields(state);

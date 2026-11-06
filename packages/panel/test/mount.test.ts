@@ -278,7 +278,7 @@ it("switches tabs from the keyboard", async () => {
   await userEvent.keyboard("{Enter}");
   await until(() => tabs[1]?.getAttribute("aria-selected") == "true");
   // One tab stop: the selected tab.
-  expect(tabs.map((tab) => tab.tabIndex)).toEqual([-1, 0, -1, -1, -1, -1, -1]);
+  expect(tabs.map((tab) => tab.tabIndex)).toEqual([-1, 0, -1, -1, -1, -1, -1, -1]);
 });
 
 it("puts the title on its own row when docked at a side, and keeps every tab visible", async () => {

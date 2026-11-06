@@ -70,6 +70,9 @@ export type PanelStore = {
   showNode: (id: number, path: Path, options?: { decorations?: boolean }) => void;
   /** The reveal waiting for this editor's Structure asks for its decorations: taken once. */
   takeDecorationsReveal: (id: number) => boolean;
+  /** Shows the Fields tab with a field selected, by its index (taken once with `takeFieldReveal`). */
+  showField: (id: number, index: number) => void;
+  takeFieldReveal: (id: number) => number | null;
   /** Shows the Log tab with an entry selected (taken once with `takeLogReveal`). */
   showLogEntry: (id: number, index: number) => void;
   takeLogReveal: (id: number) => number | null;
@@ -110,6 +113,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   const revealListeners = new Set<() => void>();
   let reveal: { id: number; path: Path } | null = null;
   let decorationsReveal: number | null = null;
+  let fieldReveal: { id: number; index: number } | null = null;
   let logReveal: { id: number; index: number } | null = null;
   let typeReveal: { id: number; kind: ColourKind; name: string } | null = null;
   let domReveal: { id: number; path: Path } | null = null;
@@ -314,6 +318,17 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       decorationsReveal = decorations ? id : null;
       set({ tab: "structure" });
       for (const listener of revealListeners) listener();
+    },
+    showField: (id, index) => {
+      fieldReveal = { id, index };
+      set({ tab: "fields" });
+      for (const listener of revealListeners) listener();
+    },
+    takeFieldReveal: (id) => {
+      if (fieldReveal?.id != id) return null;
+      const { index } = fieldReveal;
+      fieldReveal = null;
+      return index;
     },
     showLogEntry: (id, index) => {
       logReveal = { id, index };

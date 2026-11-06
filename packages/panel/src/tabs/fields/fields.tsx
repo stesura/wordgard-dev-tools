@@ -89,10 +89,18 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
         stale = false;
         void source.load();
       };
+      // A field another tab links to (the Extensions tab's field rows).
+      const takeReveal = () => {
+        if (!shown()) return;
+        const index = store.takeFieldReveal(editorId);
+        if (index != null) setPicked(index);
+      };
       const sync = () => {
         watch(shown());
         if (shown() && stale) load();
+        takeReveal();
       };
+      const stopReveal = store.onReveal(takeReveal);
       const stopState = store.on("state", (id) => {
         if (id != editorId) return;
         if (shown()) load();
@@ -112,6 +120,7 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
       return () => {
         stopState();
         stopStore();
+        stopReveal();
         watch(false);
       };
     },

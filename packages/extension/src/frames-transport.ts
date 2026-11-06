@@ -166,6 +166,11 @@ export const createFramesTransport = (
       routed<"decorations">(id, (page) => ({ type: "decorations", id: page })),
     logDecoration: ({ id, source, index }) =>
       routed<"logDecoration">(id, (page) => ({ type: "logDecoration", id: page, source, index })),
+    extensions: ({ id }) => routed<"extensions">(id, (page) => ({ type: "extensions", id: page })),
+    extension: ({ id, path }) =>
+      routed<"extension">(id, (page) => ({ type: "extension", id: page, path })),
+    logExtension: ({ id, path, resolved }) =>
+      routed<"logExtension">(id, (page) => ({ type: "logExtension", id: page, path, resolved })),
     resolve: ({ id, pos }) => routed<"resolve">(id, (page) => ({ type: "resolve", id: page, pos })),
     logPos: ({ id, pos }) => routed<"logPos">(id, (page) => ({ type: "logPos", id: page, pos })),
     logSlice: ({ id }) => routed<"logSlice">(id, (page) => ({ type: "logSlice", id: page })),

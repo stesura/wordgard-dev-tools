@@ -1,5 +1,5 @@
 // The README's tab screenshots (docs/screenshots/<tab>.png), taken from the demo in Chromium.
-//   node scripts/screenshots.ts
+//   node scripts/screenshots.ts [tab…]   (every tab when none is named)
 // Needs `npx playwright install chromium` once.
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -33,6 +33,10 @@ const prepare: Record<Tab, (page: Page) => Promise<void>> = {
     await panel(page).locator("[data-dom='1']").first().click();
   },
   schema: async () => {},
+  extensions: async (page) => {
+    // Found by the search: the tree draws only the rows in view.
+    await panel(page).getByRole("searchbox", { name: "Search the extensions" }).fill("wordCount");
+  },
   fields: async (page) => {
     await typeInEditor(page, " Three more words.");
     await panel(page).locator("[data-field='wordCount']").first().click();
@@ -58,7 +62,8 @@ const url = server.resolvedUrls?.local[0];
 if (!url) throw new Error("The demo server has no URL");
 const browser = await chromium.launch();
 try {
-  for (const { id: tab } of TABS) {
+  const named = process.argv.slice(2);
+  for (const { id: tab } of TABS.filter(({ id }) => !named.length || named.includes(id))) {
     const context = await browser.newContext({
       viewport: { width: 1100, height: 760 },
       deviceScaleFactor: 2,
