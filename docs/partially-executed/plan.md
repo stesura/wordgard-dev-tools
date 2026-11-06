@@ -275,20 +275,20 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
 2. **Executed.** `wordgard-devtools-panel` shell: the `Transport` interface, the in-page
    transport and `mountDevtools()` (shadow root, dock, collapse), editor list and picker, theme.
    Docked in the demo.
-2b. **Executed.** Extension shell: on-demand injection, bridge, `chrome.runtime` transport, frames, protocol
+   2b. **Executed.** Extension shell: on-demand injection, bridge, `chrome.runtime` transport, frames, protocol
    handshake, DevTools theme. Can run after any later phase.
 3. **Executed.** Doc tree and selection.
 4. **Executed.** Element picker.
-4b. **Executed.** Structure tab (added 2026-11-04): the panel gets a tab bar (Tree | Structure). Structure draws
+   4b. **Executed.** Structure tab (added 2026-11-04): the panel gets a tab bar (Tree | Structure). Structure draws
    the whole document as nested boxes, as `prosemirror-dev-tools`'s Structure tab does: each node
    with its name and its from/to positions, blocks nested, inline content as chips in a row. The
    nodes holding the selection are marked; hovering a box outlines its node in the page; clicking
    one shows it in the side pane; a pick reveals it there too. One `structure(id)` request sends
    the document's shallow nodes nested (developers' documents: no paging).
 5. **Executed.** Transaction log and timing.
-5b. **Executed.** Schema tab (added 2026-11-04): the editor's node and mark types: names, groups, what each
+   5b. **Executed.** Schema tab (added 2026-11-04): the editor's node and mark types: names, groups, what each
    holds, parameters, mark targets, from the state's schema (public API).
-5c. **Executed.** Fields tab (added 2026-11-04): each `GardState.Field` (Wordgard's plugin state) with its value,
+   5c. **Executed.** Fields tab (added 2026-11-04): each `GardState.Field` (Wordgard's plugin state) with its value,
    when it last changed, and its history of changes linked to the transaction log. Fields are
    found through `state.config.base` (public); they have no names, so they show as "field #n"
    unless the app names them: `wordgardDevtools({fields: {history: historyField}})` (the shape
@@ -375,7 +375,7 @@ while typing, remounting the react-wordgard editor, theme toggle, collapse.
   so the source works from the demo's Vite too. The components were converted to arrow functions.
   Their popups portal into the panel's root (`components/portal.tsx`).
 - **Registration on reconfigure.** "A reconfigure calls `disconnect` then `remove`" holds for
-  removal only. A plugin *added* by a reconfigure while connected never gets `connect`: Wordgard
+  removal only. A plugin _added_ by a reconfigure while connected never gets `connect`: Wordgard
   calls it before creating the plugin's value. The plugin also registers from its constructor when
   the editor is already connected. Entries are counted per connected plugin, so a reconfigure that
   drops one of two plugins keeps the entry.
@@ -783,8 +783,7 @@ Nothing found in phase 5's reworked timer.
   takes focus, and gets it back when the menu closes. `node-menu.tsx`.
 - Flags, marks and tags use shadcn's Badge (a compact `Tag`). The Base UI components come from the
   scratch project, converted to arrow functions, their popups portalled into the panel's root.
-- The side pane (node, transaction, field) is resizable (shadcn's Resizable, react-resizable-panels
-  4) and can't collapse: `split-pane.tsx`, side by side from 672 px wide, stacked below. Its size is
+- The side pane (node, transaction, field) is resizable (shadcn's Resizable, react-resizable-panels 4) and can't collapse: `split-pane.tsx`, side by side from 672 px wide, stacked below. Its size is
   kept per orientation, for every tab and editor (`localStorage` `wordgard-devtools:pane`). The
   virtualized lists now hold their scroll element in state, and the tree rebuilds when it
   subscribes: the split pane mounts the list a render late.
@@ -924,8 +923,6 @@ Audit of this batch (Fable), all accepted and fixed:
 9. The State and View roots showed as selected before any interaction: nothing is until a line
    is picked.
 
-
-
 ### Open points
 
 - Field indices can shift on a reconfigure that adds or removes a field: the selected field may
@@ -984,7 +981,7 @@ Phase 9, npm side. Done at the user's request; the extension stores are parked.
 ### Releases
 
 - Lockstep: both packages are always released together at one version. `npm run
-  release:version -- X.Y.Z` (`scripts/version.ts`) sets it in both packages, in every workspace
+release:version -- X.Y.Z` (`scripts/version.ts`) sets it in both packages, in every workspace
   that refers to them, in the agent's `VERSION` and in the lockfile, editing text to keep each
   file's formatting. `npm run release:check` fails on drift; CI runs it.
 - `prepack` builds each package, so a publish from a clean checkout can't ship an empty `dist/`.
@@ -1074,3 +1071,126 @@ Parked by the user (2026-11-06). To do before the first store release:
   mention the token.
 - When Wordgard v1 is released, the page side needs a release that accepts it (the README says
   so).
+
+## Panel polish (2026-11-06, at the user's request)
+
+**Executed.**
+
+- **Icons**: lucide-react is gone. Heroicons' 16px solid set is copied into `packages/panel/src/icons`
+  (`heroicons.tsx`, generated from the `heroicons` devDependency, which is kept for the licence), with
+  icons drawn in its style where it has none (`custom.tsx`: the dock sides, record, text cursor,
+  selection start and end, node selection, collapse all). Buttons show icons at 16px, the set's size.
+  Expand all is chevron-up-down; collapse all is its chevrons swapped to point in. The shadcn CLI has
+  no Heroicons option: components added with it import lucide-react and need pointing at `#icons`.
+- **Hover**: ghost and pressed buttons tint with the foreground (they used `bg-muted`, the toolbars'
+  own colour, so showed nothing there).
+- **Pick cursor**: see "Pick mode's cursor" above; the icon's path is copied into the page side
+  (`pick-cursor.ts`, with the MIT notice), which can't import the panel's.
+- **Tabs** (VS Code-like): square, full height, split by a line; the active one has the colour of the
+  toolbar under it (`--color-strip`, muted at 40% over the background, opaque; every tab's toolbar
+  uses it) and covers the bar's bottom border, so they join.
+- **State**: a context menu (right-click, Shift+F10, ContextMenu key): "Highlight in the editor" for
+  node objects only (`doc` and its `content` entries, down; outlines and scrolls to the node until a
+  line is clicked, the document changes, or the tab or editor does) and "Show in Structure" for
+  node objects only, "Log to console"
+  (nodes through `logNode`; anything else through the new `logState` request: the live state,
+  selection or named field where the keys name one, the JSON value otherwise), "Log as JSON"
+  (`json: true` on either request: `node.toJSON()`, or the value from `stateJSON`), "Copy JSON",
+  "Copy path" (`doc.content[0].param`). An opening or closing bracket selects its whole object or
+  array; the focused line keeps a mark inside it. `createMenuAnchor` generalises the node menu's
+  anchor; keyboard opening also follows `aria-activedescendant`.
+- **State toolbar**: buttons to log the state, live (`logState` with no keys: the `GardState`) or as JSON (`stateJSON`), beside expand, collapse and copy.
+- **Node menu** (Structure): "Log as JSON" too. A logged node is labelled with its range
+  ("Paragraph at range 16–60"), not its path.
+- **Fields**: a context menu on a field (selects it): "Log to console" (new `logField` request: the
+  live value) and "Copy value"; the pane has a copy button by the value. No fields, no menu: the
+  rows' first attribute, `data-index`, is also on Base UI's tab panels, so a right-click anywhere in
+  the tab opened it; rows are `data-field-index` now, and every menu anchor takes only rows inside
+  its own container. Tested.
+- **Selection bar**: moved from the top of the Structure to the bottom of the panel, under every
+  tab (`SelectionBar`, from the store's selection). An eye button (was "Reveal") shows the head's node in the Structure
+  (`showNode`) from any tab; buttons log the live selection (`logState` on `selection`) and copy its
+  JSON.
+- **Structure's node pane**: "type" (was "name") and each mark are badges in their Schema colours
+  (`TypeLink`), links to their card in the Schema (`showType` takes a kind now: node or mark). The
+  JSON, under a divider, has buttons on the right to log it (`logNode` with `json`, even for a node
+  too large to show) and copy it.
+- **Selection tab** (after Structure; `Selection.tsx`, `selection-source.ts`): the selection
+  (type, from–to, the selected node, the ranges when several, the marks typing would get), its
+  anchor and head resolved (one "Cursor" when empty), and any position typed into a box, resolved;
+  the selection's JSON with log and copy. A resolved position: parent, depth, index (and the offset
+  into a text node), the nodes before and after (with the text either side, in a text node), the
+  textblock, at the start or end of its parent, the marks there. Nodes link to the Structure, types
+  to the Schema. Page side: `resolve` (`doc.resolve(pos)`, nodes as tree nodes) and
+  `selectionDetail` (anchor, head, ranges, `state.sel.activeMarks`). Reloads on each state change
+  while shown, the typed position too. The bar's "Selection" (a link) opens the tab; its fields read "type:", "anchor:", "head:".
+  Wordgard takes a range's active marks from the nodes either side of it, so a selection covering
+  all of a bold run gets none: shown as Wordgard computes it.
+- Selection tab, second pass (at the user's request): each card names the expression it shows
+  (`state.selection`, `state.sel.anchor`, `doc.resolve(5)`…) and positions read "Pos at n", with a
+  line saying what a resolved position is; the selection's JSON sits beside it; every position has
+  log (new `logPos`: the live `doc.resolve(pos)`) and copy buttons. A **Slice** card:
+  `selection.toSlice(doc)` (what copying takes): length, text, its tokens (plots opening ⟨ and
+  closing ⟩, nodes boxed with their text and marks; the first 200) and its context, with log (new
+  `logSlice`) and copy. The position box has no spin buttons.
+- Selection tab, third pass: the Selection and JSON cards have a fixed height (their content
+  scrolls), so a selection whose JSON grows doesn't move the rest. "Resolved positions" is a bar of
+  its own (sticky), saying what a `Pos` is and holding the position box; the anchor, head and typed
+  position cards sit under it. A card's buttons (log, copy, clear) show while it's hovered or has
+  keyboard focus, and always on screens without hover.
+- **Fields pane**: value and history are two parts of a split inside it, laid out as the tab is:
+  list | value | history across when the tab is wide, all three stacked when narrow, every part
+  resizable. The tab's pane is wider by default than the others' (its own saved sizes);
+  `SplitPane` takes a kind (storage key, width threshold, sizes) and a fixed orientation. Each
+  field's history can be cleared (new `clearFieldHistory` request); the list's count goes too.
+- **Header**: the editor picker, "n editors", Pick, Pause and the panel's buttons (theme, dock,
+  close) are one group: on the title's line when it fits, else under the title, the buttons at its
+  end, wrapping onto a third line at the narrowest.
+
+Audit of the Selection tab and the changes since the last audit (Fable). Accepted and fixed:
+
+1. A reload re-resolved the typed position shown, not the one asked for last: with a reply pending,
+   the input said 5 and the card showed 3. The source keeps the position asked for. Not tested (the
+   race needs a transport with delayed replies).
+2. The text before a position in a long text node was cut at its start, losing what's next to the
+   position: it's cut at the other end now. Tested.
+3. A decimal position was "outside the document"; a huge one showed nothing: positions must be
+   whole numbers (its own error), and anything typed goes to the page. Tested.
+4. `atStart` / `atEnd` claimed more than they compute: the comment says what they are (the very
+   start or end of the parent's content).
+5. The "typing gets" label wrapped in its column: "typing".
+6. `selectionType` was in two files: one now.
+
+Rejected: the summary (from the store's selection) and the cards (from the tab's own request) can
+disagree when only one request fails. The error banner says so, and Retry reloads.
+- **Schema**: Nodes and Marks each have a sticky bar with the title, the count ("n", or "shown of
+  all") and the tag filters; scrolling to a card allows for the bar.
+- **Schema, Node groups** (a section after Marks, with its own toggle and filters):
+  a card per group: its types, the node types whose content names it, the mark types whose target
+  does. Groups have no names: Wordgard's own by theirs, a schema's numbered ("group #1"), as the
+  node cards already showed them. Those every type is in or not by its kind (All, Inline, Block,
+  Leaf, Plot) come last, tagged "automatic" (a tooltip says why node cards don't list them); Wordgard's groups this schema neither fills nor names
+  are left out. A node card's groups link to their cards, a group card's types and marks to theirs.
+  Page side: `SchemaInfo.groups`.
+- **Schema, spec pane** (a split: on the right, at the bottom when narrow): the selected card's
+  JSON. A node or mark type's spec as written (`spec`, sent with the schema: groups, roles and
+  content/target queries by the names the cards use, a structure shape as its HTML, functions as
+  `ƒ name(params)` from their source, nesting limited), with log (new `logType`: the live type) and
+  copy; a group's card data. Not shown: what defaults and overrides make of the spec (the cards'
+  summary shows that). The pane closes (×); a double click on a card, or "Show JSON" in a card's
+  context menu (there only while the pane is closed: opening the menu selects the card, which an
+  open pane already shows), shows it again on that card. The menu also logs the type (live) or its JSON
+  (`logType` with `json`; a group, its data) and copies the JSON. `SplitPane` takes a null pane:
+  the content stays mounted, keeping its scroll.
+
+Audit (Fable). Accepted and fixed:
+
+1. A highlighted node's outline follows its path, so after an edit it could outline another node:
+   a document change hides it. Tested.
+2. The Marks bar's top border, stuck under the toolbar, doubled its line: the line above the bar is
+   the nodes' list's now.
+3. Inside a selected object the focused line looked like the rest: it has an inset bar.
+4. A keyboard-focused tab's separator took the ring's colour.
+
+Rejected: a named field called `selection` or `doc` replaces that key in the State's JSON, while the
+menu logs the live selection or treats `doc` as the document. Not a realistic field name.

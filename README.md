@@ -53,7 +53,7 @@ production builds (see [Keep it out of production](#keep-it-out-of-production)).
   box outlines its node in the page.
 - **Element picker**: click a node in the page to find it in the panel. Picking doesn't move the caret.
 - **State**: the editor's state as collapsible JSON.
-- **View**: the editor's status and its content DOM. Each element shows the node it draws.
+- **DOM**: the editor's status and its content DOM. Each element shows the node it draws. Log the editor itself to the console from here.
 - **Schema**: node and mark types with their groups, content and attributes.
 - **Fields**: each `GardState.Field` with its value and its history of changes.
 - **Log**: recorded transactions with their changes, selection, effects and annotations. Shows
@@ -76,7 +76,7 @@ Wordgard's model. Changes to make it easier to use:
   press record.
 - **Timing**: each update is timed, and slow ones (over 16 ms) are flagged in the log.
 - **Fields**: plugin state with its history of changes, linked to the transaction log.
-- **View**: the content DOM, with the node each element draws.
+- **DOM**: the content DOM, with the node each element draws.
 - **Filters and links**: search and filters in the tabs, links between them (a field change opens
   its transaction).
 - **Isolation**: the in-page panel renders in a shadow root, so its styles and the page's don't
@@ -146,6 +146,17 @@ It returns a handle:
 The panel renders in a shadow root, so its styles and your page's styles don't affect each other.
 Its React UI is bundled with it and loaded lazily on the first `mountDevtools()` call. Your page
 doesn't need React.
+
+With React, there is no component to render: the panel brings its own React, so call
+`mountDevtools()` in your entry file. To show it only while a component is mounted, for example
+on one route:
+
+```tsx
+const WordgardDevtools = () => {
+  useEffect(() => mountDevtools().unmount, [])
+  return null
+}
+```
 
 ### Keep it out of production
 

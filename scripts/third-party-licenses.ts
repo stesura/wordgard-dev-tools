@@ -112,5 +112,5 @@ export const cssAndCopiedCode = {
   "tailwindcss": "Compiled into the panel's CSS.",
   "tw-animate-css": "Compiled into the panel's CSS.",
   "shadcn": "Its tailwind.css is compiled into the panel's CSS; the shadcn/ui components in packages/panel/src/components/ui are copied from it.",
-  "heroicons": "Its 16px icons are copied into packages/panel/src/icons/heroicons.tsx.",
+  "heroicons": "Its 16px icons are copied into packages/panel/src/icons (heroicons.tsx, and one adapted in custom.tsx).",
 }

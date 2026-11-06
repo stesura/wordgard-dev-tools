@@ -52,6 +52,65 @@ export type SelectionInfo = {
   nodePath: Path | null
 }
 
+export type MarkPreview = {name: string; preview: string | null}
+
+/** `doc.resolve(pos)`, its nodes as tree nodes. */
+export type ResolvedPos = {
+  pos: number
+  /** Plots around it, not counting the document. */
+  depth: number
+  /** The plot it points into. */
+  parent: TreeNode
+  /** Into the parent's content; the text node's when `inText`. */
+  index: number
+  /** The offset into the text node it falls in, or 0. */
+  inText: number
+  /** The whole nodes either side: in a text node, that node both times. */
+  nodeBefore: TreeNode | null
+  nodeAfter: TreeNode | null
+  /** In a text node: its text before and after the position, truncated. */
+  textBefore: string | null
+  textAfter: string | null
+  textblock: TreeNode | null
+  /** At the very start or end of its parent's content (never inside a text node). */
+  atStart: boolean
+  atEnd: boolean
+  /** Inline marks active at the position. */
+  marks: MarkPreview[]
+}
+
+/** A slice's token: a plot opened or closed, or a whole node. */
+export type SliceToken =
+  | {kind: "open"; name: string}
+  | {kind: "close"}
+  | {kind: "node"; name: string; text: string | null; marks: string[]}
+
+/** `selection.toSlice(doc)`: what copying the selection takes. */
+export type SliceInfo = {
+  length: number
+  /** `textContent()`, truncated. */
+  text: string
+  /** The first tokens, up to a limit. */
+  tokens: SliceToken[]
+  /** Tokens past the limit. */
+  more: number
+  /** The plots around it, innermost first. */
+  context: string[]
+  /** The tokens' JSON, or null for a slice too large to send. */
+  json: unknown
+}
+
+/** The selection, resolved: for the Selection tab. */
+export type SelectionDetail = {
+  anchor: ResolvedPos
+  head: ResolvedPos
+  slice: SliceInfo
+  /** One, or several for a multi-range selection. */
+  ranges: {from: number; to: number}[]
+  /** What content typed here gets: a cursor's stored marks, or the marks around it. */
+  activeMarks: MarkPreview[]
+}
+
 export type EditorInfo = {
   id: number
   name: string
@@ -156,6 +215,8 @@ export type SchemaNodeType = {
   flags: string[]
   /** Its DOM shape, briefly: `<p>`, a structure's HTML, … */
   shape: string
+  /** Its spec as JSON: groups, roles and queries by name, functions as `ƒ name(params)`. */
+  spec: unknown
 }
 
 export type SchemaMarkType = {
@@ -168,6 +229,23 @@ export type SchemaMarkType = {
   param: SchemaParam
   flags: string[]
   shape: string
+  /** Its spec as JSON, as a node type's. */
+  spec: unknown
+}
+
+/** A node group: the node types in it, and where the schema names it. */
+export type SchemaGroup = {
+  /** Wordgard's own by name, a schema's numbered (groups have no names). */
+  name: string
+  /** One of Wordgard's own groups, not the schema's. */
+  builtIn: boolean
+  /** Every type is in it or not by its kind or inline flag (Block, Inline, Leaf, Plot, All): types don't list it. */
+  implied: boolean
+  members: string[]
+  /** Node types whose content spec names it. */
+  inContentOf: string[]
+  /** Mark types whose target spec names it. */
+  inTargetOf: string[]
 }
 
 export type SchemaInfo = {
@@ -176,9 +254,12 @@ export type SchemaInfo = {
   lineBreak: string | null
   nodes: SchemaNodeType[]
   marks: SchemaMarkType[]
+  groups: SchemaGroup[]
 }
 
 export type FieldChange = {
+  /** Identifies the change in its field's history, for `fieldChange` and `logField`. */
+  seq: number
   /** The transaction's `Transaction.time`. */
   time: number
   /** Its index in the transaction log, when it is there. */
@@ -237,12 +318,7 @@ export type ViewInfo = {
     focused: boolean
     composing: boolean
     compositionStarted: boolean | null
-    /** "Wordgard", or a subclass (react-wordgard's). */
-    kind: string
     root: "document" | "shadow root"
-    themeClasses: string
-    /** Where the selection's head is drawn, in the page's viewport. */
-    head: {left: number; top: number; bottom: number} | null
   }
   /** The content element (`contentDOM`). */
   dom: ViewNode
@@ -262,11 +338,34 @@ export type Requests = {
   schema: {id: number}
   /** The editor's view: its status and its content's DOM. */
   view: {id: number}
+  /** Logs the editor (the `Wordgard` instance) in the page's console. */
+  logEditor: {id: number}
+  /** Logs the DOM element drawing a node, or its nearest ancestor's, in the page's console. */
+  logNodeDOM: {id: number; path: Path}
   /** Outlines (in the page) or logs (in the page's console) a DOM node of `view`, by its child indices. */
   viewElement: {id: number; path: readonly number[]; action: "outline" | "log"}
   selection: {id: number}
+  selectionDetail: {id: number}
+  /** Resolves any position in the document. */
+  resolve: {id: number; pos: number}
+  /** Logs `doc.resolve(pos)` in the page's console. */
+  logPos: {id: number; pos: number}
+  /** Logs the selection's slice in the page's console. */
+  logSlice: {id: number}
   fields: {id: number}
   field: {id: number; index: number}
+  /** The value a change in a field's history set, as `field`'s `value` is. */
+  fieldChange: {id: number; index: number; seq: number}
+  /**
+   * Logs a field's live value in the page's console; with `seq`, the value that change set; with
+   * `history`, every change in its history, newest first.
+   */
+  logField: {id: number; index: number; seq?: number; history?: boolean}
+  /** Forgets the changes seen to a field. */
+  clearFieldHistory: {id: number; index: number}
+  /** Logs a node or mark type in the page's console, or with `json` its spec as the Schema tab shows
+   * it; a group, its data. */
+  logType: {id: number; kind: "node" | "mark" | "group"; name: string; json?: boolean}
   /** Tracks the fields' changes while the panel shows them (the log's recording tracks them too). */
   watchFields: {id: number; on: boolean}
   /** Starts or pauses the log; `size` sets the ring buffer's (500 by default). */
@@ -280,8 +379,11 @@ export type Requests = {
   pick: {on: boolean}
   /** Scrolls the node into view in the page (its editor and the page around). */
   scrollIntoView: {id: number; path: Path}
-  /** Logs the node itself in the page's console. */
-  logNode: {id: number; path: Path}
+  /** Logs the node itself in the page's console, or its `toJSON()` with `json`. */
+  logNode: {id: number; path: Path; json?: boolean}
+  /** Logs a value of `stateJSON` in the page's console, by its keys: the live state, selection or
+   * named field where it is one of those (unless `json`), its JSON otherwise. */
+  logState: {id: number; keys: readonly string[]; json?: boolean}
   setConsole: {id: number; index?: number}
   repro: {id: number}
 }
@@ -302,8 +404,18 @@ export type Results = {
   view: ViewInfo
   viewElement: null
   selection: SelectionInfo
+  selectionDetail: SelectionDetail
+  resolve: ResolvedPos
+  logPos: null
+  logSlice: null
+  logEditor: null
+  logNodeDOM: null
   fields: FieldsInfo
   field: FieldDetail
+  fieldChange: unknown
+  logField: null
+  clearFieldHistory: null
+  logType: null
   watchFields: null
   record: null
   clear: null
@@ -313,6 +425,7 @@ export type Results = {
   pick: null
   scrollIntoView: null
   logNode: null
+  logState: null
   setConsole: null
   repro: string
 }
@@ -345,3 +458,7 @@ export type Message =
   | {source: typeof SOURCE; v: number; kind: "detach"}
 
 export const mismatch = (agent: number, panel: number) => `Page agent speaks protocol ${agent}, panel expects ${panel}`
+
+/** Keys as a JS accessor (`.doc.content[0]`): the State tab's paths, copied or logged. */
+export const accessor = (keys: readonly string[]) =>
+  keys.map(key => (/^\d+$/.test(key) ? `[${key}]` : /^[A-Za-z_$][\w$]*$/.test(key) ? `.${key}` : `[${JSON.stringify(key)}]`)).join("")

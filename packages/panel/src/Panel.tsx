@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import {
+  CommandLineIcon,
   ComputerDesktopIcon,
   MoonIcon,
   CursorArrowRaysIcon,
@@ -34,7 +35,9 @@ import { Fields } from "./Fields.tsx";
 import { Schema } from "./Schema.tsx";
 import { State } from "./State.tsx";
 import { View as ViewTab } from "./View.tsx";
-import type { PanelStore, View } from "./store.ts";
+import { isView, type PanelStore } from "./store.ts";
+import { SelectionBar } from "./node-pane.tsx";
+import { SelectionTab } from "./Selection.tsx";
 import { Structure } from "./Structure.tsx";
 import type { ThemeChoice, ThemeStore } from "./theme.ts";
 
@@ -226,16 +229,10 @@ const Notices = ({ store }: { store: PanelStore }) => {
   );
 };
 
+// As in VS Code: square tabs, full height, split by a line; the active one takes the toolbar's
+// colour below and covers the bar's bottom border (-mb-px), so the two join.
 const tabClass =
-  "h-6 flex-none px-2.5 text-xs text-muted-foreground hover:text-foreground data-active:border-border data-active:bg-background data-active:text-foreground";
-
-const isView = (value: unknown): value is View =>
-  value == "structure" ||
-  value == "state" ||
-  value == "view" ||
-  value == "schema" ||
-  value == "fields" ||
-  value == "log";
+  "-mb-px h-7 flex-none rounded-none border-0 border-r border-r-border px-3 text-xs text-muted-foreground hover:text-foreground focus-visible:border-r-border focus-visible:ring-2 focus-visible:ring-inset data-active:bg-strip data-active:text-foreground dark:data-active:bg-strip dark:data-active:border-r-border group-data-[variant=default]/tabs-list:data-active:shadow-none";
 
 const Body = ({ store }: { store: PanelStore }) => {
   const { editors, selected, view } = useSyncExternalStore(store.subscribe, store.get);
@@ -257,33 +254,49 @@ const Body = ({ store }: { store: PanelStore }) => {
       }}
       className="min-h-0 flex-1 gap-0"
     >
-      {/* Filled tabs on the bar's grey; the active one on the content's background. Wraps rather than hiding tabs. */}
-      <TabsList className="h-auto min-h-8 w-full shrink-0 flex-wrap justify-start gap-0.5 rounded-none border-b bg-muted px-1 py-1 group-data-horizontal/tabs:h-auto">
-        <TabsTrigger value="structure" className={tabClass}>
-          Structure
-        </TabsTrigger>
-        <TabsTrigger value="state" className={tabClass}>
-          State
-        </TabsTrigger>
-        <TabsTrigger value="view" className={tabClass}>
-          View
-        </TabsTrigger>
-        <TabsTrigger value="schema" className={tabClass}>
-          Schema
-        </TabsTrigger>
-        <TabsTrigger value="fields" className={tabClass}>
-          Fields
-        </TabsTrigger>
-        <TabsTrigger value="log" className={tabClass}>
-          Log
-        </TabsTrigger>
-      </TabsList>
+      {/* Wraps rather than hiding tabs. The button sits outside the tablist, which holds only tabs. */}
+      <div className="flex shrink-0 items-start border-b bg-muted">
+        <TabsList className="h-auto min-w-0 flex-1 flex-wrap items-stretch justify-start gap-0 rounded-none bg-muted p-0 group-data-horizontal/tabs:h-auto">
+          <TabsTrigger value="structure" className={tabClass}>
+            Structure
+          </TabsTrigger>
+          <TabsTrigger value="selection" className={tabClass}>
+            Selection
+          </TabsTrigger>
+          <TabsTrigger value="state" className={tabClass}>
+            State
+          </TabsTrigger>
+          <TabsTrigger value="view" className={tabClass}>
+            DOM
+          </TabsTrigger>
+          <TabsTrigger value="schema" className={tabClass}>
+            Schema
+          </TabsTrigger>
+          <TabsTrigger value="fields" className={tabClass}>
+            Fields
+          </TabsTrigger>
+          <TabsTrigger value="log" className={tabClass}>
+            Log
+          </TabsTrigger>
+        </TabsList>
+        <span className="flex h-7 shrink-0 items-center px-1">
+          <IconButton
+            label="Log the editor to the page's console"
+            onClick={() => void store.transport.send({ type: "logEditor", id: selected }).catch(() => {})}
+          >
+            <CommandLineIcon />
+          </IconButton>
+        </span>
+      </div>
       <TabsContent
         value="structure"
         keepMounted
         className="flex min-h-0 flex-col data-hidden:hidden"
       >
         <Structure key={selected} store={store} editorId={selected} />
+      </TabsContent>
+      <TabsContent value="selection" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
+        <SelectionTab key={selected} store={store} editorId={selected} />
       </TabsContent>
       <TabsContent value="state" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
         <State key={selected} store={store} editorId={selected} />
@@ -300,6 +313,7 @@ const Body = ({ store }: { store: PanelStore }) => {
       <TabsContent value="log" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
         <Log key={selected} store={store} editorId={selected} />
       </TabsContent>
+      <SelectionBar store={store} editorId={selected} />
     </Tabs>
   );
 };
@@ -334,16 +348,21 @@ export const Panel = ({ store, theme, actions, titleRow, className }: PanelProps
           <div className="shrink-0 border-b bg-muted px-2 py-1 font-semibold">{TITLE}</div>
         )}
         <header className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-2 border-b bg-muted px-2">
-          {!titleRow && <span className="font-semibold">{TITLE}</span>}
-          <EditorPicker store={store} />
-          <PickButton store={store} />
-          <PauseButton store={store} />
-          <span className="text-xs text-muted-foreground">
-            {editors.length} editor{editors.length == 1 ? "" : "s"}
-          </span>
-          <div className="ml-auto flex items-center gap-1">
-            <ThemeMenu theme={theme} />
-            {actions}
+          {!titleRow && <span className="font-semibold whitespace-nowrap">{TITLE}</span>}
+          {/* The editor's controls and the panel's buttons, together: on the title's line when they
+              fit, else on a line of their own under it (wrapping again at the narrowest). */}
+          {/* flex-auto, not flex-1: sized by its content, it moves under the title rather than squeezing. */}
+          <div className="flex min-h-8 flex-auto flex-wrap items-center gap-x-2">
+            <EditorPicker store={store} />
+            <span className="text-xs whitespace-nowrap text-muted-foreground">
+              {editors.length} editor{editors.length == 1 ? "" : "s"}
+            </span>
+            <PickButton store={store} />
+            <PauseButton store={store} />
+            <div className="ml-auto flex items-center gap-1">
+              <ThemeMenu theme={theme} />
+              {actions}
+            </div>
           </div>
         </header>
         <Notices store={store} />

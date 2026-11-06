@@ -3,6 +3,7 @@ import {errorMessage} from "./store.ts"
 import type {Transport} from "./transport.ts"
 
 export type FieldResult = {field: FieldDetail; error?: undefined} | {field?: undefined; error: string}
+export type ChangeResult = {value: unknown; error?: undefined} | {value?: undefined; error: string}
 
 export type FieldsSource = {
   fields: () => FieldsInfo | null
@@ -14,6 +15,14 @@ export type FieldsSource = {
   load: () => Promise<void>
   /** A promise per (version, field), cached: for `use()`. */
   detail: (index: number, version: number) => Promise<FieldResult>
+  /** The value a change in a field's history set: a promise per change, cached (it never changes). */
+  change: (index: number, seq: number) => Promise<ChangeResult>
+  /** Logs it in the page's console. */
+  logChange: (index: number, seq: number) => void
+  /** Logs a field's whole history in the page's console. */
+  logHistory: (index: number) => void
+  /** Logs a field's live value in the page's console. */
+  logValue: (index: number) => void
 }
 
 // Detail promises kept: a deferred render may still show an older version's.
@@ -25,6 +34,7 @@ export const createFieldsSource = (transport: Transport, id: number): FieldsSour
   let error: string | null = null
   const listeners = new Set<() => void>()
   const details = new Map<string, Promise<FieldResult>>()
+  const changes = new Map<string, Promise<ChangeResult>>()
 
   return {
     fields: () => fields,
@@ -64,6 +74,31 @@ export const createFieldsSource = (transport: Transport, id: number): FieldsSour
         }
       }
       return found
+    },
+    change: (index, seq) => {
+      const key = `${index}|${seq}`
+      let found = changes.get(key)
+      if (!found) {
+        found = transport.send({type: "fieldChange", id, index, seq}).then(
+          (value): ChangeResult => ({value}),
+          (e): ChangeResult => ({error: errorMessage(e)}),
+        )
+        changes.set(key, found)
+        for (const old of changes.keys()) {
+          if (changes.size <= KEPT) break
+          changes.delete(old)
+        }
+      }
+      return found
+    },
+    logChange: (index, seq) => {
+      transport.send({type: "logField", id, index, seq}).catch(() => {})
+    },
+    logHistory: index => {
+      transport.send({type: "logField", id, index, history: true}).catch(() => {})
+    },
+    logValue: index => {
+      transport.send({type: "logField", id, index}).catch(() => {})
     },
   }
 }

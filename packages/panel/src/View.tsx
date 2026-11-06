@@ -1,8 +1,8 @@
 import {useVirtualizer} from "@tanstack/react-virtual"
 import {cn} from "cn"
-import {ChevronDownIcon, ChevronRightIcon, ArrowsPointingInIcon, ArrowsPointingOutIcon, CommandLineIcon} from "#icons"
+import {ChevronDownIcon, ChevronRightIcon, ChevronDownUpIcon, ChevronUpDownIcon, CommandLineIcon, NoSymbolIcon} from "#icons"
 import {useCallback, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent} from "react"
-import type {ViewInfo, ViewNode} from "@stesura/wordgard-dev-tools"
+import type {Path, ViewInfo, ViewNode} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
 import {hue, typeColour} from "./colours.ts"
@@ -27,6 +27,23 @@ const flatten = (root: ViewNode, collapsed: ReadonlySet<string>) => {
   }
   walk(root, "", 0)
   return lines
+}
+
+/** The line of the element drawing the node at `path`, else its nearest ancestor's; the content element's for the document. */
+const lineOf = (root: ViewNode, path: Path) => {
+  const find = (node: ViewNode, id: string, key: string): string | null => {
+    if (node.node?.path.join(".") == key) return id
+    for (const [index, child] of node.children.entries()) {
+      const found = find(child, id ? `${id}.${index}` : String(index), key)
+      if (found != null) return found
+    }
+    return null
+  }
+  for (let at = path; at.length; at = at.slice(0, -1)) {
+    const found = find(root, "", at.join("."))
+    if (found != null) return found
+  }
+  return ""
 }
 
 const folders = (node: ViewNode, id = "", out: string[] = []) => {
@@ -99,22 +116,25 @@ const Row = ({line, start, focused, onToggle}: {line: Line; start: number; focus
 const flag = (on: boolean) => (on ? "yes" : "no")
 
 const Status = ({status}: {status: ViewInfo["status"]}) => {
-  const items: [string, string][] = [
-    ["editor", status.kind],
-    ["in", status.root],
-    ["connected", flag(status.connected)],
-    ["editable", flag(status.editable)],
-    ["focusable", flag(status.focusable)],
-    ["focused", flag(status.focused)],
-    ["composing", status.composing ? (status.compositionStarted ? "yes, started" : "yes") : "no"],
-    ["head at", status.head ? `${status.head.left}, ${status.head.top}–${status.head.bottom}` : "–"],
-    ["theme", status.themeClasses || "–"],
+  const items: [label: string, value: string, tip: string][] = [
+    ["root", status.root, "Where the editor lives: in the page's document, or inside a shadow root."],
+    ["connected", flag(status.connected), "Attached to the page and drawing. When not, document changes aren't drawn."],
+    ["editable", flag(status.editable), "The user can type in it. No: it's read-only."],
+    ["focusable", flag(status.focusable), "It can take keyboard focus: it's editable, or read-only with a tabindex."],
+    ["focused", flag(status.focused), "It has keyboard focus now. Clicking in the in-page panel takes focus from it."],
+    [
+      "IME",
+      status.composing ? (status.compositionStarted ? "composing, text changed" : "composing") : "no",
+      "Typing through an input method (IME), as for Chinese or Japanese, or on some Android keyboards.",
+    ],
   ]
   return (
     <dl aria-label="View status" className="flex shrink-0 flex-wrap gap-x-3 gap-y-0.5 border-b px-2 py-1 text-xs">
-      {items.map(([label, value]) => (
+      {items.map(([label, value, tip]) => (
         <div key={label} className="flex gap-1">
-          <dt className="text-muted-foreground">{label}</dt>
+          <Tip label={<span className="block max-w-64">{tip}</span>}>
+            <dt className="cursor-help text-muted-foreground underline decoration-dotted underline-offset-2">{label}:</dt>
+          </Tip>
           <dd className="font-mono">{value}</dd>
         </div>
       ))}
@@ -126,7 +146,13 @@ const Status = ({status}: {status: ViewInfo["status"]}) => {
 export const View = ({store, editorId}: {store: PanelStore; editorId: number}) => {
   const [source] = useState(() => createViewSource(store.transport, editorId))
   const {info, error} = useSyncExternalStore(source.subscribe, source.get)
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
+  const [collapsed, setCollapsedState] = useState<ReadonlySet<string>>(() => new Set())
+  // Also read by a reveal, which runs outside a render.
+  const collapsedNow = useRef(collapsed)
+  const setCollapsed = (next: ReadonlySet<string>) => {
+    collapsedNow.current = next
+    setCollapsedState(next)
+  }
   // Nothing until the user picks a line.
   const [focused, setFocused] = useState<string | null>(null)
   // State: the virtualizer reads its element when this component renders.
@@ -160,19 +186,17 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
 
   const toggle = (id: string) => {
     const closing = !collapsed.has(id)
-    setCollapsed(ids => {
-      const next = new Set(ids)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
+    const next = new Set(collapsedNow.current)
+    if (!next.delete(id)) next.add(id)
+    setCollapsed(next)
     if (closing && focused != null && focused.startsWith(id ? `${id}.` : "") && focused != id) setFocused(id)
   }
 
   // Loads while its tab is shown: on showing (when the editor updated meanwhile) and on each update.
   const container = useCallback(
-    (element: HTMLDivElement | null) => {
-      setScrollElement(element)
-      if (!element) return
+    (scroller: HTMLDivElement | null) => {
+      setScrollElement(scroller)
+      if (!scroller) return
       const shown = () => store.get().view == "view"
       let stale = true
       const load = () => {
@@ -188,10 +212,33 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
         if (!shown()) hide()
         else if (stale) load()
       })
+      // A "show in DOM" from the Structure: its element (or nearest ancestor's) opened up to, selected and scrolled to.
+      const reveal = (path: Path) => {
+        const info = source.get().info
+        if (!info) return
+        const id = lineOf(info.dom, path)
+        const next = new Set(collapsedNow.current)
+        const parts = id ? id.split(".") : []
+        for (let depth = 0; depth < parts.length; depth++) next.delete(parts.slice(0, depth).join("."))
+        setCollapsed(next)
+        select(id)
+        const position = flatten(info.dom, next).findIndex(line => line.id == id)
+        requestAnimationFrame(() => {
+          scroller.scrollTop = Math.max(0, position * ROW - scroller.clientHeight / 2)
+        })
+      }
+      const takeReveal = () => {
+        if (!shown()) return
+        const path = store.takeDomReveal(editorId)
+        if (path) void source.load().then(() => reveal(path))
+      }
+      const stopReveal = store.onReveal(takeReveal)
       if (shown()) load()
+      takeReveal()
       return () => {
         stopState()
         stopStore()
+        stopReveal()
         hide()
       }
     },
@@ -249,9 +296,23 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
         </p>
       )}
       {info && <Status status={info.status} />}
-      <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-muted/40 px-2 text-xs">
+      <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
         <span className="text-muted-foreground">The content's DOM, each element with the node it draws</span>
         <span className="ml-auto flex items-center gap-1">
+          <Tip label="Clear the selection and its outline in the page">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Clear the selection"
+              disabled={focused == null}
+              onClick={() => {
+                setFocused(null)
+                hide()
+              }}
+            >
+              <NoSymbolIcon />
+            </Button>
+          </Tip>
           <Tip label="Log the selected element to the page's console">
             <Button variant="ghost" size="icon-xs" aria-label="Log to the console" onClick={() => void element(focused ?? "", "log")}>
               <CommandLineIcon />
@@ -259,7 +320,7 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
           </Tip>
           <Tip label="Expand all">
             <Button variant="ghost" size="icon-xs" aria-label="Expand all" onClick={() => setCollapsed(new Set())}>
-              <ArrowsPointingOutIcon />
+              <ChevronUpDownIcon />
             </Button>
           </Tip>
           <Tip label="Collapse all">
@@ -273,7 +334,7 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
                 if (focused) setFocused(focused.split(".")[0] ?? "")
               }}
             >
-              <ArrowsPointingInIcon />
+              <ChevronDownUpIcon />
             </Button>
           </Tip>
         </span>

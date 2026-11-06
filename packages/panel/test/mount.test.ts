@@ -198,11 +198,11 @@ it("switches tabs from the keyboard", async () => {
   })
   tabs[0]?.focus()
   await userEvent.keyboard("{ArrowRight}")
-  expect(shadow().activeElement?.textContent).toBe("State")
+  expect(shadow().activeElement?.textContent).toBe("Selection")
   await userEvent.keyboard("{Enter}")
   await until(() => tabs[1]?.getAttribute("aria-selected") == "true")
   // One tab stop: the selected tab.
-  expect(tabs.map(tab => tab.tabIndex)).toEqual([-1, 0, -1, -1, -1, -1])
+  expect(tabs.map(tab => tab.tabIndex)).toEqual([-1, 0, -1, -1, -1, -1, -1])
 })
 
 it("puts the title on its own row when docked at a side, and keeps every tab visible", async () => {
@@ -232,20 +232,20 @@ it("disables the editor picker and pick while paused, and makes the content iner
   expect(shadow().querySelector("[inert]")).not.toBeNull()
 })
 
-it("puts the reopen button in the chosen corner, as a cog when minimized", async () => {
+it("puts the reopen button in the chosen corner, as an icon when chosen", async () => {
   open("first", "<p>Alpha</p>")
   mounted = mountDevtools()
   await mounted.ready
   const choose = async (text: string) => {
     ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Reopen button settings']"))).click()
     const item = await until(() =>
-      [...shadow().querySelectorAll<HTMLElement>("[role='menuitemradio']")].find(element => element.textContent == text),
+      [...shadow().querySelectorAll<HTMLElement>("[role^='menuitem']")].find(element => element.textContent == text),
     )
     item.click()
     await until(() => !shadow().querySelector("[role='menu']"))
   }
   await choose("Top left")
-  await choose("Minimized: a cog")
+  await choose("Show as icon")
   shadow().querySelector<HTMLElement>("[aria-label='Close']")?.click()
   const reopen = await until(() => shadow().querySelector<HTMLElement>("[aria-label='Open Wordgard DevTools']"))
   expect(reopen.textContent).toBe("")

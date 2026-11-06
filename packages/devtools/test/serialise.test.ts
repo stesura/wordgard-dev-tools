@@ -1,4 +1,4 @@
-import {expect, it} from "vitest"
+import {expect, it, vi} from "vitest"
 import {Wordgard} from "wordgard/editor"
 import {basicSchema} from "wordgard/schema"
 import {GardState} from "wordgard/state"
@@ -52,5 +52,74 @@ it("serialises the state, with the named fields that can", async () => {
     selection: expect.objectContaining({type: "text", anchor: 1}),
     count: {count: 3},
   })
+  wg.dom.remove()
+})
+
+it("logs the state's values: live where it can, the JSON otherwise", async () => {
+  const count = GardState.Field.define<number>({create: () => 3, update: v => v, toJSON: v => ({count: v})})
+  const wg = Wordgard.create({parent: document.body, doc: "<p>Hi</p>", config: [basicSchema(), count, wordgardDevtools({fields: {count}})]})
+  const id = registry().editors.get(wg)?.id ?? 0
+  const log = vi.spyOn(console, "log").mockImplementation(() => {})
+  const logged = async (keys: string[], json?: boolean) => {
+    await ask({type: "logState", id, keys, json})
+    return log.mock.calls.at(-1)
+  }
+  expect(await logged([])).toEqual(["[wordgard-devtools] state", wg.state])
+  expect(await logged(["selection"])).toEqual(["[wordgard-devtools] state.selection", wg.state.selection])
+  expect(await logged(["count"])).toEqual(["[wordgard-devtools] state.field(count)", 3])
+  expect(await logged(["doc", "content", "0", "type"])).toEqual(["[wordgard-devtools] state.toJSON().doc.content[0].type", "Paragraph"])
+  expect(await logged(["selection", "anchor"])).toEqual(["[wordgard-devtools] state.toJSON().selection.anchor", 1])
+  // As JSON, even where there's a live value.
+  expect(await logged(["count"], true)).toEqual(["[wordgard-devtools] state.toJSON().count", {count: 3}])
+  await ask({type: "logNode", id, path: [0], json: true})
+  expect(log.mock.calls.at(-1)).toEqual(["[wordgard-devtools] Paragraph at range 0–4", wg.state.doc.content[0]?.toJSON()])
+  log.mockRestore()
+  wg.dom.remove()
+})
+
+it("resolves positions", async () => {
+  // Paragraph 0–6: "a" 1–2, "bc" (Strong) 2–4, "d" 4–5.
+  const wg = Wordgard.create({parent: document.body, doc: "<p>a<strong>bc</strong>d</p>", config: [basicSchema(), wordgardDevtools()]})
+  const id = registry().editors.get(wg)?.id ?? 0
+  const top = await ask({type: "resolve", id, pos: 0})
+  expect(top).toMatchObject({depth: 0, parent: {name: "Doc", path: []}, index: 0, inText: 0, nodeBefore: null, nodeAfter: {name: "Paragraph", path: [0]}, textblock: null, atStart: true})
+  const start = await ask({type: "resolve", id, pos: 1})
+  expect(start).toMatchObject({depth: 1, parent: {name: "Paragraph", path: [0], from: 0, to: 6}, index: 0, inText: 0, nodeBefore: null, nodeAfter: {path: [0, 0]}, textblock: {path: [0]}, atStart: true, atEnd: false})
+  const inBold = await ask({type: "resolve", id, pos: 3})
+  expect(inBold).toMatchObject({index: 1, inText: 1, nodeBefore: {path: [0, 1]}, nodeAfter: {path: [0, 1]}, textBefore: "b", textAfter: "c", marks: [{name: "Strong"}]})
+  expect(await ask({type: "resolve", id, pos: 5})).toMatchObject({atEnd: true, nodeBefore: {path: [0, 2]}, nodeAfter: null})
+  await expect(ask({type: "resolve", id, pos: 99})).rejects.toThrow("outside the document")
+  await expect(ask({type: "resolve", id, pos: 1.5})).rejects.toThrow("whole numbers")
+  wg.dispatch({selection: {anchor: 4, head: 2}})
+  const detail = await ask({type: "selectionDetail", id})
+  // Wordgard takes a range's marks from the nodes either side: "a" and "d", unmarked.
+  expect(detail).toMatchObject({anchor: {pos: 4}, head: {pos: 2}, ranges: [{from: 2, to: 4}], activeMarks: []})
+  wg.dispatch({selection: {anchor: 3}})
+  expect(await ask({type: "selectionDetail", id})).toMatchObject({activeMarks: [{name: "Strong"}]})
+  // Across the paragraph's end: it closes in the slice.
+  wg.dispatch({selection: {anchor: 2, head: 6}})
+  expect((await ask({type: "selectionDetail", id})).slice).toMatchObject({
+    length: 4,
+    text: "bcd",
+    tokens: [{kind: "node", name: "Text", text: "bc", marks: ["Strong"]}, {kind: "node", name: "Text", text: "d", marks: []}, {kind: "close"}],
+    more: 0,
+    context: ["Paragraph"],
+  })
+  const log = vi.spyOn(console, "log").mockImplementation(() => {})
+  await ask({type: "logPos", id, pos: 3})
+  expect(log.mock.calls.at(-1)?.[0]).toBe("[wordgard-devtools] doc.resolve(3)")
+  await expect(ask({type: "logPos", id, pos: 99})).rejects.toThrow("outside the document")
+  log.mockRestore()
+  wg.dom.remove()
+})
+
+it("keeps the text next to the position, in a long text node", async () => {
+  const text = "x".repeat(150) + "AB" + "y".repeat(150)
+  const wg = Wordgard.create({parent: document.body, doc: `<p>${text}</p>`, config: [basicSchema(), wordgardDevtools()]})
+  const id = registry().editors.get(wg)?.id ?? 0
+  // Between "A" and "B": offset 151 into the text, after the paragraph's opening.
+  const {textBefore, textAfter} = await ask({type: "resolve", id, pos: 152})
+  expect(textBefore).toMatch(/^…x+A$/)
+  expect(textAfter).toMatch(/^By+…$/)
   wg.dom.remove()
 })

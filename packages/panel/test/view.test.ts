@@ -44,14 +44,14 @@ const setup = async () => {
   localStorage.setItem("wordgard-devtools:dock", JSON.stringify({side: "bottom", size: 640, collapsed: false}))
   mounted = mountDevtools()
   await mounted.ready
-  ;(await until(() => tab("View"))).click()
+  ;(await until(() => tab("DOM"))).click()
   await until(() => line("0"))
   return wg
 }
 
 it("shows the view's status and its DOM, mapped to the document, live", async () => {
   const editor = await setup()
-  expect(shadow().querySelector("[aria-label='View status']")?.textContent).toContain("editorWordgard")
+  expect(shadow().querySelector("[aria-label='View status']")?.textContent).toContain("root:document")
   expect(line("")?.textContent).toContain("<wg-content")
   expect(line("0")?.textContent).toMatch(/<h1.*>Heading 0–7/)
   expect(line("0.0")?.textContent).toBe('"Title"pos 1')
@@ -71,4 +71,26 @@ it("outlines a clicked element in the page, walks with the keys, and logs it", a
   // Gone with the tab.
   ;(await until(() => tab("State"))).click()
   await until(() => !overlay())
+})
+
+it("logs the editor to the page's console", async () => {
+  const editor = await setup()
+  const logged: unknown[][] = []
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  ;(await until(() => shadow().querySelector<HTMLButtonElement>("[aria-label=\"Log the editor to the page's console\"]"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] editor" && args[1] == editor))
+})
+
+it("clears the selection and its outline", async () => {
+  await setup()
+  const clear = await until(() => shadow().querySelector<HTMLButtonElement>("[aria-label='Clear the selection']"))
+  expect(clear.disabled).toBe(true)
+  await userEvent.click(await until(() => line("1")))
+  await until(() => overlay()?.textContent == "p")
+  clear.click()
+  await until(() => !overlay())
+  expect(line("1")?.getAttribute("aria-selected")).not.toBe("true")
+  expect(clear.disabled).toBe(true)
 })

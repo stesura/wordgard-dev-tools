@@ -21,7 +21,7 @@ it("maps the content's DOM back to the document, and flags chrome", async () => 
   const wg = editor([wordgardDevtools(), badge])
   editors.push(wg)
   const {status, dom} = await ask({type: "view", id: idOf(wg)})
-  expect(status).toMatchObject({connected: true, editable: true, kind: "Wordgard", root: "document"})
+  expect(status).toMatchObject({connected: true, editable: true, root: "document"})
   expect(dom.tag).toBe("wg-content")
   const heading = find(dom, n => n.node?.name == "Heading")
   expect(heading).toMatchObject({tag: "h1", node: {path: [0], from: 0, to: 7}})
@@ -42,11 +42,10 @@ it("outlines and logs a view element", async () => {
   await expect(ask({type: "viewElement", id: idOf(wg), path: [9], action: "log"})).rejects.toThrow("gone")
 })
 
-it("flags nothing as chrome in a read-only editor, and tells Wordgard from a subclass", async () => {
+it("flags nothing as chrome in a read-only editor", async () => {
   const wg = editor([wordgardDevtools(), Wordgard.editable.of(false)])
   editors.push(wg)
   const {status, dom} = await ask({type: "view", id: idOf(wg)})
   expect(status.editable).toBe(false)
-  expect(status.kind).toBe("Wordgard")
   expect(find(dom, n => n.chrome)).toBeNull()
 })

@@ -2,6 +2,7 @@ import type {Wordgard} from "wordgard/editor"
 import {
   PROTOCOL,
   SOURCE,
+  accessor,
   mismatch,
   type Message,
   type Push,
@@ -30,6 +31,10 @@ const fromBridge = (data: unknown, kind: string) =>
   typeof data == "object" && data != null && "source" in data && data.source == SOURCE && "kind" in data && data.kind == kind
 
 const isRequest = (data: unknown): data is Extract<Message, {kind: "request"}> => fromBridge(data, "request")
+
+/** An entry of a JSON object or array, by its key. */
+const childOf = (value: unknown, key: string): unknown =>
+  Array.isArray(value) ? value[Number(key)] : typeof value == "object" && value != null ? Reflect.get(value, key) : undefined
 
 const notYet = (phase: number) => () => {
   throw new Error(`Not implemented yet (plan phase ${phase})`)
@@ -71,8 +76,60 @@ const createHandlers = (
       return null
     },
     selection: ({id}) => s.selection(entry(id).wg.state),
+    selectionDetail: ({id}) => s.selectionDetail(entry(id).wg.state),
+    resolve: ({id, pos}) => s.resolve(entry(id).wg.state.doc, pos),
+    logPos: ({id, pos}) => {
+      console.log(`[wordgard-devtools] doc.resolve(${pos})`, s.resolvePos(entry(id).wg.state.doc, pos))
+      return null
+    },
+    logNodeDOM: ({id, path}) => {
+      const {wg} = entry(id)
+      const target = s.locate(wg.state.doc, path)
+      if (!target) throw new Error(`No node at path [${path.join(", ")}]`)
+      const {element, name, own} = view.nodeElement(wg, path)
+      console.log(
+        own ? `[wordgard-devtools] ${name}'s element` : `[wordgard-devtools] ${target.node.name} draws no element; ${name}'s`,
+        element,
+      )
+      return null
+    },
+    logEditor: ({id}) => {
+      console.log("[wordgard-devtools] editor", entry(id).wg)
+      return null
+    },
+    logSlice: ({id}) => {
+      const {state} = entry(id).wg
+      console.log("[wordgard-devtools] state.selection.toSlice(state.doc)", state.selection.toSlice(state.doc))
+      return null
+    },
     fields: ({id}) => tracker.list(entry(id)),
     field: ({id, index}) => tracker.detail(entry(id), index),
+    fieldChange: ({id, index, seq}) => tracker.changeValue(entry(id), index, seq),
+    logField: ({id, index, seq, history}) => {
+      tracker.log(entry(id), index, seq, history)
+      return null
+    },
+    clearFieldHistory: ({id, index}) => {
+      tracker.clearHistory(entry(id), index)
+      return null
+    },
+    logType: ({id, kind, name, json}) => {
+      const state = entry(id).wg.state
+      if (json || kind == "group") {
+        const info = schema.schemaInfo(state.schema)
+        const found =
+          kind == "group"
+            ? info.groups.find(g => g.name == name)
+            : (kind == "node" ? info.nodes : info.marks).find(t => t.name == name)?.spec
+        if (!found) throw new Error(`No ${kind} ${name}`)
+        console.log(`[wordgard-devtools] the ${name} ${kind == "group" ? "node group" : `${kind} type's spec`}`, found)
+        return null
+      }
+      const type = (kind == "node" ? state.schema.nodes : state.schema.marks).find(t => t.name == name)
+      if (!type) throw new Error(`No ${kind} type ${name}`)
+      console.log(`[wordgard-devtools] the ${name} ${kind} type`, type)
+      return null
+    },
     watchFields: ({id, on}, client) => {
       const e = entry(id)
       if (on && !e.attached) throw new Error("Select the editor before watching its fields")
@@ -104,10 +161,26 @@ const createHandlers = (
       inspector.scrollIntoView(entry(id), path)
       return null
     },
-    logNode: ({id, path}) => {
+    logNode: ({id, path, json}) => {
       const found = s.locate(entry(id).wg.state.doc, path)
       if (!found) throw new Error(`No node at path [${path.join(", ")}]`)
-      console.log(`[wordgard-devtools] ${found.node.name} at [${path.join(", ")}], ${found.from}–${found.from + found.node.length}`, found.node)
+      const {node, from} = found
+      console.log(`[wordgard-devtools] ${node.name} at range ${from}–${from + node.length}`, json ? node.toJSON() : node)
+      return null
+    },
+    logState: ({id, keys, json}) => {
+      const e = entry(id)
+      const {state} = e.wg
+      const [first, ...rest] = keys
+      const field = first != null && !rest.length && Object.hasOwn(e.fields ?? {}, first) ? e.fields?.[first] : undefined
+      const asJSON = (): [string, unknown] => [`state.toJSON()${accessor(keys)}`, keys.reduce<unknown>(childOf, s.stateJSON(e))]
+      const [label, value] =
+        json ? asJSON()
+        : first == null ? ["state", state]
+        : first == "selection" && !rest.length ? ["state.selection", state.selection]
+        : field ? [`state.field(${first})`, state.field(field, false)]
+        : asJSON()
+      console.log(`[wordgard-devtools] ${label}`, value)
       return null
     },
     setConsole: notYet(6),

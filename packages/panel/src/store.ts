@@ -1,7 +1,34 @@
 import type {AgentInfo, EditorInfo, Path, Push, Request, SelectionInfo} from "@stesura/wordgard-dev-tools"
+import type {ColourKind} from "./colours.ts"
 import type {Transport} from "./transport.ts"
 
-export type View = "structure" | "state" | "view" | "schema" | "fields" | "log"
+export type View = "structure" | "selection" | "state" | "view" | "schema" | "fields" | "log"
+const VIEWS: readonly View[] = ["structure", "selection", "state", "view", "schema", "fields", "log"]
+export const isView = (value: unknown): value is View => VIEWS.some(view => view == value)
+
+// The tab and the editor shown last, restored on reload. The editor by name: ids don't survive one.
+const KEY = "wordgard-devtools:panel"
+type Saved = {view: View; editor: string | null}
+
+const readSaved = (): Saved => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(KEY) ?? "null")
+    return {
+      view: isView(stored?.view) ? stored.view : "structure",
+      editor: typeof stored?.editor == "string" ? stored.editor : null,
+    }
+  } catch {
+    return {view: "structure", editor: null}
+  }
+}
+
+const writeSaved = (saved: Saved) => {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(saved))
+  } catch {
+    // Storage blocked: nothing is restored.
+  }
+}
 
 export type PanelState = {
   agent: AgentInfo | null
@@ -36,15 +63,18 @@ export type PanelStore = {
   setView: (view: View) => void
   /** A node to reveal in an editor's Structure (a pick): taken once, by that editor's Structure tab. */
   takeReveal: (id: number) => Path | null
-  /** Shows a node type's card in the Schema tab (taken once with `takeTypeReveal`). */
-  showType: (id: number, name: string) => void
-  takeTypeReveal: (id: number) => string | null
+  /** Shows a node type's card in the Schema tab, or a mark type's (taken once with `takeTypeReveal`). */
+  showType: (id: number, name: string, kind?: ColourKind) => void
+  takeTypeReveal: (id: number) => {kind: ColourKind; name: string} | null
   /** Shows a node in the Structure tab. */
   showNode: (id: number, path: Path) => void
   /** Shows the Log tab with an entry selected (taken once with `takeLogReveal`). */
   showLogEntry: (id: number, index: number) => void
   takeLogReveal: (id: number) => number | null
-  /** A reveal is waiting: the Structure takes it with `takeReveal`, the Log with `takeLogReveal`, the Schema with `takeTypeReveal`. */
+  /** Shows the element drawing a node in the DOM tab (taken once with `takeDomReveal`). */
+  showDom: (id: number, path: Path) => void
+  takeDomReveal: (id: number) => Path | null
+  /** A reveal is waiting: the Structure takes it with `takeReveal`, the Log with `takeLogReveal`, the Schema with `takeTypeReveal`, the DOM tab with `takeDomReveal`. */
   onReveal: (listener: () => void) => () => void
   transport: Transport
   /** Subscribes to pushes and loads the editors (unless paused). Returns the stop function, which detaches. */
@@ -56,6 +86,7 @@ export type PanelStore = {
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 export const createPanelStore = (transport: Transport): PanelStore => {
+  const saved = readSaved()
   let state: PanelState = {
     agent: null,
     editors: [],
@@ -65,7 +96,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     notices: [],
     picking: false,
     paused: false,
-    view: "structure",
+    view: saved.view,
   }
   const listeners = new Set<() => void>()
   const docListeners = new Set<(id: number) => void>()
@@ -75,9 +106,11 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   const revealListeners = new Set<() => void>()
   let reveal: {id: number; path: Path} | null = null
   let logReveal: {id: number; index: number} | null = null
-  let typeReveal: {id: number; name: string} | null = null
+  let typeReveal: {id: number; kind: ColourKind; name: string} | null = null
+  let domReveal: {id: number; path: Path} | null = null
   const set = (patch: Partial<PanelState>) => {
     state = {...state, ...patch}
+    if (patch.view) save()
     for (const listener of listeners) listener()
   }
   const fail = (e: unknown) => set({error: errorMessage(e)})
@@ -88,8 +121,10 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   let running = false
   const current = (at: number) => running && at == run
   // The user's pick, followed when it comes back: the same instance reconnected keeps its id,
-  // a remount (a new instance) is matched by name.
-  let chosen: {id: number; name: string} | null = null
+  // a remount (a new instance) or a reload is matched by name. Until it's there, if ever, the
+  // first editor is shown.
+  let chosen: {id: number | null; name: string} | null = saved.editor == null ? null : {id: null, name: saved.editor}
+  const save = () => writeSaved({view: state.view, editor: chosen?.name ?? null})
 
   // Replies can arrive out of order: only the latest selection request lands.
   let selectionRun = 0
@@ -121,6 +156,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     if (state.paused) return Promise.resolve()
     const editor = state.editors.find(e => e.id == id)
     chosen = editor ? {id: editor.id, name: editor.name} : null
+    save()
     return attach(id)
   }
 
@@ -271,16 +307,16 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       reveal = null
       return path
     },
-    showType: (id, name) => {
-      typeReveal = {id, name}
+    showType: (id, name, kind = "node") => {
+      typeReveal = {id, kind, name}
       set({view: "schema"})
       for (const listener of revealListeners) listener()
     },
     takeTypeReveal: id => {
       if (typeReveal?.id != id) return null
-      const {name} = typeReveal
+      const {kind, name} = typeReveal
       typeReveal = null
-      return name
+      return {kind, name}
     },
     showNode: (id, path) => {
       reveal = {id, path}
@@ -297,6 +333,17 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       const {index} = logReveal
       logReveal = null
       return index
+    },
+    showDom: (id, path) => {
+      domReveal = {id, path}
+      set({view: "view"})
+      for (const listener of revealListeners) listener()
+    },
+    takeDomReveal: id => {
+      if (domReveal?.id != id) return null
+      const {path} = domReveal
+      domReveal = null
+      return path
     },
     onReveal: listener => {
       revealListeners.add(listener)

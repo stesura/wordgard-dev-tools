@@ -1,6 +1,6 @@
 import type {Wordgard} from "wordgard/editor"
 import type {Path, ViewInfo, ViewNode} from "./protocol.ts"
-import {pathFrom, truncate} from "./serialise.ts"
+import {locate, pathFrom, truncate} from "./serialise.ts"
 
 // Loaded with the serialisers, on the first panel request.
 
@@ -44,15 +44,6 @@ const describe = (wg: Wordgard, dom: Node): ViewNode => {
   }
 }
 
-const head = (wg: Wordgard) => {
-  try {
-    const {left, top, bottom} = wg.coordsAtPos(wg.state.selection.head)
-    return {left: Math.round(left), top: Math.round(top), bottom: Math.round(bottom)}
-  } catch {
-    return null
-  }
-}
-
 export const viewInfo = (wg: Wordgard): ViewInfo => ({
   status: {
     connected: wg.connected,
@@ -61,15 +52,25 @@ export const viewInfo = (wg: Wordgard): ViewInfo => ({
     focused: wg.hasFocus,
     composing: wg.composing,
     compositionStarted: wg.compositionStarted,
-    // Class names are often minified, and the page may have another copy of Wordgard: Wordgard's own
-    // class extends nothing.
-    kind: Object.getPrototypeOf(Object.getPrototypeOf(wg)) == Object.prototype ? "Wordgard" : "a Wordgard subclass (react-wordgard's, say)",
     root: wg.root instanceof ShadowRoot ? "shadow root" : "document",
-    themeClasses: wg.themeClasses,
-    head: head(wg),
   },
   dom: describe(wg, wg.contentDOM),
 })
+
+/**
+ * The element drawing the node at `path`, else its nearest ancestor's (a text node draws none of
+ * its own); the content element for the document. `own`: the node's own.
+ */
+export const nodeElement = (wg: Wordgard, path: Path): {element: Element; name: string; own: boolean} => {
+  for (let at = path; at.length; at = at.slice(0, -1)) {
+    const found = locate(wg.state.doc, at)
+    const element = found && wg.nodeDOM(found.from)
+    if (found && element && wg.nodeFromDOM(element)?.pos == found.from) {
+      return {element, name: found.node.name, own: at.length == path.length}
+    }
+  }
+  return {element: wg.contentDOM, name: wg.state.doc.name, own: !path.length}
+}
 
 /** The DOM node at `path` (child indices as `viewInfo` lists them). */
 export const viewNode = (wg: Wordgard, path: readonly number[]): Node => {

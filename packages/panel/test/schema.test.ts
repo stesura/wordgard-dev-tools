@@ -1,4 +1,4 @@
-import {afterEach, expect, it} from "vitest"
+import {afterEach, expect, it, vi} from "vitest"
 import {userEvent} from "vitest/browser"
 import {Node, Plot} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
@@ -77,12 +77,12 @@ const section = (name: string) => shadow().querySelector<HTMLElement>(`section[a
 const toggle = (scope: ParentNode, text: string) =>
   [...scope.querySelectorAll<HTMLButtonElement>("button[aria-pressed]")].find(b => b.textContent == text)
 
-it("shows nodes or marks only, filters them by tag, and orders marks by rank", async () => {
+it("collapses nodes or marks, filters them by tag, and orders marks by rank", async () => {
   await setup()
   toggle(shadow(), "3 marks")?.click()
-  await until(() => !section("Nodes") && section("Marks"))
+  await until(() => !card("mark-Strong") && card("node-Paragraph"))
   toggle(shadow(), "3 marks")?.click()
-  await until(() => section("Nodes") && section("Marks"))
+  await until(() => card("node-Paragraph") && card("mark-Strong"))
 
   const nodes = await until(() => section("Nodes"))
   toggle(nodes, "textblock")?.click()
@@ -114,16 +114,145 @@ it("rings the card a link or a click lands on", async () => {
   expect(card("node-Text")?.className).not.toContain("ring-2")
 })
 
-it("clears the filters with their ×", async () => {
+it("clears every filter at once, and a section's tags with their ×", async () => {
   await setup()
+  const clearAll = () => [...shadow().querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent == "Clear all filters")
+  expect(clearAll()).toBeUndefined()
   toggle(shadow(), "3 marks")?.click()
-  await until(() => !section("Nodes"))
-  shadow().querySelector<HTMLButtonElement>("[aria-label='Show nodes and marks']")?.click()
-  await until(() => section("Nodes"))
+  await until(() => !card("mark-Strong"))
+  const filter = await until(() => shadow().querySelector<HTMLInputElement>("[aria-label='Filter the types']"))
+  await userEvent.fill(filter, "Para")
+  toggle(section("Nodes") ?? shadow(), "textblock")?.click()
+  await until(() => !card("node-Heading"))
+  clearAll()?.click()
+  await until(() => card("mark-Strong") && card("node-Text") && card("node-Heading"))
+  expect(filter.value).toBe("")
+  expect(clearAll()).toBeUndefined()
   const nodes = await until(() => section("Nodes"))
   toggle(nodes, "textblock")?.click()
   await until(() => !card("node-Text"))
   nodes.querySelector<HTMLButtonElement>("[aria-label='Clear the nodes filters']")?.click()
   await until(() => card("node-Text"))
   expect(nodes.querySelector("[aria-label='Clear the nodes filters']")).toBeNull()
+})
+
+it("collapses a section to its bar from its title or the bar's empty stretch, and the toolbar shows which are open", async () => {
+  await setup()
+  const bar = (name: string) => section(name)?.querySelector<HTMLElement>("[data-heading]")
+  const stretch = (name: string) => section(name)?.querySelector<HTMLElement>("[data-collapse]")
+  const marksToggle = () => [...shadow().querySelectorAll("button[aria-pressed]")].find(b => b.textContent?.endsWith(" marks"))
+  expect(marksToggle()?.getAttribute("aria-pressed")).toBe("true")
+  // The bar itself and its "order" label don't toggle.
+  bar("Marks")?.click()
+  ;[...(bar("Marks")?.querySelectorAll("span") ?? [])].find(span => span.textContent == "order")?.click()
+  await new Promise(resolve => setTimeout(resolve, 50))
+  expect(card("mark-Strong")).not.toBeNull()
+  stretch("Marks")?.click()
+  await until(() => !card("mark-Strong"))
+  expect(card("node-Paragraph")).not.toBeNull()
+  expect(bar("Marks")).not.toBeNull()
+  expect(marksToggle()?.getAttribute("aria-pressed")).toBe("false")
+  // A tag in the bar filters; it doesn't collapse the section.
+  toggle(section("Nodes") ?? shadow(), "textblock")?.click()
+  await until(() => !card("node-Text"))
+  expect(card("node-Paragraph")).not.toBeNull()
+  section("Marks")?.querySelector<HTMLButtonElement>("[aria-label='Expand the marks']")?.click()
+  await until(() => card("mark-Strong"))
+  stretch("Nodes")?.click()
+  await until(() => !card("node-Paragraph") && card("mark-Strong"))
+})
+
+it("puts the filter on its own line in a narrow panel", async () => {
+  localStorage.setItem("wordgard-devtools:dock", JSON.stringify({side: "right", size: 300, collapsed: false}))
+  await setup()
+  const filter = await until(() => shadow().querySelector<HTMLInputElement>("[aria-label='Filter the types']"))
+  const marks = await until(() => [...shadow().querySelectorAll("button[aria-pressed]")].find(b => b.textContent?.endsWith(" marks")))
+  expect(marks.getBoundingClientRect().top).toBeGreaterThanOrEqual(filter.getBoundingClientRect().bottom)
+})
+
+it("lists the node groups, linked both ways", async () => {
+  const paragraph = await setup()
+  const textblock = await until(() => card("group-Textblock"))
+  expect(textblock.textContent).toContain("Wordgard's")
+  expect(textblock.textContent).toMatch(/types.*Paragraph/)
+  // The document's content names Content.
+  expect(card("group-Content")?.textContent).toMatch(/content of.*Doc/)
+  expect(card("group-Block")?.textContent).toContain("automatic")
+  // From a node's groups to the group's card.
+  ;[...paragraph.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent == "Textblock")?.click()
+  await until(() => card("group-Textblock")?.getAttribute("aria-current") == "true")
+  // From the group's card to a node's.
+  ;[...textblock.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent == "Heading")?.click()
+  await until(() => card("node-Heading")?.getAttribute("aria-current") == "true")
+})
+
+it("shows the selected type's spec as JSON beside the list", async () => {
+  const paragraph = await setup()
+  const spec = () => shadow().querySelector<HTMLElement>("[aria-label='Spec']")
+  expect(spec()?.textContent).toContain("Select a node type")
+  paragraph.click()
+  await until(() => spec()?.textContent?.includes("Paragraphnode type spec"))
+  expect(spec()?.querySelector("pre")?.textContent).toContain('"inlineContent": true')
+  ;(await until(() => card("mark-Strong"))).click()
+  await until(() => spec()?.textContent?.includes("Strongmark type spec"))
+  const logged: unknown[][] = []
+  const log = vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  spec()?.querySelector<HTMLButtonElement>(`[aria-label="Log the Strong mark type to the page's console"]`)?.click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] the Strong mark type"))
+  log.mockRestore()
+  ;(await until(() => card("group-Textblock"))).click()
+  await until(() => spec()?.textContent?.includes("Textblocknode group"))
+})
+
+const item = (text: string) =>
+  [...shadow().querySelectorAll<HTMLElement>("[role='menuitem']")].find(element => element.textContent?.trim() == text)
+
+const rightClick = (element: HTMLElement) => {
+  const rect = element.getBoundingClientRect()
+  element.dispatchEvent(
+    new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: rect.left + 4, clientY: rect.top + 4, button: 2}),
+  )
+}
+
+it("closes the JSON pane, and shows it again on a double click or from a card's menu", async () => {
+  const paragraph = await setup()
+  const spec = () => shadow().querySelector<HTMLElement>("[aria-label='Spec']")
+  ;(await until(() => spec()?.querySelector<HTMLButtonElement>("[aria-label='Close the JSON']"))).click()
+  await until(() => !spec())
+  paragraph.dispatchEvent(new MouseEvent("dblclick", {bubbles: true}))
+  await until(() => spec()?.textContent?.includes("Paragraphnode type spec"))
+  spec()?.querySelector<HTMLButtonElement>("[aria-label='Close the JSON']")?.click()
+  await until(() => !spec())
+
+  const copied: string[] = []
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async text => {
+    copied.push(text)
+  })
+  const logged: unknown[][] = []
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  const strong = await until(() => card("mark-Strong"))
+  rightClick(strong)
+  ;(await until(() => item("Show JSON"))).click()
+  await until(() => spec()?.textContent?.includes("Strongmark type spec"))
+  // The pane is open: no "Show JSON".
+  rightClick(strong)
+  await until(() => item("Log JSON"))
+  expect(item("Show JSON")).toBeUndefined()
+  ;(await until(() => item("Log JSON"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] the Strong mark type's spec"))
+  rightClick(strong)
+  ;(await until(() => item("Copy JSON"))).click()
+  await until(() => copied.some(text => text.includes('"name": "Strong"')))
+  // A group has no live object to log: only its JSON.
+  const group = await until(() => card("group-Content"))
+  rightClick(group)
+  await until(() => item("Log JSON"))
+  expect(item("Log to console")).toBeUndefined()
+  ;(await until(() => item("Log JSON"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] the Content node group"))
+  vi.restoreAllMocks()
 })

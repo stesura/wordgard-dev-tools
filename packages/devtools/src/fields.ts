@@ -11,7 +11,7 @@ import {preview, toSafe} from "./serialise.ts"
 export const HISTORY = 50
 
 type Field = GardState.Field<unknown>
-type Change = {tr: Transaction; value: unknown}
+type Change = {seq: number; tr: Transaction; value: unknown}
 /** `watching`: the panels (by client) showing the Fields tab. */
 type Tracked = {watching: Set<string>; history: Map<Field, Change[]>}
 
@@ -55,6 +55,12 @@ export type FieldTracker = {
   watching: (entry: Entry, client: string) => boolean
   list: (entry: Entry) => FieldsInfo
   detail: (entry: Entry, index: number) => FieldDetail
+  /** The value a change in the field's history set. */
+  changeValue: (entry: Entry, index: number, seq: number) => unknown
+  /** Logs the field's live value in the page's console, the value a change set, or its whole history. */
+  log: (entry: Entry, index: number, seq?: number, history?: boolean) => void
+  /** Forgets the changes seen to one field. */
+  clearHistory: (entry: Entry, index: number) => void
   /** Drops the history of editors that left the registry. */
   prune: () => void
 }
@@ -65,6 +71,7 @@ export const createFieldTracker = (
   logIndex: (entry: Entry, tr: Transaction) => number | null,
 ): FieldTracker => {
   const tracked = new Map<Entry, Tracked>()
+  let seq = 0
   const trackedOf = (entry: Entry) => {
     let found = tracked.get(entry)
     if (!found) {
@@ -75,7 +82,8 @@ export const createFieldTracker = (
   }
   const tracking = (entry: Entry) => entry.recording || (tracked.get(entry)?.watching.size ?? 0) > 0
 
-  const change = (entry: Entry, {tr, value}: Change): FieldChange => ({
+  const change = (entry: Entry, {seq, tr, value}: Change): FieldChange => ({
+    seq,
     time: tr.annotation(wordgardState.Transaction.time) ?? 0,
     log: logIndex(entry, tr),
     preview: preview(value),
@@ -97,6 +105,14 @@ export const createFieldTracker = (
     }
   }
 
+  const changeOf = (entry: Entry, index: number, seq: number) => {
+    const field = fieldsOf(entry.wg.state)[index]
+    if (!field) throw new Error(`No field ${index}`)
+    const found = tracked.get(entry)?.history.get(field)?.find(c => c.seq == seq)
+    if (!found) throw new Error("That change is no longer in the history")
+    return found
+  }
+
   return {
     updated: (entry, update) => {
       if (!tracking(entry)) return
@@ -107,7 +123,7 @@ export const createFieldTracker = (
           if (tr.startState.field(field, false) === value) continue
           let changes = history.get(field)
           if (!changes) history.set(field, (changes = []))
-          changes.push({tr, value})
+          changes.push({seq: ++seq, tr, value})
           if (changes.length > HISTORY) changes.shift()
         }
       }
@@ -132,6 +148,37 @@ export const createFieldTracker = (
         value: toSafe(field && entry.wg.state.field(field, false)),
         history: history.map(c => change(entry, c)),
       }
+    },
+    changeValue: (entry, index, seq) => toSafe(changeOf(entry, index, seq).value),
+    log: (entry, index, seq, history) => {
+      const fields = fieldsOf(entry.wg.state)
+      const field = fields[index]
+      if (!field) throw new Error(`No field ${index}`)
+      const name = info(entry, fields, index).name
+      if (history) {
+        const changes = tracked.get(entry)?.history.get(field) ?? []
+        console.log(
+          `[wordgard-devtools] ${name}, history (newest first)`,
+          [...changes].reverse().map(({tr, value}) => ({
+            transaction: logIndex(entry, tr),
+            time: tr.annotation(wordgardState.Transaction.time) ?? 0,
+            value,
+          })),
+        )
+        return
+      }
+      if (seq == null) {
+        console.log(`[wordgard-devtools] ${name}`, entry.wg.state.field(field, false))
+        return
+      }
+      const found = changeOf(entry, index, seq)
+      const at = logIndex(entry, found.tr)
+      console.log(`[wordgard-devtools] ${name}, as set by ${at == null ? "a transaction" : `transaction #${at}`}`, found.value)
+    },
+    clearHistory: (entry, index) => {
+      const field = fieldsOf(entry.wg.state)[index]
+      if (!field) throw new Error(`No field ${index}`)
+      tracked.get(entry)?.history.delete(field)
     },
     prune: () => {
       for (const entry of tracked.keys()) if (registry.editors.get(entry.wg) != entry) tracked.delete(entry)

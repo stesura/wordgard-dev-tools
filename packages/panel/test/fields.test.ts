@@ -1,10 +1,10 @@
-import {afterEach, expect, it} from "vitest"
+import {afterEach, expect, it, vi} from "vitest"
 import {Wordgard} from "wordgard/editor"
 import {history} from "wordgard/history"
 import {basicSchema} from "wordgard/schema"
 import {GardState, Transaction} from "wordgard/state"
 import {wordgardDevtools} from "@stesura/wordgard-dev-tools"
-import {mountDevtools, type MountedDevtools} from "../src/index.ts"
+import {inPageTransport, mountDevtools, type MountedDevtools, type Transport} from "../src/index.ts"
 
 let wg: Wordgard | null = null
 let mounted: MountedDevtools | null = null
@@ -15,6 +15,7 @@ afterEach(() => {
   wg?.dom.remove()
   wg = null
   localStorage.clear()
+  vi.restoreAllMocks()
 })
 
 const until = async <T>(get: () => T | null | undefined | false, timeout = 2000): Promise<T> => {
@@ -105,4 +106,139 @@ it("tracks again when the editor reconnects under the same id", async () => {
   await new Promise(resolve => setTimeout(resolve, 100))
   editor.dispatch({effects: bump.of(2)})
   await until(() => row("counter")?.textContent?.startsWith("counter21"))
+})
+
+const item = (text: string) =>
+  [...shadow().querySelectorAll<HTMLElement>("[role='menuitem']")].find(element => element.textContent?.trim() == text)
+
+const rightClick = (element: HTMLElement) => {
+  const rect = element.getBoundingClientRect()
+  element.dispatchEvent(
+    new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: rect.left + 4, clientY: rect.top + 4, button: 2}),
+  )
+}
+
+it("logs a field's live value and copies it, from its menu or its pane", async () => {
+  const editor = await setup()
+  editor.dispatch({effects: bump.of(4)})
+  await until(() => row("counter")?.textContent?.startsWith("counter41"))
+  const logged: unknown[][] = []
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  const copied: string[] = []
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async text => {
+    copied.push(text)
+  })
+  rightClick(await until(() => row("counter")))
+  ;(await until(() => item("Log to console"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] counter" && args[1] == 4))
+  // The menu selects its field.
+  expect(row("counter")?.getAttribute("aria-selected")).toBe("true")
+  rightClick(await until(() => row("counter")))
+  ;(await until(() => item("Copy value"))).click()
+  await until(() => copied.includes("4"))
+  editor.dispatch({effects: bump.of(1)})
+  ;(await until(() => pane()?.textContent?.includes("Value5") && pane()?.querySelector<HTMLButtonElement>("[aria-label='Copy the value']"))).click()
+  await until(() => copied.includes("5"))
+  pane()?.querySelector<HTMLButtonElement>("[aria-label=\"Log the value to the page's console\"]")?.click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] counter" && args[1] == 5))
+})
+
+it("opens no menu without fields", async () => {
+  wg = Wordgard.create({parent: document.body, doc: "<p>Hi</p>", config: [basicSchema(), wordgardDevtools()]})
+  const inner = inPageTransport()
+  const transport: Transport = {
+    // The fields reply emptied in place: the editor has one field (basicSchema's).
+    send: async request => {
+      const result = await inner.send(request)
+      if (typeof result == "object" && result != null && "fields" in result && Array.isArray(result.fields)) result.fields.splice(0)
+      return result
+    },
+    onPush: listener => inner.onPush(listener),
+  }
+  mounted = mountDevtools({transport})
+  await mounted.ready
+  ;(await until(() => tab("Fields"))).click()
+  const empty = await until(() =>
+    [...shadow().querySelectorAll<HTMLElement>("[aria-label='State fields'] p")].find(p => p.textContent == "No state fields found."),
+  )
+  rightClick(empty)
+  // The browser's own menu, not ours.
+  await new Promise(resolve => setTimeout(resolve, 100))
+  expect(shadow().querySelector("[role='menu']")).toBeNull()
+})
+
+it("clears a field's history", async () => {
+  const editor = await setup()
+  editor.dispatch({effects: bump.of(2)})
+  await until(() => row("counter")?.textContent?.startsWith("counter21"))
+  row("counter")?.click()
+  await until(() => pane()?.querySelector("[aria-label='History'] li"))
+  ;(await until(() => pane()?.querySelector<HTMLButtonElement>("[aria-label=\"Clear this field's history\"]:not(:disabled)"))).click()
+  await until(() => pane()?.textContent?.includes("No changes seen."))
+  // The list's count goes too, and the value stays.
+  await until(() => row("counter")?.querySelector("[data-changes]") == null)
+  expect(pane()?.textContent).toContain("Value2")
+})
+
+it("expands a change in the history to the value it set, and logs or copies it from its menu", async () => {
+  const editor = await setup()
+  editor.dispatch({effects: bump.of(3)})
+  editor.dispatch({effects: bump.of(2)})
+  await until(() => row("counter")?.textContent?.startsWith("counter52"))
+  row("counter")?.click()
+  const items = await until(() => {
+    const found = [...(pane()?.querySelectorAll<HTMLElement>("[aria-label='History'] li") ?? [])]
+    return found.length == 2 && found
+  })
+  // Newest first: the older change set 3.
+  const older = items[1]
+  if (!older) throw new Error("No item")
+  older.querySelector<HTMLButtonElement>("[aria-label='Expand the value']")?.click()
+  await until(() => older.querySelector("pre")?.textContent == "3")
+  const logged: unknown[][] = []
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  rightClick(older)
+  ;(await until(() => item("Log to console"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] counter, as set by a transaction" && args[1] == 3))
+  const copied: string[] = []
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async text => {
+    copied.push(text)
+  })
+  await until(() => !shadow().querySelector("[role='menu']"))
+  rightClick(older)
+  ;(await until(() => item("Copy value"))).click()
+  await until(() => copied.includes("3"))
+  pane()?.querySelector<HTMLButtonElement>("[aria-label=\"Log the history to the page's console\"]")?.click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] counter, history (newest first)"))
+  pane()?.querySelector<HTMLButtonElement>("[aria-label='Copy the history']")?.click()
+  await until(() => copied.some(text => text.startsWith("[")))
+  const history = JSON.parse(copied.find(text => text.startsWith("[")) ?? "[]")
+  expect(history.map((change: {value: unknown}) => change.value)).toEqual([5, 3])
+  older.querySelector<HTMLButtonElement>("[aria-label='Collapse the value']")?.click()
+  await until(() => !older.querySelector("pre"))
+})
+
+it("selects the field selected last after a reload, if it's still there", async () => {
+  await setup()
+  row("counter")?.click()
+  await until(() => row("counter")?.getAttribute("aria-selected") == "true")
+  mounted?.unmount()
+  mounted = mountDevtools()
+  await mounted.ready
+  ;(await until(() => tab("Fields"))).click()
+  await until(() => row("counter")?.getAttribute("aria-selected") == "true")
+  await until(() => pane()?.textContent?.includes("namecounter"))
+
+  localStorage.setItem("wordgard-devtools:field", "gone")
+  mounted.unmount()
+  mounted = mountDevtools()
+  await mounted.ready
+  ;(await until(() => tab("Fields"))).click()
+  await until(() => row("counter"))
+  expect(shadow().querySelector("[aria-label='State fields'] [aria-selected='true']")).toBeNull()
+  expect(pane()?.textContent).toContain("Select a field to see it here.")
 })

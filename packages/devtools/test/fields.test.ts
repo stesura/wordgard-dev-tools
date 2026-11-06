@@ -1,4 +1,4 @@
-import {afterEach, expect, it} from "vitest"
+import {afterEach, expect, it, vi} from "vitest"
 import {Leaf} from "wordgard/doc"
 import type {Wordgard} from "wordgard/editor"
 import {history} from "wordgard/history"
@@ -10,6 +10,7 @@ const editors: Wordgard[] = []
 afterEach(async () => {
   await ask({type: "select", id: null})
   for (const wg of editors.splice(0)) wg.dom.remove()
+  vi.restoreAllMocks()
 })
 
 const idOf = (wg: Wordgard) => registry().editors.get(wg)?.id ?? 0
@@ -96,4 +97,34 @@ it("keeps tracking for one panel when another stops watching", async () => {
   expect((await ask({type: "fields", id})).tracking).toBe(true)
   await post({type: "select", id: null})
   expect((await ask({type: "fields", id})).tracking).toBe(true)
+})
+
+it("sends and logs the value a change in the history set", async () => {
+  const wg = open()
+  const id = idOf(wg)
+  await ask({type: "select", id})
+  await ask({type: "watchFields", id, on: true})
+  wg.dispatch({effects: bump.of(2)})
+  wg.dispatch({effects: bump.of(3)})
+  wg.flush()
+  const index = (await ask({type: "fields", id})).fields.find(f => f.name == "counter")?.index ?? 0
+  const [first, second] = (await ask({type: "field", id, index})).history
+  expect(first && second && second.seq > first.seq).toBe(true)
+  expect(await ask({type: "fieldChange", id, index, seq: first?.seq ?? 0})).toBe(2)
+  const logged: unknown[][] = []
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  await ask({type: "logField", id, index, seq: second?.seq ?? 0})
+  expect(logged).toEqual([["[wordgard-devtools] counter, as set by a transaction", 5]])
+  logged.length = 0
+  await ask({type: "logField", id, index, history: true})
+  expect(logged).toEqual([
+    [
+      "[wordgard-devtools] counter, history (newest first)",
+      [expect.objectContaining({transaction: null, value: 5}), expect.objectContaining({transaction: null, value: 2})],
+    ],
+  ])
+  await ask({type: "clearFieldHistory", id, index})
+  await expect(ask({type: "fieldChange", id, index, seq: first?.seq ?? 0})).rejects.toThrow("no longer in the history")
 })

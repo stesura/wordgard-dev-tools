@@ -31,6 +31,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  /* The tabs' toolbars, and the active tab joining them: muted at 40% over the background, opaque. */
+  --color-strip: color-mix(in oklab, var(--muted) 40%, var(--background));
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 2px);

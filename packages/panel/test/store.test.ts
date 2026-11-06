@@ -1,5 +1,5 @@
 // The store against a slow fake agent, as the extension's transport will be.
-import {expect, it} from "vitest"
+import {afterEach, expect, it} from "vitest"
 import type {EditorInfo, Push, Request, RequestType, Results} from "@stesura/wordgard-dev-tools"
 import {createPanelStore} from "../src/store.ts"
 import type {Transport} from "../src/transport.ts"
@@ -34,6 +34,17 @@ const fakeAgent = (ids: number[], delay = 20) => {
     watchFields: unsupported,
     scrollIntoView: unsupported,
     logNode: unsupported,
+    logState: unsupported,
+    fieldChange: unsupported,
+    logField: unsupported,
+    clearFieldHistory: unsupported,
+    logType: unsupported,
+    selectionDetail: unsupported,
+    resolve: unsupported,
+    logPos: unsupported,
+    logSlice: unsupported,
+    logEditor: unsupported,
+    logNodeDOM: unsupported,
     record: unsupported,
     clear: unsupported,
     log: unsupported,
@@ -81,6 +92,41 @@ const fakeAgent = (ids: number[], delay = 20) => {
 }
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 150))
+
+afterEach(() => localStorage.clear())
+
+it("restores the tab and the editor, by name, after a reload", async () => {
+  const before = createPanelStore(fakeAgent([1, 2]).transport)
+  const stopBefore = before.start()
+  await settle()
+  await before.select(2)
+  before.setView("schema")
+  stopBefore()
+  // A reload: new ids, same names.
+  const agent = fakeAgent([5, 6])
+  agent.remove(5)
+  agent.add(7, "e1")
+  agent.add(8, "e2")
+  agent.remove(6)
+  const store = createPanelStore(agent.transport)
+  expect(store.get().view).toBe("schema")
+  const stop = store.start()
+  await settle()
+  expect(store.get().selected).toBe(8)
+  stop()
+})
+
+it("shows the first editor when the saved one is gone, and a stored tab that isn't one is ignored", async () => {
+  localStorage.setItem("wordgard-devtools:panel", JSON.stringify({view: "nope", editor: "gone"}))
+  const agent = fakeAgent([1, 2])
+  const store = createPanelStore(agent.transport)
+  expect(store.get().view).toBe("structure")
+  const stop = store.start()
+  await settle()
+  expect(store.get().selected).toBe(1)
+  expect(agent.attached()).toEqual([1])
+  stop()
+})
 
 it("doesn't attach an editor once stopped", async () => {
   const agent = fakeAgent([1])

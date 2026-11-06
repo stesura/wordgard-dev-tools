@@ -392,7 +392,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b bg-muted/40 px-2 text-xs">
+      <div className="flex h-7 shrink-0 items-center gap-2 border-b bg-strip px-2 text-xs">
         <Button
           variant={view.recording ? "secondary" : "ghost"}
           size="xs"

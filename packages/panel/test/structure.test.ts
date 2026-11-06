@@ -1,4 +1,4 @@
-import {afterEach, expect, it} from "vitest"
+import {afterEach, expect, it, vi} from "vitest"
 import {userEvent} from "vitest/browser"
 import {Leaf} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
@@ -19,6 +19,7 @@ afterEach(() => {
   wg?.dom.remove()
   wg = null
   localStorage.clear()
+  vi.restoreAllMocks()
 })
 
 const until = async <T>(get: () => T | null | undefined | false, timeout = 2000): Promise<T> => {
@@ -294,4 +295,30 @@ it("shows what changed while paused once resumed", async () => {
   editor.flush()
   ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Resume the devtool']"))).click()
   await until(() => box("1.0")?.textContent?.includes("Later Alpha"))
+})
+
+it("links the node's type and marks to the Schema, and copies its JSON", async () => {
+  await setup()
+  const strong = await showStructure()
+  const link = (name: string) =>
+    [...(pane()?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find(button => button.textContent == name)
+  const copied: string[] = []
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async text => {
+    copied.push(text)
+  })
+  strong.click()
+  ;(await until(() => pane()?.querySelector<HTMLButtonElement>("[aria-label=\"Copy the node's JSON\"]"))).click()
+  await until(() => copied.some(text => text.includes('"type": "Text"') && text.includes('"Strong"')))
+  const logged: unknown[][] = []
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  ;(await until(() => pane()?.querySelector<HTMLButtonElement>(`[aria-label="Log the node's JSON to the page's console"]`))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] Text at range 14–18" && JSON.stringify(args[1]).includes("Strong")))
+  ;(await until(() => link("Strong"))).click()
+  await until(() => tab("Schema")?.getAttribute("aria-selected") == "true")
+  await until(() => shadow().querySelector("[data-type='mark-Strong'][aria-current='true']"))
+  ;(await until(() => tab("Structure"))).click()
+  ;(await until(() => link("Text"))).click()
+  await until(() => shadow().querySelector("[data-type='node-Text'][aria-current='true']"))
 })

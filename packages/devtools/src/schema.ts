@@ -1,6 +1,6 @@
 import type {Mark, Node, Schema} from "wordgard/doc"
 import * as wordgardDoc from "wordgard/doc"
-import type {SchemaInfo, SchemaMarkType, SchemaNodeType, SchemaParam} from "./protocol.ts"
+import type {SchemaGroup, SchemaInfo, SchemaMarkType, SchemaNodeType, SchemaParam} from "./protocol.ts"
 import {toSafe} from "./serialise.ts"
 
 // Loaded with the serialisers, on the first panel request.
@@ -62,6 +62,41 @@ const shape = (spec: Spec): string => {
   return "?"
 }
 
+const isQuery = (value: unknown): value is Node.Query =>
+  value instanceof Group || Array.isArray(value) || (typeof value == "object" && value != null && ("and" in value || "name" in value))
+
+/** `ƒ name(params)`, from its source: functions don't cross to the panel. */
+const fnSummary = (fn: Function) => {
+  const source = Function.prototype.toString.call(fn)
+  const params =
+    /^(?:async\s*)?(?:function\b[^(]*)?\(([^)]*)\)/.exec(source)?.[1] ?? /^(?:async\s+)?([A-Za-z_$][\w$]*)\s*=>/.exec(source)?.[1] ?? "…"
+  return `ƒ ${fn.name}(${params.replace(/\s+/g, " ").trim()})`.replace("ƒ (", "ƒ(")
+}
+
+const hasToHTML = (value: object): value is {toHTML: () => unknown} => "toHTML" in value && typeof value.toHTML == "function"
+
+/** A spec value as JSON: functions summarised, a structure as its HTML, nesting limited. */
+const plain = (value: unknown, depth = 6): unknown => {
+  if (typeof value == "function") return fnSummary(value)
+  if (typeof value != "object" || value == null) return toSafe(value)
+  if (value instanceof Group) return "a group"
+  if (hasToHTML(value)) {
+    try {
+      return String(value.toHTML())
+    } catch {
+      return "structure"
+    }
+  }
+  if (depth <= 0) return Array.isArray(value) ? `[${value.length} items]` : "{…}"
+  if (Array.isArray(value)) return value.map(v => plain(v, depth - 1))
+  const proto = Object.getPrototypeOf(value)
+  // Class instances (a node type in a rule…): by name when they have one.
+  if (proto != Object.prototype && proto != null) {
+    return "name" in value && typeof value.name == "string" ? value.name : toSafe(value, 2)
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, v]) => [key, plain(v, depth - 1)]))
+}
+
 export const schemaInfo = (schema: Schema): SchemaInfo => {
   const custom = new Map<Node.Group, string>()
   const groupName = (group: Node.Group) => {
@@ -70,6 +105,27 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
     const name = `group #${custom.size + 1}`
     custom.set(group, name)
     return name
+  }
+
+  /** The groups a content or target query names. */
+  const groupsIn = (query: Node.Query): Node.Group[] =>
+    query instanceof Group ? [query] : isList(query) ? query.flatMap(groupsIn) : "and" in query ? query.and.flatMap(groupsIn) : []
+
+  /** A spec as JSON: what a developer wrote, readable. */
+  const specJSON = (name: string, spec: object): unknown => {
+    const one = (value: unknown) => (value instanceof Group ? groupName(value) : plain(value))
+    const roleName = (role: unknown) => [...roles].find(([r]) => r == role)?.[1] ?? "a role"
+    const entries = Object.entries(spec).map(([key, value]): [string, unknown] => [
+      key,
+      key == "group"
+        ? Array.isArray(value) ? value.map(one) : one(value)
+        : key == "role"
+          ? Array.isArray(value) ? value.map(roleName) : roleName(value)
+          : (key == "blockContent" || key == "inlineContent" || key == "target") && isQuery(value)
+            ? describe(value)
+            : plain(value),
+    ])
+    return {name, ...Object.fromEntries(entries)}
   }
 
   const describe = (query: Node.Query): string => {
@@ -120,6 +176,7 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
       param: param(type.spec),
       flags,
       shape: shape(type.spec),
+      spec: specJSON(type.name, type.spec),
     }
   })
 
@@ -138,8 +195,27 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
       param: param(type.spec),
       flags,
       shape: shape(type.spec),
+      spec: specJSON(type.name, type.spec),
     }
   })
 
-  return {doc: schema.docTag.name, lineBreak: schema.lineBreak?.name ?? null, nodes, marks}
+  const contentOf = (type: (typeof schema.nodes)[number]) =>
+    type.isPlot ? [type.spec.blockContent, type.spec.inlineContent === true ? undefined : type.spec.inlineContent] : []
+  // The ones types list first, those every type is in or not by its kind last.
+  const groups = [...listed(), ...implied].map(
+    (group): SchemaGroup => ({
+      name: groupName(group),
+      builtIn: knownGroups.has(group),
+      implied: implied.has(group),
+      members: schema.nodes.filter(type => schema.matchNode(type, group)).map(type => type.name),
+      inContentOf: schema.nodes
+        .filter(type => contentOf(type).some(query => query != null && groupsIn(query).includes(group)))
+        .map(type => type.name),
+      inTargetOf: schema.marks.filter(type => type.spec.target && groupsIn(type.spec.target).includes(group)).map(type => type.name),
+    }),
+  )
+    // Wordgard's groups this schema neither fills nor names (TableCell without tables): left out.
+    .filter(group => group.members.length || group.inContentOf.length || group.inTargetOf.length)
+
+  return {doc: schema.docTag.name, lineBreak: schema.lineBreak?.name ?? null, nodes, marks, groups}
 }

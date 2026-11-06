@@ -1,4 +1,4 @@
-import {afterEach, expect, it} from "vitest"
+import {afterEach, expect, it, vi} from "vitest"
 import {Mark, Node, Plot, Schema} from "wordgard/doc"
 import type {Wordgard} from "wordgard/editor"
 import {GardState} from "wordgard/state"
@@ -83,4 +83,43 @@ it("names a group an override applies, for the types listed before the query tha
   const schema = await schemaOf(wg)
   expect(schema.nodes.find(n => n.name == "Paragraph")?.groups).toContain("group #1")
   expect(schema.nodes.find(n => n.name == "Box")).toMatchObject({content: "block: group #1", holds: ["Paragraph"]})
+})
+
+it("lists the node groups: their members and where the schema names them", async () => {
+  const wg = editor([wordgardDevtools(), GardState.schemaElement.of([Callout, Flagged])])
+  editors.push(wg)
+  const {groups} = await schemaOf(wg)
+  const group = (name: string) => groups.find(g => g.name == name)
+  // Callout's content names Textblock and its own group.
+  expect(group("Textblock")).toMatchObject({builtIn: true, implied: false, inContentOf: ["Callout"]})
+  expect(group("Textblock")?.members).toEqual(expect.arrayContaining(["Paragraph", "Heading"]))
+  expect(group("group #1")).toMatchObject({builtIn: false, implied: false, members: ["Callout"], inContentOf: ["Callout"]})
+  expect(group("Block")).toMatchObject({implied: true})
+  expect(group("Inline")?.members).toEqual(expect.arrayContaining(["Text", "LineBreak"]))
+  // Wordgard's table cells: nothing here is one, nothing names them.
+  expect(group("TableCell")).toBeUndefined()
+})
+
+it("sends each type's spec as JSON: groups and queries named, functions summarised", async () => {
+  const wg = editor([wordgardDevtools(), GardState.schemaElement.of([Callout, Flagged])])
+  editors.push(wg)
+  const schema = await schemaOf(wg)
+  expect(schema.nodes.find(n => n.name == "Callout")?.spec).toEqual({
+    name: "Callout",
+    blockContent: "Textblock | group #1",
+    group: ["Content", "group #1"],
+    defaultParam: "info",
+    validate: "string",
+    shape: {element: "aside", selector: "aside.callout"},
+  })
+  expect(schema.marks.find(m => m.name == "Flagged")?.spec).toEqual({
+    name: "Flagged",
+    target: "Paragraph",
+    rank: 5,
+    shape: {attribute: "data-flagged", value: "ƒ value()"},
+  })
+  const log = vi.spyOn(console, "log").mockImplementation(() => {})
+  await ask({type: "logType", id: registry().editors.get(wg)?.id ?? 0, kind: "mark", name: "Flagged"})
+  expect(log.mock.calls.at(-1)?.[0]).toBe("[wordgard-devtools] the Flagged mark type")
+  log.mockRestore()
 })

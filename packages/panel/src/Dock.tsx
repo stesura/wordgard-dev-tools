@@ -16,6 +16,7 @@ import {PortalContainer} from "#components/portal"
 import {Button} from "#components/ui/button"
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuLabel,
@@ -156,15 +157,10 @@ const ButtonMenu = ({
       </DropdownMenuGroup>
       <DropdownMenuSeparator />
       <DropdownMenuGroup>
-        <DropdownMenuRadioGroup value={minimized ? "cog" : "label"} onValueChange={value => onMinimized(value == "cog")}>
-          <DropdownMenuRadioItem value="label" closeOnClick className="text-xs">
-            With its label
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="cog" closeOnClick className="text-xs">
-            <Cog6ToothIcon />
-            Minimized: a cog
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
+        <DropdownMenuLabel>DevTools floating button</DropdownMenuLabel>
+        <DropdownMenuCheckboxItem checked={minimized} onCheckedChange={onMinimized} closeOnClick className="text-xs">
+          Show as icon
+        </DropdownMenuCheckboxItem>
       </DropdownMenuGroup>
     </DropdownMenuContent>
   </DropdownMenu>

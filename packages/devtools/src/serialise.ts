@@ -1,7 +1,20 @@
-import type {Node as DocNode, Plot} from "wordgard/doc"
+import type {Node as DocNode, Plot, Pos, Slice, Token} from "wordgard/doc"
+import * as wordgardDoc from "wordgard/doc"
 import type {GardState} from "wordgard/state"
 import * as wordgardState from "wordgard/state"
-import type {EditorInfo, NodeDetail, Path, SelectionInfo, StructureNode, TreeNode} from "./protocol.ts"
+import type {
+  EditorInfo,
+  MarkPreview,
+  NodeDetail,
+  Path,
+  ResolvedPos,
+  SelectionDetail,
+  SelectionInfo,
+  SliceInfo,
+  SliceToken,
+  StructureNode,
+  TreeNode,
+} from "./protocol.ts"
 import type {Entry} from "./registry.ts"
 
 export const PREVIEW_LENGTH = 80
@@ -179,3 +192,80 @@ export const selection = (state: GardState): SelectionInfo => {
     nodePath: state.selection instanceof wordgardState.GardSelection.Node ? pathFrom(state.doc, from) : null,
   }
 }
+
+const plotPath = (plot: Pos.Plot) => {
+  const path: number[] = []
+  for (let p = plot; p.parent; p = p.parent) path.unshift(p.index)
+  return path
+}
+
+const treeAt = (doc: Plot.Doc, path: Path): TreeNode => {
+  const found = locate(doc, path)
+  if (!found) throw new Error(`No node at path [${path.join(", ")}]`)
+  return treeNode(found.node, path, found.from)
+}
+
+const markPreviews = (marks: readonly {name: string; value: unknown}[]): MarkPreview[] =>
+  marks.map(mark => ({name: mark.name, preview: preview(mark.value)}))
+
+const sliceText = (node: DocNode | null) => (node?.isText && typeof node.param == "string" ? node.param : null)
+
+/** Truncated at the start: the end is what's next to the position. */
+const truncateStart = (text: string, max = PREVIEW_LENGTH) => (text.length > max ? "…" + text.slice(text.length - max + 1) : text)
+
+/** `doc.resolve(pos)`, with errors that say what's wrong with `pos`. */
+export const resolvePos = (doc: Plot.Doc, pos: number) => {
+  if (!Number.isInteger(pos)) throw new Error(`${pos} isn't a position: positions are whole numbers`)
+  if (pos < 0 || pos > doc.length) throw new Error(`Position ${pos} is outside the document (0–${doc.length})`)
+  return doc.resolve(pos)
+}
+
+export const resolve = (doc: Plot.Doc, pos: number): ResolvedPos => {
+  const resolved = resolvePos(doc, pos)
+  const {parent, index, inText} = resolved
+  const parentPath = plotPath(parent)
+  const child = (at: number) => (at >= 0 && at < parent.node.content.length ? treeAt(doc, [...parentPath, at]) : null)
+  const textblock = resolved.textblockParent
+  return {
+    pos,
+    depth: resolved.depth,
+    parent: treeAt(doc, parentPath),
+    index,
+    inText,
+    nodeBefore: child(inText ? index : index - 1),
+    nodeAfter: child(index),
+    textBefore: inText ? truncateStart(sliceText(resolved.nodeBefore) ?? "") : null,
+    textAfter: inText ? truncate(sliceText(resolved.nodeAfter) ?? "") : null,
+    textblock: textblock ? treeAt(doc, plotPath(textblock)) : null,
+    atStart: resolved.isAtStart(parent),
+    atEnd: resolved.isAtEnd(parent),
+    marks: markPreviews(resolved.marks()),
+  }
+}
+
+/** Tokens a slice sends. */
+export const SLICE_TOKENS = 200
+
+const sliceToken = (token: Token): SliceToken =>
+  token.tokenType == wordgardDoc.Token.Type.Open
+    ? {kind: "open", name: token.name}
+    : token.tokenType == wordgardDoc.Token.Type.Close
+      ? {kind: "close"}
+      : {kind: "node", name: token.name, text: textOf(token), marks: token.marks.map(mark => mark.name)}
+
+const sliceInfo = (slice: Slice): SliceInfo => ({
+  length: slice.length,
+  text: truncate(slice.textContent()),
+  tokens: slice.content.slice(0, SLICE_TOKENS).map(sliceToken),
+  more: Math.max(0, slice.content.length - SLICE_TOKENS),
+  context: slice.context.map(tag => tag.name),
+  json: slice.length <= JSON_LIMIT ? toSafe(slice.content.map(token => token.toJSON()), 128) : null,
+})
+
+export const selectionDetail = (state: GardState): SelectionDetail => ({
+  anchor: resolve(state.doc, state.selection.anchor),
+  head: resolve(state.doc, state.selection.head),
+  slice: sliceInfo(state.selection.toSlice(state.doc)),
+  ranges: state.selection.ranges.map(({from, to}) => ({from, to})),
+  activeMarks: markPreviews(state.sel.activeMarks),
+})

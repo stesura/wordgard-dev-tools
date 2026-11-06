@@ -4,8 +4,8 @@ import {
   SelectionStartIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-  ArrowsPointingInIcon,
-  ArrowsPointingOutIcon,
+  ChevronDownUpIcon,
+  ChevronUpDownIcon,
   ChevronUpIcon,
   NodeSelectionIcon,
   TextCursorIcon,
@@ -24,7 +24,7 @@ import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
 import {ROOT, itemId, pathOf} from "./detail-cache.ts"
 import {NodeMenu, createNodeMenuAnchor} from "./node-menu.tsx"
-import {NodePane, SelectionStrip, isPrefix, json} from "./node-pane.tsx"
+import {NodePane, isPrefix, json} from "./node-pane.tsx"
 import {SplitPane} from "./split-pane.tsx"
 import {hue, markColour, typeColour} from "./colours.ts"
 import type {PanelStore} from "./store.ts"
@@ -220,7 +220,7 @@ const Box = ({node, marks}: {node: StructureNode; marks: Marks}) => {
         </span>
       </div>
       {open && (
-        <div role="group" className={cn("pt-0.5 pl-2", inline && "flex flex-wrap")}>
+        <div role="group" className={cn("pt-0.5 pl-0.75", inline && "flex flex-wrap")}>
           {node.children.map(child =>
             inline ? (
               <Chip key={child.path.join(".")} node={child} marks={marks} />
@@ -243,10 +243,11 @@ const folders = (node: StructureNode, out: string[] = []) => {
 }
 
 /** Scrolls an item into the structure's scroller, not the page around an in-page dock. */
-export const scrollInto = (container: HTMLElement, element: Element) => {
+/** `inset`: what covers the container's top (a sticky heading). */
+export const scrollInto = (container: HTMLElement, element: Element, inset = 0) => {
   const top = element.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop
-  if (top < container.scrollTop || top > container.scrollTop + container.clientHeight - 24) {
-    container.scrollTop = top - 8
+  if (top < container.scrollTop + inset || top > container.scrollTop + container.clientHeight - 24) {
+    container.scrollTop = top - inset - 8
   }
 }
 
@@ -414,7 +415,6 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
-      <SelectionStrip selection={info} onReveal={() => info && void reveal(info.headPath)} />
       {error != null && (
         <p role="alert" className="flex items-center gap-2 border-b px-2 py-1 text-destructive">
           Couldn't load the structure: {error}
@@ -423,7 +423,7 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
           </Button>
         </p>
       )}
-      <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-muted/40 px-2 text-xs">
+      <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
         <input
           type="search"
           value={query}
@@ -451,7 +451,7 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
         </Button>
         <Tip label="Expand all">
           <Button variant="ghost" size="icon-xs" aria-label="Expand all" onClick={() => setCollapsed(new Set())}>
-            <ArrowsPointingOutIcon />
+            <ChevronUpDownIcon />
           </Button>
         </Tip>
         <Tip label="Collapse all">
@@ -462,11 +462,20 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
             // The document stays open: its blocks show.
             onClick={() => doc && setCollapsed(new Set(folders(doc).filter(id => id != ROOT)))}
           >
-            <ArrowsPointingInIcon />
+            <ChevronDownUpIcon />
           </Button>
         </Tip>
       </div>
-      <SplitPane pane={<NodePane source={source} focused={focused == ROOT ? null : focused} />}>
+      <SplitPane
+        pane={
+          <NodePane
+            source={source}
+            focused={focused == ROOT ? null : focused}
+            onShowType={(kind, name) => store.showType(editorId, name, kind)}
+            onLogJSON={path => store.transport.send({type: "logNode", id: editorId, path, json: true}).catch(() => {})}
+          />
+        }
+      >
         <div
           ref={container}
           role="tree"
