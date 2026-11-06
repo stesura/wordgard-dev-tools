@@ -1,11 +1,13 @@
 # Panel restructure — plan
 
-Status: NOT EXECUTED. Drafted 2026-11-06 from an audit of `packages/panel`, scope agreed with the
-user the same day; revised after a Fable review the same day, see [Review](#review-2026-11-06).
+Status: PARTIALLY EXECUTED. Phases 0 and 1 done on 2026-11-06, see
+[Implementation notes](#implementation-notes). Drafted 2026-11-06 from an audit of
+`packages/panel`, scope agreed with the user the same day; revised after a Fable review the same
+day, see [Review](#review-2026-11-06).
 
 Scope: `packages/panel` only, plus what has to follow it (root lint and format config, the scripts
 that import panel files, docs). The page side (`packages/devtools`) and its protocol don't change:
-the `"view"` *request* keeps its name, only the panel's tab is renamed.
+the `"view"` _request_ keeps its name, only the panel's tab is renamed.
 
 ## Why
 
@@ -25,9 +27,9 @@ plan moves and deduplicates code. It doesn't redesign it.
 5. No `types/` folder: types stay with their module.
 6. Deduplicate what's sensible. **Any change that makes the code noticeably harder to read is
    dropped**, even if it removes lines.
-7. shadcn: `toggle` / `toggle-group`, `checkbox`, `input-group` and `collapsible`, yes. A plain
-   shadcn `input` for the search fields, no (its styling would have to be stripped). `alert`, no.
-   Icons: heroicons (`#icons`), never lucide.
+7. shadcn: `toggle` / `toggle-group`, `checkbox` and `collapsible`, yes. No shadcn `input` and no
+   `input-group` (their styling would have to be stripped). `alert`, no. Icons: heroicons
+   (`#icons`), never lucide.
 8. Split the large files.
 9. No separate `src/ui/`: `components/ui/` is it.
 10. Prettier. Arrow functions everywhere (lint-enforced). Kebab-case file names everywhere. The tab
@@ -43,9 +45,9 @@ plan moves and deduplicates code. It doesn't redesign it.
   `npm run lint`, `npm run dependency-check`, `npm run readme:check`, and, from phase 1 on,
   `npm run format:check`, and `npm run compiler:check` after the build.
   `npm run e2e -w wordgard-devtools-extension` runs at the end of phases 2, 4, 5 and 7.
-- One phase per commit: the user commits between phases (agents never run `git commit` or
+- One phase per commit: the agent stops after each phase and the user commits (agents never run `git commit` or
   `git stash`). Phases 1 and 2 in particular must each be a commit of their own, so `git log
-  --follow` and blame survive.
+--follow` and blame survive.
 
 ## Target layout
 
@@ -105,7 +107,7 @@ Import rules, enforced by dependency-cruiser (phase 4):
 - `tabs/tabs.ts` imports nothing (Node scripts load it).
 - Type-only imports are exempt (`to: {dependencyTypesNot: ["type-only"]}` on each rule):
   `lib/colours.ts` takes `type CSSProperties` from React, and that's fine. Runtime imports are what
-  the layers are about. Where a component only needed a tab's *type*, prefer passing the value in:
+  the layers are about. Where a component only needed a tab's _type_, prefer passing the value in:
   `GuideButton` takes the `Guide` from the registry instead of a tab id.
 
 Import aliases: `#components/*` stays as it is (`./src/components/*.tsx`: shadcn's
@@ -114,7 +116,7 @@ Import aliases: `#components/*` stays as it is (`./src/components/*.tsx`: shadcn
 `imports` and `tsconfig.json` `paths` both. Within a folder, and from a tab to its own files,
 imports stay relative.
 
-## Phase 0: junk
+## Phase 0: junk (executed 2026-11-06)
 
 - Delete `packages/panel/.vitest/` and `packages/devtools/.vitest/` (ignored, but full of failure
   screenshots of tests that no longer exist: `tree`, `zz-probe`, `zz-tmp-layout`, `*.scratch`,
@@ -124,20 +126,15 @@ imports stay relative.
   else untracked is a leftover (`git status --short --untracked-files=all`) and ask before
   deleting anything that isn't obviously scratch.
 
-## Phase 1: Prettier and arrow functions
+## Phase 1: Prettier and arrow functions (executed 2026-11-06)
 
 - Add `prettier` (root devDependency), `.prettierrc.json` and `.prettierignore` (`dist`, `.output`,
   `.wxt`, `node_modules`, `package-lock.json`, `docs/screenshots`). Everything else is formatted,
   `components/ui/*` and `styles.css` included: phase 7 ends with `npm run format`, since
   `shadcn add` writes its own style.
-- Style: the one most of the repo already uses (no semicolons, no bracket spacing):
-  `{"semi": false, "bracketSpacing": false, "arrowParens": "avoid", "printWidth": 120,
-  "endOfLine": "lf"}`, double quotes (the default), trailing commas `"all"` (the default).
-  The commit is still repo-wide: a dry run (Fable's review) changes 70 of 124 TS files (line
-  wrapping), all 9 `components/ui/*`, `styles.css`, `demo/src/style.css`, three `package.json`s
-  (trailing newline) and the `docs/*.md`. A wider `printWidth` doesn't make it much smaller (160:
-  73 files). The README's generated Tabs section is stable under Prettier.
-  **Open to the user:** `../react-wordgard` uses `semi: true`, `printWidth: 100`.
+- Style: `../react-wordgard`'s, chosen by the user: `{"endOfLine": "lf", "semi": true,
+"singleQuote": false, "tabWidth": 2, "trailingComma": "es5", "printWidth": 100}` (bracket
+  spacing and arrow parentheses at Prettier's defaults). Nearly every file is reformatted.
 - Scripts: `"format": "prettier --write ."`, `"format:check": "prettier --check ."`. CI steps
   "Format" and "Dependency rules" (`npm run dependency-check`, which CI doesn't run today) after
   "Lockstep versions".
@@ -151,7 +148,7 @@ imports stay relative.
   tree).
 - ESLint: a block for every TS file in the repo (not only the React ones) with
   `"no-restricted-syntax": ["error", "FunctionDeclaration",
-  "FunctionExpression:not(MethodDefinition > FunctionExpression):not(Property[method=true] > FunctionExpression)"]`
+"FunctionExpression:not(MethodDefinition > FunctionExpression):not(Property[method=true] > FunctionExpression)"]`
   and `"prefer-arrow-callback": "error"`. Methods stay allowed: class methods, and object method
   shorthand, which `scripts/third-party-licenses.ts:94` (`generateBundle(_, bundle) {…}`) needs
   for Rollup's `this.emitFile`. There are no `function`s in the repo today; the rule keeps it that
@@ -163,24 +160,24 @@ imports stay relative.
 Only `git mv` and the import specifiers that the moves break. No splits, no edits to logic, so
 git records renames and the diff is reviewable.
 
-| Now | After |
-|---|---|
-| `Panel.tsx` | `panel/panel.tsx` |
-| `Dock.tsx` | `panel/dock.tsx` |
-| `store.ts` | `stores/panel-store.ts` |
-| `theme.ts`, `stored.ts` | `stores/` |
-| `Structure.tsx`, `structure-source.ts` | `tabs/structure/structure.tsx`, `…/structure-source.ts` |
-| `Selection.tsx`, `selection-source.ts` | `tabs/selection/selection.tsx`, `…/selection-source.ts` |
-| `State.tsx`, `state-source.ts` | `tabs/state/state.tsx`, `…/state-source.ts` |
-| `View.tsx`, `view-source.ts` | `tabs/dom/dom.tsx`, `tabs/dom/dom-source.ts` |
-| `Schema.tsx`, `schema-source.ts` | `tabs/schema/schema.tsx`, `…/schema-source.ts` |
-| `Fields.tsx`, `fields-source.ts` | `tabs/fields/fields.tsx`, `…/fields-source.ts` |
-| `Log.tsx`, `log-source.ts` | `tabs/log/log.tsx`, `…/log-source.ts` |
-| `tip.tsx`, `copy-button.tsx`, `type-link.tsx`, `clear-filters.tsx`, `split-pane.tsx`, `node-pane.tsx`, `node-menu.tsx` | `components/` |
-| `guide.tsx` | `components/guide-popover.tsx` |
-| `search.tsx` | `components/search-box.tsx` |
-| `colours.ts`, `detail-cache.ts` | `lib/` |
-| `guides.ts` | `guides/guides.ts` (becomes markdown in phase 4) |
+| Now                                                                                                                    | After                                                   |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `Panel.tsx`                                                                                                            | `panel/panel.tsx`                                       |
+| `Dock.tsx`                                                                                                             | `panel/dock.tsx`                                        |
+| `store.ts`                                                                                                             | `stores/panel-store.ts`                                 |
+| `theme.ts`, `stored.ts`                                                                                                | `stores/`                                               |
+| `Structure.tsx`, `structure-source.ts`                                                                                 | `tabs/structure/structure.tsx`, `…/structure-source.ts` |
+| `Selection.tsx`, `selection-source.ts`                                                                                 | `tabs/selection/selection.tsx`, `…/selection-source.ts` |
+| `State.tsx`, `state-source.ts`                                                                                         | `tabs/state/state.tsx`, `…/state-source.ts`             |
+| `View.tsx`, `view-source.ts`                                                                                           | `tabs/dom/dom.tsx`, `tabs/dom/dom-source.ts`            |
+| `Schema.tsx`, `schema-source.ts`                                                                                       | `tabs/schema/schema.tsx`, `…/schema-source.ts`          |
+| `Fields.tsx`, `fields-source.ts`                                                                                       | `tabs/fields/fields.tsx`, `…/fields-source.ts`          |
+| `Log.tsx`, `log-source.ts`                                                                                             | `tabs/log/log.tsx`, `…/log-source.ts`                   |
+| `tip.tsx`, `copy-button.tsx`, `type-link.tsx`, `clear-filters.tsx`, `split-pane.tsx`, `node-pane.tsx`, `node-menu.tsx` | `components/`                                           |
+| `guide.tsx`                                                                                                            | `components/guide-popover.tsx`                          |
+| `search.tsx`                                                                                                           | `components/search-box.tsx`                             |
+| `colours.ts`, `detail-cache.ts`                                                                                        | `lib/`                                                  |
+| `guides.ts`                                                                                                            | `guides/guides.ts` (becomes markdown in phase 4)        |
 
 - Windows: the checkout is case-insensitive. Every rename here also changes folder, so none is
   case-only; if one ever is, `git mv` it in two steps (`a.tsx` → `a.tmp.tsx` → `A.tsx`).
@@ -236,8 +233,8 @@ Code moves between files; nothing is rewritten. Each piece keeps its comments.
 ### Tab registry
 
 - `tabs/tabs.ts`: `export type Tab = "structure" | "selection" | …`, `export const TABS: readonly
-  {id: Tab; label: string}[] = [{id: "structure", label: "Structure"}, …]` and `isTab`. No `as
-  const` (the no-typecast rule): the `Record<Tab, …>` in the registry catches a tab missing there,
+{id: Tab; label: string}[] = [{id: "structure", label: "Structure"}, …]` and `isTab`. No `as
+const` (the no-typecast rule): the `Record<Tab, …>` in the registry catches a tab missing there,
   and a test checks that `TABS` lists every tab once. It replaces `VIEWS` and `isView` in
   `store.ts`, `TAB_ORDER` in `guides.ts` and the `View` type. No React and no imports, so
   `scripts/readme.ts` and `scripts/screenshots.ts` import it under Node.
@@ -285,11 +282,12 @@ Code moves between files; nothing is rewritten. Each piece keeps its comments.
   Heading, then the summary (one paragraph), then the tips (a list, one line per item). Inline,
   only `` `code` `` and `[links](url)`: what the panel's `Text` renders. Full URLs instead of the
   `REF` constant, so the files read and click through in any markdown preview.
+
 - `guides/parse.ts`: pure, `parseGuide(text) → {title, summary, tips}`. It throws on anything
   else: no heading, a second paragraph, nested lists, `**bold**`, HTML. Shared by the panel and
   `scripts/readme.ts`.
 - `guides/guides.ts` (Vite only): `import.meta.glob("./*.md", {query: "?raw", import: "default",
-  eager: true})`, parsed once, exported as `GUIDES: Record<Tab, Guide>` and the named inner
+eager: true})`, parsed once, exported as `GUIDES: Record<Tab, Guide>` and the named inner
   guides. A missing file fails at load time and in the test below.
 - `scripts/readme.ts` reads `src/guides/<tab>.md` with `fs` in `TABS` order and uses `parse.ts`.
   The README marker comment points at `packages/panel/src/guides/`.
@@ -372,7 +370,7 @@ In order of payoff. Each one is done only if the result reads at least as well a
 2. **Loading while the tab is shown.** Seven tabs repeat the same ref callback: load when shown;
    when hidden, mark stale and load on showing; some also take a reveal and drop the page outline
    when hidden. One helper, e.g. `whileShown(store, {tab, editorId, on: "doc" | "state" | "config"
-   | "log", load, onHide, onShow})` returning the cleanup, called from the ref callbacks. Keep it a
+| "log", load, onHide, onShow})` returning the cleanup, called from the ref callbacks. Keep it a
    plain function (no `useEffect`).
 3. **`<LoadError what onRetry>`** for the seven "Couldn't load the X: … Retry" banners.
 4. **`createResource(fetch)`** for the five near-identical versioned loaders (structure, schema,
@@ -427,10 +425,6 @@ Add each with `npx shadcn add <name>` (from `packages/panel`), then:
   (nodes / marks / groups) → `toggle`s.
 - **Checkbox**: the Log's record settings (`SettingBox`) and the user-event filter's checkboxes →
   shadcn `checkbox`, with its label.
-- **Input group**: the search box's count and previous/next buttons, and the Selection tab's
-  "Resolve [pos]", as `input-group` addons. The `<input>`s themselves stay plain and unstyled
-  (decision 7). **Open to the user:** if they meant no input group around the searches either,
-  this item is the Resolve field only.
 - **Collapsible**: the Schema sections (`Heading`'s title button and the stretch after the filters
   toggle the section) and the Fields history items (a chevron that opens the change's value). Not
   the Structure, State and DOM trees: their items carry `role="treeitem"` and `aria-expanded`
@@ -498,5 +492,32 @@ Found while applying them: the tab-to-tab rule's `pathNot` must also let a tab i
 
 ## Open points
 
-- Prettier style: the repo's majority style (assumed) or `../react-wordgard`'s.
-- Input group around the search boxes, or only around "Resolve" (phase 7).
+- None yet. (Settled 2026-11-06: Prettier in `../react-wordgard`'s style; no `input-group`.)
+
+## Implementation notes
+
+### Phases 0 and 1 (2026-11-06)
+
+- Phase 0: deleted `packages/panel/.vitest/` and `packages/devtools/.vitest/`. Ten of the
+  devtools screenshots (a deleted `probe.test.ts`'s failures) had been committed by accident in
+  the scaffold commit, before `.vitest` was ignored: their deletion is part of this commit. No
+  other junk: nothing untracked, no `__screenshots__`.
+- Phase 1: Prettier 3.9.10 in `../react-wordgard`'s style (`.prettierrc.json`), `format` and
+  `format:check` scripts, CI steps "Format" and "Dependency rules", `.gitattributes`
+  (`* text=auto eol=lf`). Added at the user's request: `prettier-plugin-tailwindcss`
+  (`tailwindStylesheet: packages/panel/src/styles.css`, the only Tailwind stylesheet; the demo
+  and the extension build the panel's), which sorts classes in `className` and in `cn()` /
+  `cva()`. 150 files reformatted. The README's generated Tabs section is
+  Prettier-stable (`readme:check` passes).
+- ESLint: the arrow-function rule applies to every `ts`/`tsx`/`js`/`cjs`/`mjs` file, with "Use an
+  arrow function." as its message. Checked that it flags a declaration, an expression and a
+  `function` callback, and not a class method or an object method.
+- Deviations:
+  - `.prettierignore` also skips `**/LICENSE` and `**/LICENSE.md`: copied licence texts stay as
+    their authors wrote them.
+  - `test/schema.test.ts`: three tests were already failing on HEAD. `ea18c7c` changed the JSON
+    pane's label from "node type" / "mark type" to "node" / "mark" without updating the test.
+    The test now expects the new labels.
+- Checks: typecheck, lint, `npm test` (87 devtools + 145 panel + 12 extension tests), build,
+  `compiler:check`, `format:check`, `readme:check`, `release:check`, `dependency-check`: all pass.
+  (e2e isn't due until phase 2.)

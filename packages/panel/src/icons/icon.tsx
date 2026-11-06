@@ -1,6 +1,6 @@
-import type {ReactNode, SVGProps} from "react"
+import type { ReactNode, SVGProps } from "react";
 
-export type IconProps = SVGProps<SVGSVGElement>
+export type IconProps = SVGProps<SVGSVGElement>;
 
 /** Line drawing for the icons Heroicons lacks: 1.5px strokes match its 16px set's weight. */
 export const stroked = {
@@ -9,10 +9,10 @@ export const stroked = {
   strokeWidth: 1.5,
   strokeLinecap: "round",
   strokeLinejoin: "round",
-} satisfies IconProps
+} satisfies IconProps;
 
 /** A 16px icon. The width and height attributes are a fallback: CSS sizes it where it's used. */
-export const icon = (paths: ReactNode, drawing: IconProps = {fill: "currentColor"}) => {
+export const icon = (paths: ReactNode, drawing: IconProps = { fill: "currentColor" }) => {
   const Icon = (props: IconProps) => (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -26,6 +26,6 @@ export const icon = (paths: ReactNode, drawing: IconProps = {fill: "currentColor
     >
       {paths}
     </svg>
-  )
-  return Icon
-}
+  );
+  return Icon;
+};

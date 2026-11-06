@@ -18,14 +18,15 @@ and schema: decorations, the extensions behind them, the key bindings. None of i
   not where it comes from.
 - Wordgard has four kinds ([decoration.ts](../../wordgard/src/editor/decoration.ts)):
 
-  | Kind | What | Registered through | Readable |
-  |---|---|---|---|
-  | Tag | Per node type: `Tag.shape`, `Tag.wrapper`, `Tag.widget` (before, after, start, end), `Tag.attribute`; per mark type: `Mark.shape` | Private facets (`tagShape`, `tagWrapper`, `tagWidget`, `tagAttribute`, `markShape`) | Internals only |
-  | Point | At a position: `Point.widget`, `Point.attributes`, `Point.shape`, `Point.wrapper` | `Decoration.Point.source`: functions `state => PointSet` (its `combine` appends Wordgard's own node-selection source last) | Public: call each source, walk with `set.cursor()` until `value == null` |
-  | Range | Over a range: `Range.wrapper`, `Range.attribute`, with `query`, `scope`, `inclusive` | `Decoration.Range.source`: functions `state => RangeSet` | Public, the same way |
-  | Widget shape | A node drawn as a widget (an image) | The node type's shape | The node is in the Structure already |
+  | Kind         | What                                                                                                                              | Registered through                                                                                                         | Readable                                                                 |
+  | ------------ | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+  | Tag          | Per node type: `Tag.shape`, `Tag.wrapper`, `Tag.widget` (before, after, start, end), `Tag.attribute`; per mark type: `Mark.shape` | Private facets (`tagShape`, `tagWrapper`, `tagWidget`, `tagAttribute`, `markShape`)                                        | Internals only                                                           |
+  | Point        | At a position: `Point.widget`, `Point.attributes`, `Point.shape`, `Point.wrapper`                                                 | `Decoration.Point.source`: functions `state => PointSet` (its `combine` appends Wordgard's own node-selection source last) | Public: call each source, walk with `set.cursor()` until `value == null` |
+  | Range        | Over a range: `Range.wrapper`, `Range.attribute`, with `query`, `scope`, `inclusive`                                              | `Decoration.Range.source`: functions `state => RangeSet`                                                                   | Public, the same way                                                     |
+  | Widget shape | A node drawn as a widget (an image)                                                                                               | The node type's shape                                                                                                      | The node is in the Structure already                                     |
 
   `decoratePlots` (`plotdeco.ts`) is point and range sources over a private field each.
+
 - Facets and widget types have no names. Sources are functions: `fn.name` names them when the app
   defined them as named consts (dev builds), otherwise "source #n". Logging one to the console
   lets Chrome jump to its definition: the best answer to "where does this come from?".
@@ -34,17 +35,18 @@ and schema: decorations, the extensions behind them, the key bindings. None of i
 
 - **No Decorations tab.** Decorations go where the question is asked:
 
-  | Question | Where |
-  |---|---|
-  | What's decorated now, and where? | Structure (phase 10) |
-  | What is this editor made of? | Extensions tab (phase 11), sources listing their output |
-  | How do they behave over time (kept, updated or recreated; what the editor redrew)? | Log, per flush (phase 10b) |
-  | What does the editor apply to this node type? | Schema, Effective view (phase 12) |
+  | Question                                                                           | Where                                                   |
+  | ---------------------------------------------------------------------------------- | ------------------------------------------------------- |
+  | What's decorated now, and where?                                                   | Structure (phase 10)                                    |
+  | What is this editor made of?                                                       | Extensions tab (phase 11), sources listing their output |
+  | How do they behave over time (kept, updated or recreated; what the editor redrew)? | Log, per flush (phase 10b)                              |
+  | What does the editor apply to this node type?                                      | Schema, Effective view (phase 12)                       |
 
   Revisit only if users want one flat list across sources. A Decorations tab with a per-update
   history was considered (2026-11-06) and folded into the Log: the history is per flush, the
   Log already keeps each transaction's states and numbers flushes, and its user events, timing and filters give the
   context.
+
 - **Fields stays a tab** (its history). Extensions links to it.
 - **On demand only**, as everything else: sources are called only while the Structure's
   decoration toggle is on or an Extensions source is expanded, once per state change (coalesced
@@ -78,7 +80,7 @@ and schema: decorations, the extensions behind them, the key bindings. None of i
     source isn't walked whole.
   - Kind: compare `value.constructor` with the constructors of decorations built once through
     the public factories: `Point.attributes({})`, `Point.wrapper(Elt.create("span",
-    Attributes.none, Elt.hole))`, `Point.shape(…)`, `Range.attribute("x", "")`,
+Attributes.none, Elt.hole))`, `Point.shape(…)`, `Range.attribute("x", "")`,
     `Range.wrapper("span", {})`; widget: `"widget" in value && value.widget instanceof Widget`.
     The factories only allocate. No class names (minified builds). Unknown → `"decoration"`.
   - Details, each guarded: widget (`side`, `trackMode`, its param's `preview` with the usual
@@ -173,18 +175,19 @@ Revised after a Fable review (see [Review of phase 10b](#review-of-phase-10b-202
   otherwise "added" / "removed".
 - Independent of whether the doc changed:
 
-  | Same set object? | Decoration objects shared (`===`) | Verdict |
-  |---|---|---|
-  | yes | n/a | **same set**; after a doc change and non-empty: **not mapped** (its positions are stale: a bug) |
-  | no | some | **updated**: kept k, added a, dropped d (a `map`, a `modify`, or a rebuild from hoisted constants) |
-  | no | none | **recreated** |
+  | Same set object? | Decoration objects shared (`===`) | Verdict                                                                                            |
+  | ---------------- | --------------------------------- | -------------------------------------------------------------------------------------------------- |
+  | yes              | n/a                               | **same set**; after a doc change and non-empty: **not mapped** (its positions are stale: a bug)    |
+  | no               | some                              | **updated**: kept k, added a, dropped d (a `map`, a `modify`, or a rebuild from hoisted constants) |
+  | no               | none                              | **recreated**                                                                                      |
 
   `map` keeps decoration identity and returns the same set only when there are no changes and no
   replacements; `PointSet.create([])` / `RangeSet.create([])` return the shared `empty`, so an
   empty rebuild reads "same set" (the guide says so). Counts are by position (a hoisted constant
   at n positions counts n).
+
 - **Changes**: what the editor redraws because of this source: `flushChanges.iterGaps((fromA,
-  toA, fromB) => old.compareRange(fromA, new, fromB, toA - fromA, add))`, the editor's own method
+toA, fromB) => old.compareRange(fromA, new, fromB, toA - fromA, add))`, the editor's own method
   (and so what range sets' layers do to it is what the editor sees too). Reported as a count and
   capped ranges, linking to the Structure.
 - **Wasted**: updated or recreated, no decorations added or dropped, 0 changes. Wordgard's own

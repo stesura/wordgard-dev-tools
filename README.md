@@ -34,13 +34,13 @@ npm install -D @stesura/wordgard-dev-tools @stesura/wordgard-dev-tools-panel
 Add the plugin to your editor and dock the panel:
 
 ```ts
-import {Wordgard} from "wordgard/editor"
-import {basicSchema} from "wordgard/schema"
-import {wordgardDevtools} from "@stesura/wordgard-dev-tools"
-import {mountDevtools} from "@stesura/wordgard-dev-tools-panel"
+import { Wordgard } from "wordgard/editor";
+import { basicSchema } from "wordgard/schema";
+import { wordgardDevtools } from "@stesura/wordgard-dev-tools";
+import { mountDevtools } from "@stesura/wordgard-dev-tools-panel";
 
-Wordgard.create({parent, doc, config: [basicSchema(), wordgardDevtools()]})
-mountDevtools()
+Wordgard.create({ parent, doc, config: [basicSchema(), wordgardDevtools()] });
+mountDevtools();
 ```
 
 Run your dev server: the panel is docked at the bottom of the page. Both calls do nothing in
@@ -168,25 +168,21 @@ Wordgard's model. Changes to make it easier to use:
 Editors register explicitly with the `wordgardDevtools()` plugin from `@stesura/wordgard-dev-tools`:
 
 ```ts
-import {Wordgard} from "wordgard/editor"
-import {wordgardDevtools} from "@stesura/wordgard-dev-tools"
+import { Wordgard } from "wordgard/editor";
+import { wordgardDevtools } from "@stesura/wordgard-dev-tools";
 
 Wordgard.create({
   parent,
   doc,
-  config: [
-    basicSchema(),
-    wordCount,
-    wordgardDevtools({name: "main", fields: {wordCount}}),
-  ],
-})
+  config: [basicSchema(), wordCount, wordgardDevtools({ name: "main", fields: { wordCount } })],
+});
 ```
 
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `name` | `string` | the editor's `aria-label`, then `editor #n` | Shown in the panel's editor picker. |
-| `fields` | `{[name: string]: GardState.Field}` | none: fields show as `field #n` | Names the editor's state fields in the Fields tab. |
-| `enabled` | `boolean` | `false` in production builds, `true` otherwise | Whether to register the editor. See [Keep it out of production](#keep-it-out-of-production). |
+| Option    | Type                                | Default                                        | Description                                                                                  |
+| --------- | ----------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `name`    | `string`                            | the editor's `aria-label`, then `editor #n`    | Shown in the panel's editor picker.                                                          |
+| `fields`  | `{[name: string]: GardState.Field}` | none: fields show as `field #n`                | Names the editor's state fields in the Fields tab.                                           |
+| `enabled` | `boolean`                           | `false` in production builds, `true` otherwise | Whether to register the editor. See [Keep it out of production](#keep-it-out-of-production). |
 
 With react-wordgard, add the plugin to the `config` you pass to `<WordgardEditor>`.
 
@@ -199,26 +195,26 @@ On release of v1 of Wordgard, the devtools will need a release to support it.
 ### 2. Mount the panel
 
 ```ts
-import {mountDevtools} from "@stesura/wordgard-dev-tools-panel"
+import { mountDevtools } from "@stesura/wordgard-dev-tools-panel";
 
-mountDevtools()
+mountDevtools();
 ```
 
 The panel docks at the bottom of the page.
 
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `parent` | `Element` | `document.body` | The element the panel goes in. Keep it outside your editors. |
-| `enabled` | `boolean` | `false` in production builds, `true` otherwise | Whether to mount the panel. See [Keep it out of production](#keep-it-out-of-production). |
-| `transport` | `Transport` | the in-page transport | How the panel talks to the page. Only for custom hosts. |
+| Option      | Type        | Default                                        | Description                                                                              |
+| ----------- | ----------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `parent`    | `Element`   | `document.body`                                | The element the panel goes in. Keep it outside your editors.                             |
+| `enabled`   | `boolean`   | `false` in production builds, `true` otherwise | Whether to mount the panel. See [Keep it out of production](#keep-it-out-of-production). |
+| `transport` | `Transport` | the in-page transport                          | How the panel talks to the page. Only for custom hosts.                                  |
 
 It returns a handle:
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `unmount` | `() => void` | Removes the panel, for example on a route change in a single-page app. |
-| `ready` | `Promise<void>` | Resolves once the panel has rendered. |
-| `host` | `HTMLElement` | The `<wordgard-devtools>` element; the panel renders in its shadow root. |
+| Field     | Type            | Description                                                              |
+| --------- | --------------- | ------------------------------------------------------------------------ |
+| `unmount` | `() => void`    | Removes the panel, for example on a route change in a single-page app.   |
+| `ready`   | `Promise<void>` | Resolves once the panel has rendered.                                    |
+| `host`    | `HTMLElement`   | The `<wordgard-devtools>` element; the panel renders in its shadow root. |
 
 The panel renders in a shadow root, so its styles and your page's styles don't affect each other.
 Its React UI is bundled with it and loaded lazily on the first `mountDevtools()` call. Your page
@@ -230,9 +226,9 @@ on one route:
 
 ```tsx
 const WordgardDevtools = () => {
-  useEffect(() => mountDevtools().unmount, [])
-  return null
-}
+  useEffect(() => mountDevtools().unmount, []);
+  return null;
+};
 ```
 
 ### Keep it out of production
@@ -248,8 +244,8 @@ Both are off in production builds (when your bundler sets `process.env.NODE_ENV`
 Pass `enabled` to either one to decide yourself:
 
 ```ts
-wordgardDevtools({enabled: true}) // keep it in production, e.g. on a staging build
-mountDevtools({enabled: settings.debug}) // your own switch
+wordgardDevtools({ enabled: true }); // keep it in production, e.g. on a staging build
+mountDevtools({ enabled: settings.debug }); // your own switch
 ```
 
 Without a bundler (plain ES modules, import maps) or with one that doesn't set `NODE_ENV` (Rollup
@@ -260,21 +256,21 @@ them:
 
 ```ts
 if (import.meta.env.DEV) {
-  const {mountDevtools} = await import("@stesura/wordgard-dev-tools-panel")
-  mountDevtools()
+  const { mountDevtools } = await import("@stesura/wordgard-dev-tools-panel");
+  mountDevtools();
 }
 
-const config = [basicSchema(), ...(import.meta.env.DEV ? [wordgardDevtools()] : [])]
+const config = [basicSchema(), ...(import.meta.env.DEV ? [wordgardDevtools()] : [])];
 ```
 
 ## Packages
 
-| Package | What it is |
-| --- | --- |
-| [`@stesura/wordgard-dev-tools`](packages/devtools) | Page side, framework-free. The plugin, the editor registry and the agent that answers the panel. |
+| Package                                               | What it is                                                                                                                                                                   |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@stesura/wordgard-dev-tools`](packages/devtools)    | Page side, framework-free. The plugin, the editor registry and the agent that answers the panel.                                                                             |
 | [`@stesura/wordgard-dev-tools-panel`](packages/panel) | The React panel and `mountDevtools()`. It uses a `Transport`, so it doesn't depend on where it runs. React is bundled, so pages need neither React nor a particular version. |
-| [`packages/extension`](packages/extension) | The WXT extension shell around the panel. |
-| [`demo`](demo) | A Vite page with several editors and the in-page panel docked. |
+| [`packages/extension`](packages/extension)            | The WXT extension shell around the panel.                                                                                                                                    |
+| [`demo`](demo)                                        | A Vite page with several editors and the in-page panel docked.                                                                                                               |
 
 ## Development
 

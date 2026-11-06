@@ -1,5 +1,5 @@
-export {wordgardDevtools, type DevtoolsOptions} from "./plugin.ts"
-export {isProduction} from "./production.ts"
+export { wordgardDevtools, type DevtoolsOptions } from "./plugin.ts";
+export { isProduction } from "./production.ts";
 export {
   REGISTRY_VERSION,
   currentRegistry,
@@ -8,6 +8,6 @@ export {
   type Entry,
   type NamedFields,
   type Registry,
-} from "./registry.ts"
-export * from "./protocol.ts"
-export {VERSION} from "./version.ts"
+} from "./registry.ts";
+export * from "./protocol.ts";
+export { VERSION } from "./version.ts";

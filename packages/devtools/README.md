@@ -9,11 +9,11 @@ npm install -D @stesura/wordgard-dev-tools @stesura/wordgard-dev-tools-panel
 ```
 
 ```ts
-import {Wordgard} from "wordgard/editor"
-import {basicSchema} from "wordgard/schema"
-import {wordgardDevtools} from "@stesura/wordgard-dev-tools"
+import { Wordgard } from "wordgard/editor";
+import { basicSchema } from "wordgard/schema";
+import { wordgardDevtools } from "@stesura/wordgard-dev-tools";
 
-Wordgard.create({parent, doc, config: [basicSchema(), wordgardDevtools({name: "main"})]})
+Wordgard.create({ parent, doc, config: [basicSchema(), wordgardDevtools({ name: "main" })] });
 ```
 
 Then inspect your editors with the DevTools extension, or dock the panel in the page with

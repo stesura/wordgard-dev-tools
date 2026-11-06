@@ -19,6 +19,12 @@ jobs:
       - name: Lockstep versions
         working-directory: wordgard-devtools
         run: npm run release:check
+      - name: Format
+        working-directory: wordgard-devtools
+        run: npm run format:check
+      - name: Dependency rules
+        working-directory: wordgard-devtools
+        run: npm run dependency-check
       - name: README in step with the panel's guides
         working-directory: wordgard-devtools
         run: npm run readme:check

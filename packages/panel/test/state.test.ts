@@ -37,7 +37,7 @@ const shadow = () => {
 
 const tab = (name: string) =>
   [...shadow().querySelectorAll<HTMLElement>("[role='tab']")].find(
-    (element) => element.textContent == name,
+    (element) => element.textContent == name
   );
 const line = (id: string) =>
   shadow().querySelector<HTMLElement>(`[aria-label='State'] [data-line='${id}']`);
@@ -56,7 +56,7 @@ const setup = async () => {
   });
   localStorage.setItem(
     "wordgard-devtools:dock",
-    JSON.stringify({ side: "bottom", size: 640, collapsed: false }),
+    JSON.stringify({ side: "bottom", size: 640, collapsed: false })
   );
   mounted = mountDevtools();
   await mounted.ready;
@@ -126,7 +126,7 @@ it("keeps keys with a slash apart", async () => {
 
 const item = (text: string) =>
   [...shadow().querySelectorAll<HTMLElement>("[role='menuitem']")].find(
-    (element) => element.textContent?.trim() == text,
+    (element) => element.textContent?.trim() == text
   );
 
 const rightClick = (element: HTMLElement) => {
@@ -138,7 +138,7 @@ const rightClick = (element: HTMLElement) => {
       clientX: rect.left + 4,
       clientY: rect.top + 4,
       button: 2,
-    }),
+    })
   );
 };
 
@@ -146,7 +146,7 @@ it("selects a whole object or array from either of its brackets", async () => {
   await setup();
   const selected = () =>
     [...shadow().querySelectorAll("[aria-label='State'] [aria-selected='true']")].map((row) =>
-      row.getAttribute("data-line"),
+      row.getAttribute("data-line")
     );
   await userEvent.click(await until(() => line("$/doc/content/0/content#")));
   expect(selected()).toEqual([
@@ -175,16 +175,14 @@ it("offers highlighting for nodes only, and logs and copies any value", async ()
   rightClick(await until(() => line("$/doc/content/0#")));
   (await until(() => item("Highlight in the editor"))).click();
   await until(
-    () => document.querySelector("[data-wordgard-devtools-overlay]")?.textContent == "Paragraph",
+    () => document.querySelector("[data-wordgard-devtools-overlay]")?.textContent == "Paragraph"
   );
   // An edit takes the outline away: its path could be another node's now.
   editor.dispatch({ changes: { from: 1, insert: [Leaf.text("Oh ")] } });
   await until(() => !document.querySelector("[data-wordgard-devtools-overlay]"));
   rightClick(await until(() => line("$/doc/content/0")));
   (await until(() => item("Log to console"))).click();
-  await until(() =>
-    logged.some((args) => args[0] == "[wordgard-devtools] Paragraph at range 0–7"),
-  );
+  await until(() => logged.some((args) => args[0] == "[wordgard-devtools] Paragraph at range 0–7"));
   rightClick(await until(() => line("$/selection")));
   await until(() => item("Log to console"));
   expect(item("Highlight in the editor")).toBeUndefined();
@@ -194,7 +192,11 @@ it("offers highlighting for nodes only, and logs and copies any value", async ()
   rightClick(await until(() => line("$/selection")));
   (await until(() => item("Log as JSON"))).click();
   await until(() =>
-    logged.some((args) => args[0] == "[wordgard-devtools] state.toJSON().selection" && args[1] != editor.state.selection),
+    logged.some(
+      (args) =>
+        args[0] == "[wordgard-devtools] state.toJSON().selection" &&
+        args[1] != editor.state.selection
+    )
   );
   rightClick(await until(() => line("$/doc/content/0/content/0/param")));
   (await until(() => item("Copy JSON"))).click();
@@ -212,14 +214,15 @@ it("shows a node object in the Structure", async () => {
   await until(() =>
     shadow()
       .querySelector("[aria-label='Document structure'] [data-path='0']")
-      ?.matches("[aria-selected='true']"),
+      ?.matches("[aria-selected='true']")
   );
 });
 
 it("shows the selection under every tab, to reveal, log or copy", async () => {
   const editor = await setup();
   const bar = () => shadow().querySelector<HTMLElement>("[aria-label='Selection']");
-  const barButton = (label: string) => bar()?.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`);
+  const barButton = (label: string) =>
+    bar()?.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`);
   // On the State tab, not only the Structure.
   await until(() => bar()?.textContent?.includes("anchor: 1"));
   const logged: unknown[][] = [];
@@ -234,7 +237,9 @@ it("shows the selection under every tab, to reveal, log or copy", async () => {
   await until(() => logged.some((args) => args[1] == editor.state.selection));
   (await until(() => barButton("Copy the selection's JSON"))).click();
   await until(() => copied.some((text) => text.includes('"anchor": 1')));
-  (await until(() => barButton("Show the node holding the selection's head in the Structure"))).click();
+  (
+    await until(() => barButton("Show the node holding the selection's head in the Structure"))
+  ).click();
   await until(() => tab("Structure")?.getAttribute("aria-selected") == "true");
 });
 
@@ -245,10 +250,16 @@ it("logs the state, live or as JSON, from the toolbar", async () => {
     logged.push(args);
   });
   (await until(() => button("Log the state to the page's console"))).click();
-  await until(() => logged.some((args) => args[0] == "[wordgard-devtools] state" && args[1] == editor.state));
+  await until(() =>
+    logged.some((args) => args[0] == "[wordgard-devtools] state" && args[1] == editor.state)
+  );
   (await until(() => button("Log the state's JSON to the page's console"))).click();
   await until(() =>
-    logged.some((args) => args[0] == "[wordgard-devtools] state.toJSON()" && JSON.stringify(args[1]).includes('"Paragraph"')),
+    logged.some(
+      (args) =>
+        args[0] == "[wordgard-devtools] state.toJSON()" &&
+        JSON.stringify(args[1]).includes('"Paragraph"')
+    )
   );
 });
 
@@ -257,12 +268,14 @@ it("searches keys and values, opening what holds the match", async () => {
   button("Collapse all")?.click();
   await until(() => !line("$/doc/type"));
   const input = await until(() =>
-    shadow().querySelector<HTMLInputElement>("[aria-label='Search the state']"),
+    shadow().querySelector<HTMLInputElement>("[aria-label='Search the state']")
   );
   await userEvent.click(input);
   await userEvent.keyboard("hi");
   // A value: its objects open, and it's focused.
-  await until(() => line("$/doc/content/0/content/0/param")?.className.includes("bg-yellow-500/40"));
+  await until(() =>
+    line("$/doc/content/0/content/0/param")?.className.includes("bg-yellow-500/40")
+  );
   expect(line("$/doc/content/0/content/0/param")?.getAttribute("aria-selected")).toBe("true");
   expect(input.parentElement?.textContent).toMatch(/1\/\d/);
   await userEvent.clear(input);
@@ -297,7 +310,9 @@ it("downloads the state as a JSON file", async () => {
   (await until(() => button("Download the state as a JSON file"))).click();
   await until(() => blobs.length == 1);
   expect(clicked).toHaveBeenCalledOnce();
-  const link = created.mock.results.map((result) => result.value).find((value) => value instanceof HTMLAnchorElement);
+  const link = created.mock.results
+    .map((result) => result.value)
+    .find((value) => value instanceof HTMLAnchorElement);
   expect(link?.download).toMatch(/^wordgard-state-.*\.json$/);
   expect(JSON.parse(await (blobs[0] ?? new Blob()).text()).doc).toEqual(editor.state.doc.toJSON());
 });
@@ -306,7 +321,10 @@ it("replaces the state from a file, with a banner that goes after 5 s", async ()
   const editor = await setup();
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   try {
-    const doc = { type: "Doc", content: [{ type: "Paragraph", content: [{ type: "Text", param: "Replaced" }] }] };
+    const doc = {
+      type: "Doc",
+      content: [{ type: "Paragraph", content: [{ type: "Text", param: "Replaced" }] }],
+    };
     pick(new File([JSON.stringify({ doc, selection: { type: "text", anchor: 1 } })], "state.json"));
     await vi.waitUntil(() => banner()?.getAttribute("role") == "status");
     expect(banner()?.textContent).toContain("State replaced from state.json");
@@ -331,7 +349,10 @@ it("refuses a file that isn't a state of the schema, with a red banner", async (
   pick(new File(["{not json"], "broken.json"));
   await until(() => banner()?.textContent?.includes("broken.json isn't JSON"));
   expect(banner()?.getAttribute("role")).toBe("alert");
-  const doc = { type: "Doc", content: [{ type: "Paragraph", content: [{ type: "Paragraph", content: [] }] }] };
+  const doc = {
+    type: "Doc",
+    content: [{ type: "Paragraph", content: [{ type: "Paragraph", content: [] }] }],
+  };
   pick(new File([JSON.stringify({ doc, selection: { type: "text", anchor: 1 } })], "nested.json"));
   await until(() => banner()?.textContent?.includes("Couldn't replace the state"));
   expect(editor.state.doc).toBe(before);
@@ -347,7 +368,7 @@ it("scrolls a search match far down the list into view", async () => {
   });
   localStorage.setItem(
     "wordgard-devtools:dock",
-    JSON.stringify({ side: "bottom", size: 640, collapsed: false }),
+    JSON.stringify({ side: "bottom", size: 640, collapsed: false })
   );
   mounted = mountDevtools();
   await mounted.ready;
@@ -356,7 +377,7 @@ it("scrolls a search match far down the list into view", async () => {
   const match = "$/doc/content/150/content/0/param";
   expect(line(match)).toBeNull();
   const input = await until(() =>
-    shadow().querySelector<HTMLInputElement>("[aria-label='Search the state']"),
+    shadow().querySelector<HTMLInputElement>("[aria-label='Search the state']")
   );
   await userEvent.click(input);
   await userEvent.keyboard("needle");

@@ -1,7 +1,7 @@
-import {Button} from "#components/ui/button"
+import { Button } from "#components/ui/button";
 
 /** Resets a view's filters: shown only while some are on, amber so a filtered view stands out. */
-export const ClearFilters = ({onClick}: {onClick: () => void}) => (
+export const ClearFilters = ({ onClick }: { onClick: () => void }) => (
   <Button
     variant="ghost"
     size="xs"
@@ -10,4 +10,4 @@ export const ClearFilters = ({onClick}: {onClick: () => void}) => (
   >
     Clear filters
   </Button>
-)
+);

@@ -1,23 +1,33 @@
-import tailwindcss from "@tailwindcss/vite"
-import react from "@vitejs/plugin-react"
-import {playwright} from "@vitest/browser-playwright"
-import {fileURLToPath} from "node:url"
-import {defaultClientConditions, searchForWorkspaceRoot} from "vite"
-import {defineConfig} from "vitest/config"
-import {reactCompiler} from "../../scripts/react-compiler.ts"
-import {cssAndCopiedCode, thirdPartyLicenses} from "../../scripts/third-party-licenses.ts"
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { playwright } from "@vitest/browser-playwright";
+import { fileURLToPath } from "node:url";
+import { defaultClientConditions, searchForWorkspaceRoot } from "vite";
+import { defineConfig } from "vitest/config";
+import { reactCompiler } from "../../scripts/react-compiler.ts";
+import { cssAndCopiedCode, thirdPartyLicenses } from "../../scripts/third-party-licenses.ts";
 
-export default defineConfig(({command}) => ({
+export default defineConfig(({ command }) => ({
   // The build ships production React only. The page's own `isProduction()` stays unreplaced,
   // as @stesura/wordgard-dev-tools is external. Tests and the extension build from source.
-  define: command === "build" ? {"process.env.NODE_ENV": JSON.stringify("production")} : {},
-  plugins: [react(), reactCompiler(), tailwindcss(), thirdPartyLicenses({extra: cssAndCopiedCode}).plugin],
+  define: command === "build" ? { "process.env.NODE_ENV": JSON.stringify("production") } : {},
+  plugins: [
+    react(),
+    reactCompiler(),
+    tailwindcss(),
+    thirdPartyLicenses({ extra: cssAndCopiedCode }).plugin,
+  ],
   resolve: {
     conditions: ["source", ...defaultClientConditions],
     dedupe: ["wordgard", "react", "react-dom"],
   },
   server: {
-    fs: {allow: [searchForWorkspaceRoot(process.cwd()), fileURLToPath(new URL("../../../wordgard", import.meta.url))]},
+    fs: {
+      allow: [
+        searchForWorkspaceRoot(process.cwd()),
+        fileURLToPath(new URL("../../../wordgard", import.meta.url)),
+      ],
+    },
   },
   // All of them up front: one found mid-run reloads the browser tests (a cold CI cache).
   optimizeDeps: {
@@ -45,9 +55,17 @@ export default defineConfig(({command}) => ({
   },
   build: {
     target: "es2022",
-    lib: {entry: {index: "src/index.ts", transport: "src/transport.ts", styles: "src/styles-entry.ts"}, formats: ["es"], cssFileName: "styles"},
+    lib: {
+      entry: {
+        index: "src/index.ts",
+        transport: "src/transport.ts",
+        styles: "src/styles-entry.ts",
+      },
+      formats: ["es"],
+      cssFileName: "styles",
+    },
     // React and the UI libraries are bundled (plan, open question 5), so they're devDependencies.
-    rolldownOptions: {external: [/^(wordgard|@stesura\/wordgard-dev-tools)(\/|$)/]},
+    rolldownOptions: { external: [/^(wordgard|@stesura\/wordgard-dev-tools)(\/|$)/] },
   },
   test: {
     include: ["test/**/*.test.{ts,tsx}"],
@@ -55,7 +73,7 @@ export default defineConfig(({command}) => ({
       enabled: true,
       provider: playwright(),
       headless: true,
-      instances: [{browser: "chromium"}],
+      instances: [{ browser: "chromium" }],
     },
   },
-}))
+}));

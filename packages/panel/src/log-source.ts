@@ -1,66 +1,67 @@
-import type {EntryPart, LogEntryDetail, LogRow} from "@stesura/wordgard-dev-tools"
-import {errorMessage} from "./store.ts"
-import type {Transport} from "./transport.ts"
+import type { EntryPart, LogEntryDetail, LogRow } from "@stesura/wordgard-dev-tools";
+import { errorMessage } from "./store.ts";
+import type { Transport } from "./transport.ts";
 
 export type LogView = {
-  rows: LogRow[]
-  start: number
-  end: number
+  rows: LogRow[];
+  start: number;
+  end: number;
   /** Rows from this index on may still change: refetched on each load. */
-  pending: number
-  recording: boolean
-  size: number
-  loaded: boolean
-  error: string | null
+  pending: number;
+  recording: boolean;
+  size: number;
+  loaded: boolean;
+  error: string | null;
   /** `select.pointer` transactions are recorded: the panel's setting, saved. */
-  selectPointer: boolean
+  selectPointer: boolean;
   /** Focus changes (`Wordgard.isFocusChange`) are recorded: the panel's setting, saved. */
-  focusChanges: boolean
-}
+  focusChanges: boolean;
+};
 
 /** What the log leaves out, unticked. */
-export type RecordSetting = "selectPointer" | "focusChanges"
+export type RecordSetting = "selectPointer" | "focusChanges";
 
-export type EntryDetail = {entry: LogEntryDetail; error?: undefined} | {entry?: undefined; error: string}
+export type EntryDetail =
+  { entry: LogEntryDetail; error?: undefined } | { entry?: undefined; error: string };
 
 export type LogSource = {
-  get: () => LogView
-  subscribe: (listener: () => void) => () => void
+  get: () => LogView;
+  subscribe: (listener: () => void) => () => void;
   /** Fetches the rows appended or changed since the last load. Never rejects. */
-  load: () => Promise<void>
-  record: (on: boolean) => Promise<void>
+  load: () => Promise<void>;
+  record: (on: boolean) => Promise<void>;
   /** Whether to record `select.pointer` transactions, or focus changes; applies at once while recording. */
-  setSetting: (setting: RecordSetting, on: boolean) => Promise<void>
-  clear: () => Promise<void>
+  setSetting: (setting: RecordSetting, on: boolean) => Promise<void>;
+  clear: () => Promise<void>;
   /** A promise per entry and flush (its timing arrives with the flush), cached: for `use()`. */
-  detail: (index: number, flush: number | null) => Promise<EntryDetail>
+  detail: (index: number, flush: number | null) => Promise<EntryDetail>;
   /** Logs a transaction, or one of its parts, live in the page's console. */
-  logEntry: (index: number, part?: EntryPart) => void
+  logEntry: (index: number, part?: EntryPart) => void;
   /** Drops a cached detail (a failed one, to retry). */
-  forget: (index: number, flush: number | null) => void
-}
+  forget: (index: number, flush: number | null) => void;
+};
 
 const SETTING_KEYS: Record<RecordSetting, string> = {
   selectPointer: "wordgard-devtools:log-select-pointer",
   focusChanges: "wordgard-devtools:log-focus-changes",
-}
+};
 
 // On unless saved off.
 const readSetting = (setting: RecordSetting) => {
   try {
-    return localStorage.getItem(SETTING_KEYS[setting]) != "false"
+    return localStorage.getItem(SETTING_KEYS[setting]) != "false";
   } catch {
-    return true
+    return true;
   }
-}
+};
 
 const saveSetting = (setting: RecordSetting, on: boolean) => {
   try {
-    localStorage.setItem(SETTING_KEYS[setting], String(on))
+    localStorage.setItem(SETTING_KEYS[setting], String(on));
   } catch {
     // Storage blocked: the setting lasts until reload.
   }
-}
+};
 
 const empty = (): LogView => ({
   rows: [],
@@ -73,91 +74,107 @@ const empty = (): LogView => ({
   error: null,
   selectPointer: readSetting("selectPointer"),
   focusChanges: readSetting("focusChanges"),
-})
-const KEPT = 32
+});
+const KEPT = 32;
 
 export const createLogSource = (transport: Transport, id: number): LogSource => {
-  let view = empty()
-  let version = 0
-  const listeners = new Set<() => void>()
+  let view = empty();
+  let version = 0;
+  const listeners = new Set<() => void>();
   const set = (patch: Partial<LogView>) => {
-    view = {...view, ...patch}
-    for (const listener of listeners) listener()
-  }
+    view = { ...view, ...patch };
+    for (const listener of listeners) listener();
+  };
 
-  const details = new Map<string, Promise<EntryDetail>>()
+  const details = new Map<string, Promise<EntryDetail>>();
 
   const load = async (): Promise<void> => {
-    const at = ++version
+    const at = ++version;
     // Settled rows are kept; the rest (new, or waiting for their flush) is fetched.
-    const from = Math.min(view.pending, view.end)
+    const from = Math.min(view.pending, view.end);
     try {
-      const slice = await transport.send({type: "log", id, from, to: Number.MAX_SAFE_INTEGER})
-      if (at != version) return
+      const slice = await transport.send({ type: "log", id, from, to: Number.MAX_SAFE_INTEGER });
+      if (at != version) return;
       // A new log (the editor reconnected): start over.
       if (slice.end < view.end) {
-        view = {...empty(), selectPointer: view.selectPointer, focusChanges: view.focusChanges}
-        details.clear()
-        return load()
+        view = { ...empty(), selectPointer: view.selectPointer, focusChanges: view.focusChanges };
+        details.clear();
+        return load();
       }
-      const kept = view.rows.filter(row => row.index >= slice.start && row.index < from)
-      const {start, end, pending, recording, size} = slice
-      set({rows: [...kept, ...slice.rows], start, end, pending, recording, size, loaded: true, error: null})
+      const kept = view.rows.filter((row) => row.index >= slice.start && row.index < from);
+      const { start, end, pending, recording, size } = slice;
+      set({
+        rows: [...kept, ...slice.rows],
+        start,
+        end,
+        pending,
+        recording,
+        size,
+        loaded: true,
+        error: null,
+      });
     } catch (e) {
-      if (at == version) set({error: errorMessage(e)})
+      if (at == version) set({ error: errorMessage(e) });
     }
-  }
+  };
 
   const act = async (send: () => Promise<unknown>) => {
     try {
-      await send()
+      await send();
     } catch (e) {
-      set({error: errorMessage(e)})
-      return
+      set({ error: errorMessage(e) });
+      return;
     }
-    await load()
-  }
+    await load();
+  };
 
   return {
     get: () => view,
-    subscribe: listener => {
-      listeners.add(listener)
+    subscribe: (listener) => {
+      listeners.add(listener);
       return () => {
-        listeners.delete(listener)
-      }
+        listeners.delete(listener);
+      };
     },
     load,
-    record: on =>
+    record: (on) =>
       act(() =>
-        transport.send({type: "record", id, on, selectPointer: view.selectPointer, focusChanges: view.focusChanges}),
+        transport.send({
+          type: "record",
+          id,
+          on,
+          selectPointer: view.selectPointer,
+          focusChanges: view.focusChanges,
+        })
       ),
     setSetting: async (setting, on) => {
-      saveSetting(setting, on)
-      set({[setting]: on})
-      if (view.recording) await act(() => transport.send({type: "record", id, on: true, [setting]: on}))
+      saveSetting(setting, on);
+      set({ [setting]: on });
+      if (view.recording)
+        await act(() => transport.send({ type: "record", id, on: true, [setting]: on }));
     },
-    clear: () => act(() => transport.send({type: "clear", id})),
+    clear: () => act(() => transport.send({ type: "clear", id })),
     logEntry: (index, part) => {
-      transport.send({type: "logEntry", id, index, part}).catch(() => {})
+      transport.send({ type: "logEntry", id, index, part }).catch(() => {});
     },
     forget: (index, flush) => {
-      details.delete(`${index}|${flush}`)
+      details.delete(`${index}|${flush}`);
     },
     detail: (index, flush) => {
-      const key = `${index}|${flush}`
-      let found = details.get(key)
+      const key = `${index}|${flush}`;
+      let found = details.get(key);
       if (!found) {
-        found = transport.send({type: "entry", id, index}).then(
-          (entry): EntryDetail => ({entry}),
-          (e): EntryDetail => ({error: errorMessage(e)}),
-        )
-        details.set(key, found)
+        found = transport.send({ type: "entry", id, index }).then(
+          (entry): EntryDetail => ({ entry }),
+          (e): EntryDetail => ({ error: errorMessage(e) })
+        );
+        details.set(key, found);
         for (const old of details.keys()) {
-          if (details.size <= KEPT) break
-          details.delete(old)
+          if (details.size <= KEPT) break;
+          details.delete(old);
         }
       }
-      return found
+      return found;
     },
-  }
-}
+  };
+};

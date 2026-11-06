@@ -14,13 +14,7 @@ import {
   RectangleGroupIcon,
   ViewfinderCircleIcon,
 } from "#icons";
-import {
-  useCallback,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type KeyboardEvent,
-} from "react";
+import { useCallback, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { accessor, type Path } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
 import {
@@ -46,7 +40,9 @@ const fileName = (editor: string) =>
 
 /** Saves the JSON as a file, through a link. */
 const download = (json: unknown, name: string) => {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(json, null, 2)], { type: "application/json" }));
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(json, null, 2)], { type: "application/json" })
+  );
   const link = document.createElement("a");
   link.href = url;
   link.download = name;
@@ -231,7 +227,7 @@ const Row = ({
         "absolute inset-x-0 top-0 flex cursor-default items-center gap-1 pr-2 font-mono text-xs whitespace-nowrap ring-inset",
         match || (selected && "bg-accent"),
         // The cursor, inside a selected object too.
-        focused && "shadow-[inset_2px_0_0_var(--color-ring)]",
+        focused && "shadow-[inset_2px_0_0_var(--color-ring)]"
       )}
       style={{
         height: ROW,
@@ -286,7 +282,7 @@ const StateMenu = ({
   tree: HTMLElement | null;
   onHighlight: (path: Path) => void;
 }) => {
-  const {subscribe, get, setTrigger} = anchor;
+  const { subscribe, get, setTrigger } = anchor;
   const target = useSyncExternalStore(subscribe, get);
   const keys = target?.keys ?? [];
   const path = nodePathOf(keys);
@@ -340,22 +336,37 @@ const StateMenu = ({
 };
 
 // Outside the component: the React Compiler can't compile conditionals inside a try/catch yet.
-const replaceFrom = async (store: PanelStore, editorId: number, file: File, notify: (notice: Notice) => void) => {
+const replaceFrom = async (
+  store: PanelStore,
+  editorId: number,
+  file: File,
+  notify: (notice: Notice) => void
+) => {
   let parsed: unknown;
   try {
     parsed = JSON.parse(await file.text());
   } catch (e) {
-    notify({ ok: false, text: `${file.name} isn't JSON: ${e instanceof Error ? e.message : String(e)}` });
+    notify({
+      ok: false,
+      text: `${file.name} isn't JSON: ${e instanceof Error ? e.message : String(e)}`,
+    });
     return;
   }
   try {
-    const { exact } = await store.transport.send({ type: "replaceState", id: editorId, json: parsed });
+    const { exact } = await store.transport.send({
+      type: "replaceState",
+      id: editorId,
+      json: parsed,
+    });
     notify({
       ok: true,
       text: `State replaced from ${file.name}${exact ? "" : ", then changed by the editor (an appender or a filter)"}. Undo reverts it.`,
     });
   } catch (e) {
-    notify({ ok: false, text: `Couldn't replace the state: ${e instanceof Error ? e.message : String(e)}` });
+    notify({
+      ok: false,
+      text: `Couldn't replace the state: ${e instanceof Error ? e.message : String(e)}`,
+    });
   }
 };
 
@@ -376,7 +387,8 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
       setTimeout(() => setNotice(null), SHOWN_MS + CLOSING_MS),
     ];
   };
-  const editorName = () => store.get().editors.find((editor) => editor.id == editorId)?.name ?? "editor";
+  const editorName = () =>
+    store.get().editors.find((editor) => editor.id == editorId)?.name ?? "editor";
 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   // Nothing until the user picks a line.
@@ -398,7 +410,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
       if (path)
         store.transport.send({ type: "scrollIntoView", id: editorId, path }).catch(() => {});
     },
-    [store, editorId],
+    [store, editorId]
   );
 
   // The line a context menu opens on takes focus.
@@ -406,8 +418,8 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
     createMenuAnchor<MenuTarget>(
       "[data-line]",
       (row) => ({ keys: keysOf(row.getAttribute("data-line") ?? ROOT) }),
-      (row) => setFocused(row.getAttribute("data-line")),
-    ),
+      (row) => setFocused(row.getAttribute("data-line"))
+    )
   );
 
   // Closing an object that holds the focused line moves focus to it.
@@ -461,7 +473,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
         stopStore();
       };
     },
-    [store, editorId, source, highlight],
+    [store, editorId, source, highlight]
   );
 
   const focusLine = (position: number) => {
@@ -511,7 +523,11 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
     const next = new Set([...collapsed].filter((other) => !ancestors.includes(other)));
     setCollapsed(next);
     setFocused(id);
-    centreRow(scrollElement, flatten(json, next).findIndex((line) => line.id == id), ROW);
+    centreRow(
+      scrollElement,
+      flatten(json, next).findIndex((line) => line.id == id),
+      ROW
+    );
   };
   const find = loaded ? (query: string) => search(json, query) : null;
   const searching = useSearch(find, reveal);
@@ -537,7 +553,11 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
         </p>
       )}
       <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
-        <SearchBox search={searching} label="Search the state" placeholder="Search keys and values" />
+        <SearchBox
+          search={searching}
+          label="Search the state"
+          placeholder="Search keys and values"
+        />
         <Tip
           label={
             <span className="block max-w-72">
@@ -602,10 +622,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
               <CodeBracketIcon />
             </Button>
           </Tip>
-          <CopyButton
-            label="Copy the JSON"
-            text={() => JSON.stringify(json, null, 2)}
-          />
+          <CopyButton label="Copy the JSON" text={() => JSON.stringify(json, null, 2)} />
           <Tip label="Download the state as a JSON file">
             <Button
               variant="ghost"
@@ -647,7 +664,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
           data-closing={notice.closing || undefined}
           className={cn(
             "grid shrink-0 transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none starting:grid-rows-[0fr]",
-            notice.closing ? "grid-rows-[0fr]" : "grid-rows-[1fr]",
+            notice.closing ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
           )}
         >
           <div className="min-h-0 overflow-hidden">
@@ -657,7 +674,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
                 "flex items-center gap-2 border-b px-2 py-1 text-xs",
                 notice.ok
                   ? "bg-green-500/15 text-green-800 dark:text-green-300"
-                  : "bg-destructive/10 text-destructive",
+                  : "bg-destructive/10 text-destructive"
               )}
             >
               {notice.text}

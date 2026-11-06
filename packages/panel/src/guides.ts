@@ -1,16 +1,16 @@
 // Each tab's guide: shown in the panel (the ? in the tab bar) and written into the README's
 // "Tabs" section by `npm run readme`. Plain data, `code` in backticks and [links](href) to
 // Wordgard's reference, inline: both read it. Wordgard's concepts in its reference's own words.
-import type {View} from "./store.ts"
+import type { View } from "./store.ts";
 
 export type Guide = {
-  title: string
+  title: string;
   /** What the tab shows. */
-  summary: string
-  tips: string[]
-}
+  summary: string;
+  tips: string[];
+};
 
-const REF = "https://wordgard.net/docs/ref/"
+const REF = "https://wordgard.net/docs/ref/";
 
 export const GUIDES: Record<View, Guide> = {
   structure: {
@@ -81,7 +81,7 @@ export const GUIDES: Record<View, Guide> = {
       "Untick record select.pointer to leave out selections made with the pointer, and record focus to leave out focus changes.",
     ],
   },
-}
+};
 
 /** Guides inside a tab: in the panel only, not the README. */
 /** The Selection tab's first part: the selection itself. */
@@ -95,7 +95,7 @@ export const SELECTION: Guide = {
     `typing: the [active marks](${REF}#state.GardSelection.Resolved.activeMarks). A cursor's [own](${REF}#state.GardSelection.Text.marks), when it has them (toggling an inline style sticks until something is inserted); otherwise, the marks inserted content would get from spanning marks on the surrounding nodes.`,
     `The slice: [\`selection.toSlice(doc)\`](${REF}#state.GardSelection.toSlice), the part of the document it covers, as clipboard content is. Resolved positions, below: [\`state.sel\`](${REF}#state.GardState.sel), its positions resolved.`,
   ],
-}
+};
 
 /** The bar under every tab: the selection at a glance. */
 export const SELECTION_BAR: Guide = {
@@ -106,7 +106,7 @@ export const SELECTION_BAR: Guide = {
     `marks: the [active marks](${REF}#state.GardSelection.Resolved.activeMarks), those that should be applied to content inserted at the selection. (stored): the cursor's [own](${REF}#state.GardSelection.Text.marks), from toggling an inline style.`,
     "Selection opens the Selection tab, with all of it. The buttons show the node holding the head in the Structure, log the selection to the page's console, or copy its JSON.",
   ],
-}
+};
 
 export const RESOLVED_POSITIONS: Guide = {
   title: "Resolved positions",
@@ -118,7 +118,7 @@ export const RESOLVED_POSITIONS: Guide = {
     "Type a number in Resolve to see any position; Escape clears it.",
     "Right-click a card to log the live `Pos` or copy its JSON.",
   ],
-}
+};
 
 /** The Schema's Nodes section. */
 export const SCHEMA_NODES: Guide = {
@@ -135,7 +135,7 @@ export const SCHEMA_NODES: Guide = {
     `[\`selectable\`](${REF}#doc.Node.Spec.selectable): can be selected by clicking it or moving the selection into it with the keyboard.`,
     `Card lines: [groups](${REF}#doc.Node.Spec.group), content (its spec's query), holds (as the schema resolves it), marks allowed, [param](${REF}#doc.Node.Spec.validate). Press a tag to filter; double-click a card for its JSON.`,
   ],
-}
+};
 
 /** The Schema's Marks section. */
 export const SCHEMA_MARKS: Guide = {
@@ -149,7 +149,7 @@ export const SCHEMA_MARKS: Guide = {
     `[\`keepOnSplit\`](${REF}#doc.Mark.Spec.keepOnSplit), [\`keepOnTypeChange\`](${REF}#doc.Mark.Spec.keepOnTypeChange): whether it's kept when its node is split, or changes type.`,
     `goes on: the node types it may go on ([\`target\`](${REF}#doc.Mark.Spec.target), as the schema resolves it). Order by rank to see how marks nest; double-click a card for its JSON.`,
   ],
-}
+};
 
 /** The Schema's Node groups section. */
 export const SCHEMA_GROUPS: Guide = {
@@ -161,7 +161,7 @@ export const SCHEMA_GROUPS: Guide = {
     `Groups may have a [parent group](${REF}#doc.Node.Group.parent): membership of a group implies membership of its parent groups.`,
     `A group only a [schema override](${REF}#doc.Schema.Override) names isn't seen here.`,
   ],
-}
+};
 
 /** The Schema's JSON pane, on a node type: its spec, or what applies. */
 export const SPEC_EFFECTIVE_NODE: Guide = {
@@ -173,7 +173,7 @@ export const SPEC_EFFECTIVE_NODE: Guide = {
     `\`// from the schema\`: worked out from every type: what it may hold ([\`canContain\`](${REF}#doc.Schema.canContain)) and the marks allowed on it ([\`markAllowed\`](${REF}#doc.Schema.markAllowed)).`,
     "Groups Wordgard assigns itself (All, Inline, Block, Leaf, Plot, Textblock) aren't listed.",
   ],
-}
+};
 
 /** The Schema's JSON pane, on a mark type. */
 export const SPEC_EFFECTIVE_MARK: Guide = {
@@ -184,7 +184,15 @@ export const SPEC_EFFECTIVE_MARK: Guide = {
     `\`targets\`, from the schema: the node types it may go on ([\`markAllowed\`](${REF}#doc.Schema.markAllowed)), after any [\`Schema.Override\`](${REF}#doc.Schema.Override) \`markTarget\`.`,
     `Its rank isn't shown resolved: Wordgard keeps it internal (the spec's, if set, is in Spec).`,
   ],
-}
+};
 
 /** The tabs in the panel's order. */
-export const TAB_ORDER: View[] = ["structure", "selection", "state", "view", "schema", "fields", "log"]
+export const TAB_ORDER: View[] = [
+  "structure",
+  "selection",
+  "state",
+  "view",
+  "schema",
+  "fields",
+  "log",
+];

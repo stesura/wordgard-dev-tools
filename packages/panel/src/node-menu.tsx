@@ -91,7 +91,8 @@ export const CopySelection = ({ text }: { text: string | null | undefined }) =>
 /** For a menu on its own trigger: the selection read as it opens, by the trigger's `onContextMenu`. */
 export const useMenuSelection = () => {
   const [selection, setSelection] = useState<string | null>(null);
-  const onContextMenu = (event: MouseEvent<Element>) => setSelection(selectedText(event.currentTarget));
+  const onContextMenu = (event: MouseEvent<Element>) =>
+    setSelection(selectedText(event.currentTarget));
   return { selection, onContextMenu };
 };
 
@@ -99,7 +100,7 @@ export const useMenuSelection = () => {
 export const createMenuAnchor = <T extends object>(
   selector: string,
   read: (row: HTMLElement) => T,
-  focus: (row: HTMLElement, target: T) => void,
+  focus: (row: HTMLElement, target: T) => void
 ): MenuAnchor<T> => {
   let target: (T & { row: HTMLElement; selection: string | null }) | null = null;
   let trigger: HTMLElement | null = null;
@@ -115,7 +116,7 @@ export const createMenuAnchor = <T extends object>(
         cancelable: true,
         clientX,
         clientY,
-      }),
+      })
     );
   };
   return {
@@ -156,12 +157,12 @@ const pathOf = (row: HTMLElement): Path => {
 };
 
 export const createNodeMenuAnchor = (
-  focus: (row: HTMLElement, path: Path) => void,
+  focus: (row: HTMLElement, path: Path) => void
 ): NodeMenuAnchor =>
   createMenuAnchor(
     "[data-path]",
     (row) => ({ path: pathOf(row), name: row.getAttribute("data-name") }),
-    (row, target) => focus(row, target.path),
+    (row, target) => focus(row, target.path)
   );
 
 // Through a textarea when the Clipboard API is refused (a DevTools panel isn't always allowed it).
@@ -187,7 +188,7 @@ export const NodeMenu = ({
   editorId: number;
   anchor: NodeMenuAnchor;
 }) => {
-  const {subscribe, get, setTrigger} = anchor;
+  const { subscribe, get, setTrigger } = anchor;
   const target = useSyncExternalStore(subscribe, get);
   const path = target?.path ?? [];
   const copyJSON = async () => {

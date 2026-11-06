@@ -1,0 +1,9 @@
+dist
+.output
+.wxt
+node_modules
+package-lock.json
+docs/screenshots
+# Copied licence texts stay as their authors wrote them.
+**/LICENSE
+**/LICENSE.md

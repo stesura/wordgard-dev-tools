@@ -97,7 +97,7 @@ const Section = ({
             tabIndex={0}
             className={cn(
               "flex min-w-0 flex-col rounded-md border px-2 py-1 outline-none focus-visible:ring-1 focus-visible:ring-ring",
-              fixed && "h-44",
+              fixed && "h-44"
             )}
           />
         }
@@ -310,7 +310,7 @@ export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId:
         stopStore();
       };
     },
-    [store, editorId, source],
+    [store, editorId, source]
   );
 
   const onTyped = (value: string) => {

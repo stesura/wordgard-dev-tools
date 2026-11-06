@@ -3,16 +3,17 @@ module.exports = {
   forbidden: [
     {
       name: "no-circular",
-      comment: "Runtime cycles only: devtools' agent reaches its handlers through import() and types.",
+      comment:
+        "Runtime cycles only: devtools' agent reaches its handlers through import() and types.",
       severity: "error",
       from: {},
-      to: {circular: true, viaOnly: {dependencyTypesNot: ["type-only", "dynamic-import"]}},
+      to: { circular: true, viaOnly: { dependencyTypesNot: ["type-only", "dynamic-import"] } },
     },
     {
       name: "not-to-unresolvable",
       severity: "error",
       from: {},
-      to: {couldNotResolve: true},
+      to: { couldNotResolve: true },
     },
     {
       name: "no-orphans",
@@ -35,33 +36,33 @@ module.exports = {
       comment: "Every npm import is declared in a package.json.",
       severity: "error",
       from: {},
-      to: {dependencyTypes: ["npm-no-pkg", "npm-unknown", "unknown", "undetermined"]},
+      to: { dependencyTypes: ["npm-no-pkg", "npm-unknown", "unknown", "undetermined"] },
     },
     {
       name: "not-to-test",
       severity: "error",
-      from: {path: "^(packages/[^/]+|demo)/(src|entrypoints)/"},
-      to: {path: "(^|/)(test|e2e)/"},
+      from: { path: "^(packages/[^/]+|demo)/(src|entrypoints)/" },
+      to: { path: "(^|/)(test|e2e)/" },
     },
     {
       name: "devtools-framework-free",
       comment: "The page side runs in the app: Wordgard only, no React, no panel, no extension.",
       severity: "error",
-      from: {path: "^packages/devtools/src/"},
-      to: {pathNot: ["^packages/devtools/src/", "(^|/)wordgard/"]},
+      from: { path: "^packages/devtools/src/" },
+      to: { pathNot: ["^packages/devtools/src/", "(^|/)wordgard/"] },
     },
     {
       name: "panel-not-to-host",
       comment: "The panel is transport-agnostic: it knows nothing of the extension or the demo.",
       severity: "error",
-      from: {path: "^packages/panel/src/"},
-      to: {path: "^(packages/extension|demo)/"},
+      from: { path: "^packages/panel/src/" },
+      to: { path: "^(packages/extension|demo)/" },
     },
     {
       name: "no-cross-package-relative",
       comment: "Workspaces import each other by package name, not by relative path.",
       severity: "error",
-      from: {path: "^(packages/[^/]+|demo)/"},
+      from: { path: "^(packages/[^/]+|demo)/" },
       to: {
         path: "^(packages/[^/]+|demo)/",
         pathNot: "^$1/",
@@ -72,8 +73,8 @@ module.exports = {
     // Linked packages (workspaces, ../wordgard) stay npm dependencies instead of resolving to
     // their real paths.
     preserveSymlinks: true,
-    doNotFollow: {path: "node_modules"},
-    exclude: {path: "^(packages/[^/]+|demo)/(dist|\\.output|\\.wxt)/"},
+    doNotFollow: { path: "node_modules" },
+    exclude: { path: "^(packages/[^/]+|demo)/(dist|\\.output|\\.wxt)/" },
     tsPreCompilationDeps: true,
     combinedDependencies: true,
     enhancedResolveOptions: {
@@ -83,4 +84,4 @@ module.exports = {
       extensions: [".ts", ".tsx", ".js", ".mjs", ".cjs", ".d.ts"],
     },
   },
-}
+};

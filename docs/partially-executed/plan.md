@@ -1169,6 +1169,7 @@ Audit of the Selection tab and the changes since the last audit (Fable). Accepte
 
 Rejected: the summary (from the store's selection) and the cards (from the tab's own request) can
 disagree when only one request fails. The error banner says so, and Retry reloads.
+
 - **Schema**: Nodes and Marks each have a sticky bar with the title, the count ("n", or "shown of
   all") and the tag filters; scrolling to a card allows for the bar.
 - **Schema, Node groups** (a section after Marks, with its own toggle and filters):
@@ -1280,12 +1281,12 @@ the policy.
 Production demo, 300 keystrokes, Chrome's main-thread `TaskDuration`, median of 5, the two builds
 back to back (before the audit's fixes, which only add compiled code and a memo):
 
-| Panel | Without the compiler | With it |
-| --- | --- | --- |
-| Log tab, recording | 2488 ms | 1572 ms (-37%) |
-| Structure tab | 1646 ms | 928 ms (-44%) |
-| State tab | 1653 ms | 1028 ms (-38%) |
-| Collapsed | 512 ms | 569 ms (noise: the runs overlap) |
+| Panel              | Without the compiler | With it                          |
+| ------------------ | -------------------- | -------------------------------- |
+| Log tab, recording | 2488 ms              | 1572 ms (-37%)                   |
+| Structure tab      | 1646 ms              | 928 ms (-44%)                    |
+| State tab          | 1653 ms              | 1028 ms (-38%)                   |
+| Collapsed          | 512 ms               | 569 ms (noise: the runs overlap) |
 
 ### Open points
 

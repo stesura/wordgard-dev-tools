@@ -1,27 +1,40 @@
-import {ClipboardDocumentIcon, CommandLineIcon, EyeIcon} from "#icons"
-import {Suspense, use, useDeferredValue, useState, useSyncExternalStore, type ReactNode} from "react"
-import type {NodePart, Path} from "@stesura/wordgard-dev-tools"
-import {Button} from "#components/ui/button"
-import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger} from "#components/ui/context-menu"
-import {CopySelection, copy, createMenuAnchor, type MenuAnchor} from "./node-menu.tsx"
-import {pathOf, type DetailSource} from "./detail-cache.ts"
-import type {ColourKind} from "./colours.ts"
-import {CopyButton} from "./copy-button.tsx"
-import {GuidePopover} from "./guide.tsx"
-import {SELECTION_BAR} from "./guides.ts"
-import type {PanelStore} from "./store.ts"
-import {Tip} from "./tip.tsx"
-import {TypeLink} from "./type-link.tsx"
+import { ClipboardDocumentIcon, CommandLineIcon, EyeIcon } from "#icons";
+import {
+  Suspense,
+  use,
+  useDeferredValue,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
+import type { NodePart, Path } from "@stesura/wordgard-dev-tools";
+import { Button } from "#components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "#components/ui/context-menu";
+import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "./node-menu.tsx";
+import { pathOf, type DetailSource } from "./detail-cache.ts";
+import type { ColourKind } from "./colours.ts";
+import { CopyButton } from "./copy-button.tsx";
+import { GuidePopover } from "./guide.tsx";
+import { SELECTION_BAR } from "./guides.ts";
+import type { PanelStore } from "./store.ts";
+import { Tip } from "./tip.tsx";
+import { TypeLink } from "./type-link.tsx";
 
-export const isPrefix = (prefix: Path, path: Path) => prefix.length <= path.length && prefix.every((n, i) => n == path[i])
+export const isPrefix = (prefix: Path, path: Path) =>
+  prefix.length <= path.length && prefix.every((n, i) => n == path[i]);
 
 export const selectionType = (json: unknown) =>
-  typeof json == "object" && json != null && "type" in json ? String(json.type) : "?"
+  typeof json == "object" && json != null && "type" in json ? String(json.type) : "?";
 
 /** The selected editor's selection, under every tab. */
-export const SelectionBar = ({store, editorId}: {store: PanelStore; editorId: number}) => {
-  const {selection} = useSyncExternalStore(store.subscribe, store.get)
-  const info = selection?.id == editorId ? selection.info : null
+export const SelectionBar = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
+  const { selection } = useSyncExternalStore(store.subscribe, store.get);
+  const info = selection?.id == editorId ? selection.info : null;
   return (
     <div
       className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-3 border-t bg-strip px-2 font-mono text-xs whitespace-nowrap"
@@ -53,8 +66,13 @@ export const SelectionBar = ({store, editorId}: {store: PanelStore; editorId: nu
             <span className="inline-flex flex-wrap items-center gap-1" data-active-marks>
               <span className="text-muted-foreground">marks:</span>
               {info.activeMarks.length ? (
-                info.activeMarks.map(mark => (
-                  <TypeLink key={mark.name} kind="mark" name={mark.name} onShow={(kind, name) => store.showType(editorId, name, kind)} />
+                info.activeMarks.map((mark) => (
+                  <TypeLink
+                    key={mark.name}
+                    kind="mark"
+                    name={mark.name}
+                    onShow={(kind, name) => store.showType(editorId, name, kind)}
+                  />
                 ))
               ) : (
                 <span>none</span>
@@ -84,7 +102,11 @@ export const SelectionBar = ({store, editorId}: {store: PanelStore; editorId: nu
                 variant="ghost"
                 size="icon-xs"
                 aria-label="Log the selection to the page's console"
-                onClick={() => store.transport.send({type: "logState", id: editorId, keys: ["selection"]}).catch(() => {})}
+                onClick={() =>
+                  store.transport
+                    .send({ type: "logState", id: editorId, keys: ["selection"] })
+                    .catch(() => {})
+                }
               >
                 <CommandLineIcon />
               </Button>
@@ -96,35 +118,53 @@ export const SelectionBar = ({store, editorId}: {store: PanelStore; editorId: nu
         <span className="text-muted-foreground">No selection</span>
       )}
     </div>
-  )
-}
+  );
+};
 
-export const Field = ({label, children}: {label: string; children: ReactNode}) => (
+export const Field = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="grid grid-cols-[4.5rem_1fr] gap-2 py-0.5">
     <span className="text-muted-foreground">{label}</span>
-    <span data-value className="min-w-0 wrap-break-word">{children}</span>
+    <span data-value className="min-w-0 wrap-break-word">
+      {children}
+    </span>
   </div>
-)
+);
 
-export const json = (value: unknown) => JSON.stringify(value, null, 2) ?? String(value)
+export const json = (value: unknown) => JSON.stringify(value, null, 2) ?? String(value);
 
-type ShowType = (kind: ColourKind, name: string) => void
+type ShowType = (kind: ColourKind, name: string) => void;
 
 /** What a pane row logs: one of the node's values, or its JSON. */
-export type PaneLog = NodePart | "json"
+export type PaneLog = NodePart | "json";
 
-const PARTS: Partial<Record<string, PaneLog>> = {type: "type", path: "path", range: "range", param: "param", text: "text", json: "json"}
-const partOf = (key: string): PaneLog | null => (key.startsWith("mark:") ? {mark: Number(key.slice(5))} : (PARTS[key] ?? null))
+const PARTS: Partial<Record<string, PaneLog>> = {
+  type: "type",
+  path: "path",
+  range: "range",
+  param: "param",
+  text: "text",
+  json: "json",
+};
+const partOf = (key: string): PaneLog | null =>
+  key.startsWith("mark:") ? { mark: Number(key.slice(5)) } : (PARTS[key] ?? null);
 
-type PaneTarget = {part: PaneLog | null; text: string}
+type PaneTarget = { part: PaneLog | null; text: string };
 
 /** A row of the pane, with a context menu: log (live, in the page's console) and copy (as shown). */
-const Part = ({part, children}: {part: string; children: ReactNode}) => <div data-part={part}>{children}</div>
+const Part = ({ part, children }: { part: string; children: ReactNode }) => (
+  <div data-part={part}>{children}</div>
+);
 
-const PaneMenu = ({anchor, onLog}: {anchor: MenuAnchor<PaneTarget>; onLog: (part: PaneLog) => void}) => {
-  const {subscribe, get, setTrigger} = anchor
-  const target = useSyncExternalStore(subscribe, get)
-  const part = target?.part
+const PaneMenu = ({
+  anchor,
+  onLog,
+}: {
+  anchor: MenuAnchor<PaneTarget>;
+  onLog: (part: PaneLog) => void;
+}) => {
+  const { subscribe, get, setTrigger } = anchor;
+  const target = useSyncExternalStore(subscribe, get);
+  const part = target?.part;
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
@@ -132,7 +172,11 @@ const PaneMenu = ({anchor, onLog}: {anchor: MenuAnchor<PaneTarget>; onLog: (part
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52">
         <CopySelection text={target?.selection} />
-        <ContextMenuItem className="text-xs" disabled={part == null} onClick={() => part != null && onLog(part)}>
+        <ContextMenuItem
+          className="text-xs"
+          disabled={part == null}
+          onClick={() => part != null && onLog(part)}
+        >
           <CommandLineIcon /> Log to console
         </ContextMenuItem>
         <ContextMenuItem className="text-xs" onClick={() => target && void copy(target.text)}>
@@ -140,8 +184,8 @@ const PaneMenu = ({anchor, onLog}: {anchor: MenuAnchor<PaneTarget>; onLog: (part
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-  )
-}
+  );
+};
 
 const NodeDetailView = ({
   source,
@@ -150,15 +194,15 @@ const NodeDetailView = ({
   onShowType,
   onLog,
 }: {
-  source: DetailSource
-  path: Path
-  version: number
-  onShowType: ShowType
-  onLog: (path: Path, part: PaneLog) => void
+  source: DetailSource;
+  path: Path;
+  version: number;
+  onShowType: ShowType;
+  onLog: (path: Path, part: PaneLog) => void;
 }) => {
-  const detail = use(source.detail(path, version))
-  if (detail.error != null) return <p className="text-destructive">{detail.error}</p>
-  const {node} = detail
+  const detail = use(source.detail(path, version));
+  if (detail.error != null) return <p className="text-destructive">{detail.error}</p>;
+  const { node } = detail;
   return (
     <div className="font-mono text-xs">
       <Part part="type">
@@ -197,7 +241,12 @@ const NodeDetailView = ({
         <span className="ml-auto flex items-center gap-1">
           {/* Logs even a node too large to show: the page has it. */}
           <Tip label="Log the node's JSON to the page's console">
-            <Button variant="ghost" size="icon-xs" aria-label="Log the node's JSON to the page's console" onClick={() => onLog(node.path, "json")}>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Log the node's JSON to the page's console"
+              onClick={() => onLog(node.path, "json")}
+            >
               <CommandLineIcon />
             </Button>
           </Tip>
@@ -216,8 +265,8 @@ const NodeDetailView = ({
         </Part>
       )}
     </div>
-  )
-}
+  );
+};
 
 export const NodePane = ({
   source,
@@ -225,36 +274,46 @@ export const NodePane = ({
   onShowType,
   onLog,
 }: {
-  source: DetailSource
-  focused: string | null
-  onShowType: ShowType
-  onLog: (path: Path, part: PaneLog) => void
+  source: DetailSource;
+  focused: string | null;
+  onShowType: ShowType;
+  onLog: (path: Path, part: PaneLog) => void;
 }) => {
   // Deferred: the previous detail stays up while the next one loads, instead of a fallback.
-  const version = useDeferredValue(useSyncExternalStore(source.subscribe, source.version))
-  const id = useDeferredValue(focused)
+  const version = useDeferredValue(useSyncExternalStore(source.subscribe, source.version));
+  const id = useDeferredValue(focused);
   const [menu] = useState(() =>
     createMenuAnchor<PaneTarget>(
       "[data-part]",
-      row => ({
+      (row) => ({
         part: partOf(row.getAttribute("data-part") ?? ""),
         text: row.querySelector("[data-value]")?.textContent ?? "",
       }),
-      () => {},
-    ),
-  )
+      () => {}
+    )
+  );
   return (
-    <aside aria-label="Node" className="h-full overflow-auto p-2" onContextMenu={menu.onContextMenu}>
+    <aside
+      aria-label="Node"
+      className="h-full overflow-auto p-2"
+      onContextMenu={menu.onContextMenu}
+    >
       {id == null ? (
         <p className="text-muted-foreground">Focus a node to see it here.</p>
       ) : (
         <>
           <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
-            <NodeDetailView source={source} path={pathOf(id)} version={version} onShowType={onShowType} onLog={onLog} />
+            <NodeDetailView
+              source={source}
+              path={pathOf(id)}
+              version={version}
+              onShowType={onShowType}
+              onLog={onLog}
+            />
           </Suspense>
-          <PaneMenu anchor={menu} onLog={part => onLog(pathOf(id), part)} />
+          <PaneMenu anchor={menu} onLog={(part) => onLog(pathOf(id), part)} />
         </>
       )}
     </aside>
-  )
-}
+  );
+};

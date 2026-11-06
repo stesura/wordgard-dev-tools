@@ -1,4 +1,4 @@
-import {cn} from "cn"
+import { cn } from "cn";
 import {
   ChevronDownIcon,
   ChevronUpIcon,
@@ -8,65 +8,97 @@ import {
   NoSymbolIcon,
   RecordIcon,
   PauseIcon,
-} from "#icons"
-import {Suspense, use, useCallback, useDeferredValue, useRef, useState, useSyncExternalStore, type ComponentProps, type KeyboardEvent, type ReactNode} from "react"
-import {SLOW_MS, type EntryPart, type LogEntryDetail, type LogRow} from "@stesura/wordgard-dev-tools"
-import {Tag} from "#components/ui/badge"
-import {Button} from "#components/ui/button"
-import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger} from "#components/ui/context-menu"
-import {ClearFilters} from "./clear-filters.tsx"
-import {Popover, PopoverContent, PopoverTrigger} from "#components/ui/popover"
-import {createLogSource, type LogSource, type RecordSetting} from "./log-source.ts"
-import {CopySelection, copy, createMenuAnchor, useMenuSelection, type MenuAnchor} from "./node-menu.tsx"
-import {Field, json} from "./node-pane.tsx"
-import type {PanelStore} from "./store.ts"
-import {Tip} from "./tip.tsx"
-import {SplitPane} from "./split-pane.tsx"
-import {isRecord, stored, stringSet} from "./stored.ts"
-import {keepRowInView, useRows} from "./rows.ts"
+} from "#icons";
+import {
+  Suspense,
+  use,
+  useCallback,
+  useDeferredValue,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentProps,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
+import {
+  SLOW_MS,
+  type EntryPart,
+  type LogEntryDetail,
+  type LogRow,
+} from "@stesura/wordgard-dev-tools";
+import { Tag } from "#components/ui/badge";
+import { Button } from "#components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "#components/ui/context-menu";
+import { ClearFilters } from "./clear-filters.tsx";
+import { Popover, PopoverContent, PopoverTrigger } from "#components/ui/popover";
+import { createLogSource, type LogSource, type RecordSetting } from "./log-source.ts";
+import {
+  CopySelection,
+  copy,
+  createMenuAnchor,
+  useMenuSelection,
+  type MenuAnchor,
+} from "./node-menu.tsx";
+import { Field, json } from "./node-pane.tsx";
+import type { PanelStore } from "./store.ts";
+import { Tip } from "./tip.tsx";
+import { SplitPane } from "./split-pane.tsx";
+import { isRecord, stored, stringSet } from "./stored.ts";
+import { keepRowInView, useRows } from "./rows.ts";
 
-const ROW = 20
-const COLUMNS = "grid grid-cols-[3rem_6.5rem_minmax(5rem,1fr)_4.5rem_2rem_2rem_3.5rem_3.5rem] gap-x-2"
+const ROW = 20;
+const COLUMNS =
+  "grid grid-cols-[3rem_6.5rem_minmax(5rem,1fr)_4.5rem_2rem_2rem_3.5rem_3.5rem] gap-x-2";
 
-const pad = (n: number, width = 2) => String(n).padStart(width, "0")
+const pad = (n: number, width = 2) => String(n).padStart(width, "0");
 export const clock = (time: number) => {
-  const d = new Date(time)
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`
-}
-const ms = (value: number | null) => (value == null ? "–" : value.toFixed(1))
-const slow = (value: number | null) => value != null && value > SLOW_MS
+  const d = new Date(time);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+};
+const ms = (value: number | null) => (value == null ? "–" : value.toFixed(1));
+const slow = (value: number | null) => value != null && value > SLOW_MS;
 /** Slow timings: 4.5:1 or more on the slow rows' tint, in both themes. */
-const slowText = "text-red-700 dark:text-red-300"
-export const isSlow = (row: LogRow) => slow(row.dispatchMs) || slow(row.flushMs)
+const slowText = "text-red-700 dark:text-red-300";
+export const isSlow = (row: LogRow) => slow(row.dispatchMs) || slow(row.flushMs);
 
-type Flag = "doc" | "sel" | "focus" | "app"
-const FLAGS: readonly Flag[] = ["doc", "sel", "focus", "app"]
+type Flag = "doc" | "sel" | "focus" | "app";
+const FLAGS: readonly Flag[] = ["doc", "sel", "focus", "app"];
 const FLAG_TIPS: Record<Flag, string> = {
   doc: "Changed the document",
   sel: "Set the selection",
   focus: "The editor gained or lost focus",
   app: "Added by a transaction appender",
-}
+};
 
 const flagOf: Record<Flag, (row: LogRow) => boolean> = {
-  doc: row => row.docChanged,
-  sel: row => row.selectionSet,
+  doc: (row) => row.docChanged,
+  sel: (row) => row.selectionSet,
   // Named by the page side from `Wordgard.isFocusChange`.
-  focus: row => row.annotations.includes("focus"),
-  app: row => row.appended,
-}
-const flags = (row: LogRow) => FLAGS.filter(flag => flagOf[flag](row))
+  focus: (row) => row.annotations.includes("focus"),
+  app: (row) => row.appended,
+};
+const flags = (row: LogRow) => FLAGS.filter((flag) => flagOf[flag](row));
 
 // Outside EntryView: the React Compiler can't compile this expression inline yet.
 const entryFlags = (entry: LogEntryDetail) =>
-  [...flags(entry), ...(entry.scrollIntoView ? ["scroll"] : []), ...(entry.reconfigured ? ["reconfig"] : [])].join(" ") || "–"
+  [
+    ...flags(entry),
+    ...(entry.scrollIntoView ? ["scroll"] : []),
+    ...(entry.reconfigured ? ["reconfig"] : []),
+  ].join(" ") || "–";
 
 const flushTitle = (row: LogRow) =>
   row.flush == null
     ? "Not drawn yet"
-    : `Flush #${row.flush}` + (row.agentFlush ? ", forced by DevTools' own read" : "")
+    : `Flush #${row.flush}` + (row.agentFlush ? ", forced by DevTools' own read" : "");
 
-const Row = ({row, start, selected}: {row: LogRow; start: number; selected: boolean}) => (
+const Row = ({ row, start, selected }: { row: LogRow; start: number; selected: boolean }) => (
   <div
     id={`log-row-${row.index}`}
     role="option"
@@ -76,18 +108,18 @@ const Row = ({row, start, selected}: {row: LogRow; start: number; selected: bool
       COLUMNS,
       "absolute inset-x-0 top-0 cursor-default items-center px-2 font-mono text-xs whitespace-nowrap",
       selected && "bg-accent",
-      isSlow(row) && "bg-destructive/10",
+      isSlow(row) && "bg-destructive/10"
     )}
-    style={{height: ROW, transform: `translateY(${start}px)`}}
+    style={{ height: ROW, transform: `translateY(${start}px)` }}
   >
     <span className="text-muted-foreground">{row.index}</span>
     <span className="text-muted-foreground">{clock(row.time)}</span>
-    <span className="truncate">{row.userEvent ?? <span className="text-muted-foreground">–</span>}</span>
+    <span className="truncate">
+      {row.userEvent ?? <span className="text-muted-foreground">–</span>}
+    </span>
     <span className="flex gap-1">
-      {flags(row).map(flag => (
-        <Tag key={flag}>
-          {flag}
-        </Tag>
+      {flags(row).map((flag) => (
+        <Tag key={flag}>{flag}</Tag>
       ))}
     </span>
     {/* No tooltip per cell (a busy log re-renders its rows often): the column headers have them. */}
@@ -103,132 +135,147 @@ const Row = ({row, start, selected}: {row: LogRow; start: number; selected: bool
       {row.agentFlush && "*"}
     </span>
   </div>
-)
+);
 
 // Square root: a 1 ms update still shows, and two frames' budget fills the strip.
-const barHeight = (total: number) => Math.max(6, Math.min(100, Math.sqrt(total / (2 * SLOW_MS)) * 100))
+const barHeight = (total: number) =>
+  Math.max(6, Math.min(100, Math.sqrt(total / (2 * SLOW_MS)) * 100));
 
 const barOf = (target: EventTarget) => {
-  const index = target instanceof Element ? target.getAttribute("data-bar") : null
-  return index == null ? null : Number(index)
-}
+  const index = target instanceof Element ? target.getAttribute("data-bar") : null;
+  return index == null ? null : Number(index);
+};
 
 /**
  * One bar per entry, its height the update's time (dispatch and flush); the line is a frame's
  * budget. The hovered bar's times show in a corner (one readout, not a tooltip per bar).
  */
-const Timeline = ({rows, selected, onSelect}: {rows: LogRow[]; selected: number | null; onSelect: (index: number) => void}) => {
-  const [hovered, setHovered] = useState<number | null>(null)
-  const shown = rows.find(row => row.index == hovered)
+const Timeline = ({
+  rows,
+  selected,
+  onSelect,
+}: {
+  rows: LogRow[];
+  selected: number | null;
+  onSelect: (index: number) => void;
+}) => {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const shown = rows.find((row) => row.index == hovered);
   return (
-  <div aria-hidden="true" className="relative h-10 shrink-0 border-b px-2 py-1">
-    {shown && (
-      <span className="pointer-events-none absolute top-0.5 right-2 z-10 rounded bg-popover px-1 font-mono text-[11px] text-popover-foreground shadow-sm">
-        #{shown.index} · dispatch {ms(shown.dispatchMs)} ms · flush {ms(shown.flushMs)} ms
-      </span>
-    )}
-    <div
-      className="relative flex h-full items-end gap-px overflow-hidden"
-      onClick={event => {
-        const index = barOf(event.target)
-        if (index != null) onSelect(index)
-      }}
-      onPointerOver={event => setHovered(barOf(event.target))}
-      onPointerLeave={() => setHovered(null)}
-    >
+    <div aria-hidden="true" className="relative h-10 shrink-0 border-b px-2 py-1">
+      {shown && (
+        <span className="pointer-events-none absolute top-0.5 right-2 z-10 rounded bg-popover px-1 font-mono text-[11px] text-popover-foreground shadow-sm">
+          #{shown.index} · dispatch {ms(shown.dispatchMs)} ms · flush {ms(shown.flushMs)} ms
+        </span>
+      )}
       <div
-        className="pointer-events-none absolute inset-x-0 border-t border-dashed border-destructive/50"
-        style={{bottom: `${barHeight(SLOW_MS)}%`}}
-      />
-      {rows.map(row => (
+        className="relative flex h-full items-end gap-px overflow-hidden"
+        onClick={(event) => {
+          const index = barOf(event.target);
+          if (index != null) onSelect(index);
+        }}
+        onPointerOver={(event) => setHovered(barOf(event.target))}
+        onPointerLeave={() => setHovered(null)}
+      >
         <div
-          key={row.index}
-          data-bar={row.index}
-          className={cn(
-            "max-w-2 min-w-px flex-1 cursor-pointer rounded-t-sm",
-            isSlow(row) ? "bg-destructive" : "bg-primary/60",
-            selected == row.index && "bg-foreground",
-          )}
-          style={{height: `${barHeight((row.dispatchMs ?? 0) + (row.flushMs ?? 0))}%`}}
+          className="pointer-events-none absolute inset-x-0 border-t border-dashed border-destructive/50"
+          style={{ bottom: `${barHeight(SLOW_MS)}%` }}
         />
-      ))}
+        {rows.map((row) => (
+          <div
+            key={row.index}
+            data-bar={row.index}
+            className={cn(
+              "max-w-2 min-w-px flex-1 cursor-pointer rounded-t-sm",
+              isSlow(row) ? "bg-destructive" : "bg-primary/60",
+              selected == row.index && "bg-foreground"
+            )}
+            style={{ height: `${barHeight((row.dispatchMs ?? 0) + (row.flushMs ?? 0))}%` }}
+          />
+        ))}
+      </div>
     </div>
-  </div>
-  )
-}
+  );
+};
 
-type SortKey = "index" | "time" | "annotations" | "dispatch" | "flush"
-type Sort = {key: SortKey; descending: boolean}
+type SortKey = "index" | "time" | "annotations" | "dispatch" | "flush";
+type Sort = { key: SortKey; descending: boolean };
 
 const sortValue: Record<SortKey, (row: LogRow) => number | null> = {
-  index: row => row.index,
-  time: row => row.time,
-  annotations: row => row.annotations.length,
-  dispatch: row => row.dispatchMs,
-  flush: row => row.flushMs,
-}
+  index: (row) => row.index,
+  time: (row) => row.time,
+  annotations: (row) => row.annotations.length,
+  dispatch: (row) => row.dispatchMs,
+  flush: (row) => row.flushMs,
+};
 
 /** Untimed rows last either way; ties in log order. */
-const sorted = (rows: LogRow[], {key, descending}: Sort) =>
+const sorted = (rows: LogRow[], { key, descending }: Sort) =>
   key == "index" && !descending
     ? rows
     : rows.toSorted((a, b) => {
-        const x = sortValue[key](a)
-        const y = sortValue[key](b)
-        if (x == null || y == null) return x == y ? a.index - b.index : x == null ? 1 : -1
-        return (descending ? y - x : x - y) || a.index - b.index
-      })
+        const x = sortValue[key](a);
+        const y = sortValue[key](b);
+        if (x == null || y == null) return x == y ? a.index - b.index : x == null ? 1 : -1;
+        return (descending ? y - x : x - y) || a.index - b.index;
+      });
 
 // Rows without a user event, in the user event filter.
-const NONE = "(none)"
-const eventOf = (row: LogRow) => row.userEvent ?? NONE
+const NONE = "(none)";
+const eventOf = (row: LogRow) => row.userEvent ?? NONE;
 
 /**
  * Hidden user events (unticked, so ones first seen later show) and what-changed flags (a row shows
  * while it has one still on, or none at all); the annotations a row must have.
  */
-type Filters = {events: ReadonlySet<string>; hidden: ReadonlySet<Flag>; annotations: ReadonlySet<string>}
-const noFilters: Filters = {events: new Set(), hidden: new Set(), annotations: new Set()}
-const filtering = (filters: Filters) => filters.events.size > 0 || filters.hidden.size > 0 || filters.annotations.size > 0
+type Filters = {
+  events: ReadonlySet<string>;
+  hidden: ReadonlySet<Flag>;
+  annotations: ReadonlySet<string>;
+};
+const noFilters: Filters = { events: new Set(), hidden: new Set(), annotations: new Set() };
+const filtering = (filters: Filters) =>
+  filters.events.size > 0 || filters.hidden.size > 0 || filters.annotations.size > 0;
 
 // Numbered as first seen, page-wide: "annotation #1" may be another annotation after a reload.
-const unnamed = /^annotation #\d+$/
+const unnamed = /^annotation #\d+$/;
 
 // Saved, shared by every editor. Unnamed annotations last only until reload.
 const logFilters = stored<Filters>(
   "wordgard-devtools:log-filters",
   noFilters,
-  json => {
-    if (!isRecord(json)) return noFilters
-    const hidden = stringSet(json.hidden)
+  (json) => {
+    if (!isRecord(json)) return noFilters;
+    const hidden = stringSet(json.hidden);
     return {
       events: stringSet(json.events),
-      hidden: new Set(FLAGS.filter(flag => hidden.has(flag))),
+      hidden: new Set(FLAGS.filter((flag) => hidden.has(flag))),
       annotations: stringSet(json.annotations),
-    }
+    };
   },
-  filters => ({
+  (filters) => ({
     events: [...filters.events],
     hidden: [...filters.hidden],
-    annotations: [...filters.annotations].filter(name => !unnamed.test(name)),
-  }),
-)
+    annotations: [...filters.annotations].filter((name) => !unnamed.test(name)),
+  })
+);
 
-const matches = (row: LogRow, {events, hidden, annotations}: Filters) =>
+const matches = (row: LogRow, { events, hidden, annotations }: Filters) =>
   !events.has(eventOf(row)) &&
-  (!flags(row).length || flags(row).some(flag => !hidden.has(flag))) &&
-  [...annotations].every(name => row.annotations.includes(name))
+  (!flags(row).length || flags(row).some((flag) => !hidden.has(flag))) &&
+  [...annotations].every((name) => row.annotations.includes(name));
 
-const filteredRows = (rows: LogRow[], filters: Filters) => (filtering(filters) ? rows.filter(row => matches(row, filters)) : rows)
+const filteredRows = (rows: LogRow[], filters: Filters) =>
+  filtering(filters) ? rows.filter((row) => matches(row, filters)) : rows;
 
 /** The rows' user events, sorted, "none" last for rows without one. */
 const userEvents = (rows: LogRow[]) => {
-  const found = new Set(rows.map(eventOf))
-  const none = found.delete(NONE)
-  return [...[...found].sort(), ...(none ? [NONE] : [])]
-}
+  const found = new Set(rows.map(eventOf));
+  const none = found.delete(NONE);
+  return [...[...found].sort(), ...(none ? [NONE] : [])];
+};
 
-const eventLabel = (event: string) => (event == NONE ? "none" : event)
+const eventLabel = (event: string) => (event == NONE ? "none" : event);
 
 /** Ticked: shown. "All" ticks every one, or, when all are ticked, unticks them. */
 const UserEventFilter = ({
@@ -237,36 +284,50 @@ const UserEventFilter = ({
   disabled,
   onChange,
 }: {
-  events: string[]
-  hidden: ReadonlySet<string>
-  disabled: boolean
-  onChange: (hidden: ReadonlySet<string>) => void
+  events: string[];
+  hidden: ReadonlySet<string>;
+  disabled: boolean;
+  onChange: (hidden: ReadonlySet<string>) => void;
 }) => {
-  const shown = events.filter(event => !hidden.has(event))
-  const all = shown.length == events.length
-  const [only] = shown
-  const summary = all ? "all" : only == null ? "none" : shown.length == 1 ? eventLabel(only) : `${shown.length} of ${events.length}`
-  const check = "size-3 cursor-pointer accent-primary"
-  const row = "flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-accent"
+  const shown = events.filter((event) => !hidden.has(event));
+  const all = shown.length == events.length;
+  const [only] = shown;
+  const summary = all
+    ? "all"
+    : only == null
+      ? "none"
+      : shown.length == 1
+        ? eventLabel(only)
+        : `${shown.length} of ${events.length}`;
+  const check = "size-3 cursor-pointer accent-primary";
+  const row = "flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-accent";
   return (
     <Popover>
       <PopoverTrigger
         disabled={disabled}
         render={
-          <Button variant="outline" size="xs" aria-label="Filter by user event" className="h-5 min-w-24 justify-between font-mono" />
+          <Button
+            variant="outline"
+            size="xs"
+            aria-label="Filter by user event"
+            className="h-5 min-w-24 justify-between font-mono"
+          />
         }
       >
         {summary}
         <ChevronDownIcon className="text-muted-foreground" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="max-h-80 w-auto min-w-40 gap-0 overflow-auto p-1 font-mono text-xs">
+      <PopoverContent
+        align="start"
+        className="max-h-80 w-auto min-w-40 gap-0 overflow-auto p-1 font-mono text-xs"
+      >
         <label className={cn(row, "border-b pb-1 font-sans font-medium")}>
           <input
             type="checkbox"
             checked={all}
             // Some ticked: shown as a dash.
-            ref={box => {
-              if (box) box.indeterminate = !all && shown.length > 0
+            ref={(box) => {
+              if (box) box.indeterminate = !all && shown.length > 0;
             }}
             onChange={() => onChange(all ? new Set(events) : new Set())}
             className={check}
@@ -274,50 +335,70 @@ const UserEventFilter = ({
           All
         </label>
         <div role="group" aria-label="User events" className="pt-1">
-          {events.map(event => (
+          {events.map((event) => (
             <label key={event} className={cn(row, event == NONE && "text-muted-foreground")}>
-              <input type="checkbox" checked={!hidden.has(event)} onChange={() => onChange(toggled(hidden, event))} className={check} />
+              <input
+                type="checkbox"
+                checked={!hidden.has(event)}
+                onChange={() => onChange(toggled(hidden, event))}
+                className={check}
+              />
               {eventLabel(event)}
             </label>
           ))}
         </div>
       </PopoverContent>
     </Popover>
-  )
-}
+  );
+};
 
 /** Every annotation in the rows but the time stamp, which all have. */
-const annotationTypes = (rows: LogRow[]) => [...new Set(rows.flatMap(row => row.annotations))].filter(name => name != "time").sort()
+const annotationTypes = (rows: LogRow[]) =>
+  [...new Set(rows.flatMap((row) => row.annotations))].filter((name) => name != "time").sort();
 
 const toggled = <T,>(set: ReadonlySet<T>, value: T) => {
-  const next = new Set(set)
-  if (!next.delete(value)) next.add(value)
-  return next
-}
+  const next = new Set(set);
+  if (!next.delete(value)) next.add(value);
+  return next;
+};
 
 /** A filter toggle. Passes other props on: a tooltip's trigger adds its own. */
-const FilterToggle = ({pressed, className, ...props}: ComponentProps<"button"> & {pressed: boolean}) => (
+const FilterToggle = ({
+  pressed,
+  className,
+  ...props
+}: ComponentProps<"button"> & { pressed: boolean }) => (
   <button
     type="button"
     aria-pressed={pressed}
     {...props}
     className={cn(
       "h-5 cursor-pointer rounded px-1.5 font-mono text-xs disabled:cursor-default disabled:opacity-50",
-      pressed ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground enabled:hover:text-foreground",
-      className,
+      pressed
+        ? "bg-primary text-primary-foreground"
+        : "bg-secondary text-muted-foreground enabled:hover:text-foreground",
+      className
     )}
   />
-)
+);
 
-const label = (disabled: boolean) => cn("font-semibold", disabled && "text-muted-foreground")
+const label = (disabled: boolean) => cn("font-semibold", disabled && "text-muted-foreground");
 
-type FilterUpdate = (update: (filters: Filters) => Filters) => void
+type FilterUpdate = (update: (filters: Filters) => Filters) => void;
 
-const FilterBar = ({rows, filters, onChange}: {rows: LogRow[]; filters: Filters; onChange: FilterUpdate}) => {
+const FilterBar = ({
+  rows,
+  filters,
+  onChange,
+}: {
+  rows: LogRow[];
+  filters: Filters;
+  onChange: FilterUpdate;
+}) => {
   // A saved one stays listed, pressed, until a row has it: it can be switched off.
-  const annotations = [...new Set([...annotationTypes(rows), ...filters.annotations])].sort()
+  const annotations = [...new Set([...annotationTypes(rows), ...filters.annotations])].sort();
   // Nothing to filter yet.
-  const disabled = !rows.length
+  const disabled = !rows.length;
   return (
     <div
       role="group"
@@ -331,17 +412,20 @@ const FilterBar = ({rows, filters, onChange}: {rows: LogRow[]; filters: Filters;
           events={userEvents(rows)}
           hidden={filters.events}
           disabled={disabled}
-          onChange={events => onChange(f => ({...f, events}))}
+          onChange={(events) => onChange((f) => ({ ...f, events }))}
         />
       </span>
       <span role="group" aria-label="Filter by what changed" className="flex items-center gap-1">
         <span className={label(disabled)}>changed:</span>
-        {FLAGS.map(flag => (
-          <Tip key={flag} label={`${FLAG_TIPS[flag]}: ${filters.hidden.has(flag) ? "hidden, unless something else shown changed too" : "shown"}`}>
+        {FLAGS.map((flag) => (
+          <Tip
+            key={flag}
+            label={`${FLAG_TIPS[flag]}: ${filters.hidden.has(flag) ? "hidden, unless something else shown changed too" : "shown"}`}
+          >
             <FilterToggle
               pressed={!filters.hidden.has(flag)}
               disabled={disabled}
-              onClick={() => onChange(f => ({...f, hidden: toggled(f.hidden, flag)}))}
+              onClick={() => onChange((f) => ({ ...f, hidden: toggled(f.hidden, flag) }))}
             >
               {flag}
             </FilterToggle>
@@ -349,26 +433,28 @@ const FilterBar = ({rows, filters, onChange}: {rows: LogRow[]; filters: Filters;
         ))}
       </span>
       {annotations.length > 0 && (
-        <span role="group" aria-label="Filter by annotation" className="flex flex-wrap items-center gap-1">
+        <span
+          role="group"
+          aria-label="Filter by annotation"
+          className="flex flex-wrap items-center gap-1"
+        >
           <span className={label(disabled)}>annotations:</span>
-          {annotations.map(name => (
+          {annotations.map((name) => (
             <FilterToggle
               key={name}
               disabled={disabled}
               pressed={filters.annotations.has(name)}
-              onClick={() => onChange(f => ({...f, annotations: toggled(f.annotations, name)}))}
+              onClick={() => onChange((f) => ({ ...f, annotations: toggled(f.annotations, name) }))}
             >
               {name}
             </FilterToggle>
           ))}
         </span>
       )}
-      {filtering(filters) && (
-        <ClearFilters onClick={() => onChange(() => noFilters)} />
-      )}
+      {filtering(filters) && <ClearFilters onClick={() => onChange(() => noFilters)} />}
     </div>
-  )
-}
+  );
+};
 
 /** A recording setting's checkbox: what the log leaves out, unticked. */
 const SettingBox = ({
@@ -378,24 +464,24 @@ const SettingBox = ({
   label,
   tip,
 }: {
-  source: LogSource
-  setting: RecordSetting
-  on: boolean
-  label: string
-  tip: string
+  source: LogSource;
+  setting: RecordSetting;
+  on: boolean;
+  label: string;
+  tip: string;
 }) => (
   <Tip label={<span className="block max-w-72">{tip}</span>}>
     <label className="flex cursor-pointer items-center gap-1 font-mono text-muted-foreground hover:text-foreground">
       <input
         type="checkbox"
         checked={on}
-        onChange={event => void source.setSetting(setting, event.target.checked)}
+        onChange={(event) => void source.setSetting(setting, event.target.checked)}
         className="size-3 cursor-pointer accent-primary"
       />
       {label}
     </label>
   </Tip>
-)
+);
 
 /** A column heading that sorts the rows: ascending first, then descending. */
 const SortHeading = ({
@@ -406,14 +492,14 @@ const SortHeading = ({
   onSort,
   right,
 }: {
-  sortKey: SortKey
-  label: string
-  tip: string
-  sort: Sort
-  onSort: (sort: Sort) => void
-  right?: boolean
+  sortKey: SortKey;
+  label: string;
+  tip: string;
+  sort: Sort;
+  onSort: (sort: Sort) => void;
+  right?: boolean;
 }) => {
-  const active = sort.key == sortKey
+  const active = sort.key == sortKey;
   return (
     <Tip label={tip}>
       <button
@@ -421,19 +507,19 @@ const SortHeading = ({
         aria-label={`Sort by ${tip.toLowerCase()}`}
         aria-pressed={active}
         data-sort={active ? (sort.descending ? "descending" : "ascending") : undefined}
-        onClick={() => onSort({key: sortKey, descending: active && !sort.descending})}
+        onClick={() => onSort({ key: sortKey, descending: active && !sort.descending })}
         className={cn(
           "flex cursor-pointer items-center gap-0.5 hover:text-foreground [&_svg]:size-3",
           right && "justify-end",
-          active && "text-foreground",
+          active && "text-foreground"
         )}
       >
         {label}
         {active && (sort.descending ? <ChevronDownIcon /> : <ChevronUpIcon />)}
       </button>
     </Tip>
-  )
-}
+  );
+};
 
 /** A part of the entry pane, with its menu: log the part live, copy its JSON. Focusable: Shift+F10 opens it too. */
 const Section = ({
@@ -442,17 +528,23 @@ const Section = ({
   copied,
   children,
 }: {
-  title: string
-  onLog: () => void
-  copied: () => string
-  children: ReactNode
+  title: string;
+  onLog: () => void;
+  copied: () => string;
+  children: ReactNode;
 }) => {
-  const {selection, onContextMenu} = useMenuSelection()
+  const { selection, onContextMenu } = useMenuSelection();
   return (
     <ContextMenu>
       <ContextMenuTrigger
         onContextMenu={onContextMenu}
-        render={<section aria-label={title} tabIndex={0} className="rounded outline-none focus-visible:ring-1 focus-visible:ring-ring" />}
+        render={
+          <section
+            aria-label={title}
+            tabIndex={0}
+            className="rounded outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        }
       >
         <h3 className="mt-2 mb-1 font-sans text-muted-foreground">{title}</h3>
         {children}
@@ -467,8 +559,8 @@ const Section = ({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-  )
-}
+  );
+};
 
 /** A row as a line of text, its columns tab-separated. */
 const rowText = (row: LogRow) =>
@@ -481,19 +573,27 @@ const rowText = (row: LogRow) =>
     `annotations ${row.annotations.join(", ")}`,
     `dispatch ${ms(row.dispatchMs)} ms`,
     `flush ${ms(row.flushMs)} ms${row.agentFlush ? " (forced by DevTools)" : ""}`,
-  ].join("\t")
+  ].join("\t");
 
-type RowTarget = {index: number}
+type RowTarget = { index: number };
 
 /** A row's context menu. */
-const RowMenu = ({source, rows, anchor}: {source: LogSource; rows: LogRow[]; anchor: MenuAnchor<RowTarget>}) => {
-  const {subscribe, get, setTrigger} = anchor
-  const target = useSyncExternalStore(subscribe, get)
-  const row = target ? rows.find(r => r.index == target.index) : undefined
+const RowMenu = ({
+  source,
+  rows,
+  anchor,
+}: {
+  source: LogSource;
+  rows: LogRow[];
+  anchor: MenuAnchor<RowTarget>;
+}) => {
+  const { subscribe, get, setTrigger } = anchor;
+  const target = useSyncExternalStore(subscribe, get);
+  const row = target ? rows.find((r) => r.index == target.index) : undefined;
   const copyJSON = async (row: LogRow) => {
-    const detail = await source.detail(row.index, row.flush)
-    if (detail.entry) await copy(json(detail.entry))
-  }
+    const detail = await source.detail(row.index, row.flush);
+    if (detail.entry) await copy(json(detail.entry));
+  };
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">
@@ -502,8 +602,8 @@ const RowMenu = ({source, rows, anchor}: {source: LogSource; rows: LogRow[]; anc
       <ContextMenuContent
         className="w-48"
         finalFocus={() => {
-          const list = get()?.row.closest("[role='listbox']")
-          return list instanceof HTMLElement ? list : true
+          const list = get()?.row.closest("[role='listbox']");
+          return list instanceof HTMLElement ? list : true;
         }}
       >
         <CopySelection text={target?.selection} />
@@ -518,10 +618,10 @@ const RowMenu = ({source, rows, anchor}: {source: LogSource; rows: LogRow[]; anc
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-  )
-}
+  );
+};
 
-const Ranges = ({entry}: {entry: LogEntryDetail}) =>
+const Ranges = ({ entry }: { entry: LogEntryDetail }) =>
   entry.ranges.length ? (
     entry.ranges.map((range, i) => (
       <div key={i} className="mb-1 rounded border p-1" data-range>
@@ -542,9 +642,9 @@ const Ranges = ({entry}: {entry: LogEntryDetail}) =>
     ))
   ) : (
     <p className="font-sans text-muted-foreground">No document change.</p>
-  )
+  );
 
-const Values = ({values}: {values: LogEntryDetail["effectValues"]}) =>
+const Values = ({ values }: { values: LogEntryDetail["effectValues"] }) =>
   values.length ? (
     values.map((value, i) => (
       <Field key={i} label={value.type}>
@@ -553,7 +653,7 @@ const Values = ({values}: {values: LogEntryDetail["effectValues"]}) =>
     ))
   ) : (
     <p className="font-sans text-muted-foreground">None.</p>
-  )
+  );
 
 const EntryView = ({
   source,
@@ -561,12 +661,12 @@ const EntryView = ({
   flush,
   onRetry,
 }: {
-  source: LogSource
-  index: number
-  flush: number | null
-  onRetry: () => void
+  source: LogSource;
+  index: number;
+  flush: number | null;
+  onRetry: () => void;
 }) => {
-  const detail = use(source.detail(index, flush))
+  const detail = use(source.detail(index, flush));
   if (detail.error != null) {
     return (
       <p role="alert" className="flex items-center gap-2 text-destructive">
@@ -575,26 +675,24 @@ const EntryView = ({
           variant="outline"
           size="xs"
           onClick={() => {
-            source.forget(index, flush)
-            onRetry()
+            source.forget(index, flush);
+            onRetry();
           }}
         >
           Retry
         </Button>
       </p>
-    )
+    );
   }
-  const {entry} = detail
-  const log = (part: EntryPart) => () => source.logEntry(entry.index, part)
+  const { entry } = detail;
+  const log = (part: EntryPart) => () => source.logEntry(entry.index, part);
   return (
     <div className="font-mono text-xs">
       <Section title="Transaction" onLog={log("transaction")} copied={() => json(entry)}>
         <Field label="index">{entry.index}</Field>
         <Field label="time">{clock(entry.time)}</Field>
         <Field label="userEvent">{entry.userEvent ?? "–"}</Field>
-        <Field label="flags">
-          {entryFlags(entry)}
-        </Field>
+        <Field label="flags">{entryFlags(entry)}</Field>
         <Field label="dispatch">
           <span className={cn(slow(entry.dispatchMs) && slowText)}>{ms(entry.dispatchMs)} ms</span>
         </Field>
@@ -604,7 +702,11 @@ const EntryView = ({
           {entry.agentFlush && <span className="text-muted-foreground"> forced by DevTools</span>}
         </Field>
       </Section>
-      <Section title="Changes" onLog={log("changes")} copied={() => json({changes: entry.changes, ranges: entry.ranges})}>
+      <Section
+        title="Changes"
+        onLog={log("changes")}
+        copied={() => json({ changes: entry.changes, ranges: entry.ranges })}
+      >
         <Ranges entry={entry} />
         <details>
           <summary className="cursor-default text-muted-foreground">ChangeSet JSON</summary>
@@ -612,11 +714,17 @@ const EntryView = ({
         </details>
       </Section>
       <Section title="Selection" onLog={log("selection")} copied={() => json(entry.selection)}>
-        <Field label="set">{entry.selection.set == null ? "– (mapped)" : json(entry.selection.set)}</Field>
+        <Field label="set">
+          {entry.selection.set == null ? "– (mapped)" : json(entry.selection.set)}
+        </Field>
         <Field label="before">{json(entry.selection.before)}</Field>
         <Field label="after">{json(entry.selection.after)}</Field>
       </Section>
-      <Section title={`Effects (${entry.effectValues.length})`} onLog={log("effects")} copied={() => json(entry.effectValues)}>
+      <Section
+        title={`Effects (${entry.effectValues.length})`}
+        onLog={log("effects")}
+        copied={() => json(entry.effectValues)}
+      >
         <Values values={entry.effectValues} />
       </Section>
       <Section
@@ -627,19 +735,16 @@ const EntryView = ({
         <Values values={entry.annotationValues} />
       </Section>
     </div>
-  )
-}
+  );
+};
 
-const EntryPane = ({source, row}: {source: LogSource; row: LogRow | null}) => {
+const EntryPane = ({ source, row }: { source: LogSource; row: LogRow | null }) => {
   // Deferred: the previous entry stays up while the next one loads.
-  const shown = useDeferredValue(row)
+  const shown = useDeferredValue(row);
   // Remounts the view after a retry, which asks again.
-  const [attempt, setAttempt] = useState(0)
+  const [attempt, setAttempt] = useState(0);
   return (
-    <aside
-      aria-label="Transaction"
-      className="h-full overflow-auto p-2"
-    >
+    <aside aria-label="Transaction" className="h-full overflow-auto p-2">
       {shown == null ? (
         <p className="text-muted-foreground">Select a transaction to see it here.</p>
       ) : (
@@ -649,161 +754,172 @@ const EntryPane = ({source, row}: {source: LogSource; row: LogRow | null}) => {
             source={source}
             index={shown.index}
             flush={shown.flush}
-            onRetry={() => setAttempt(n => n + 1)}
+            onRetry={() => setAttempt((n) => n + 1)}
           />
         </Suspense>
       )}
     </aside>
-  )
-}
+  );
+};
 
 /** The transaction log of one editor, with record/pause and per-update timing. Mounted per editor. */
-export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) => {
-  const [source] = useState(() => createLogSource(store.transport, editorId))
-  const view = useSyncExternalStore(source.subscribe, source.get)
-  const [selected, setSelected] = useState<number | null>(null)
-  const scroller = useRef<HTMLDivElement | null>(null)
+export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
+  const [source] = useState(() => createLogSource(store.transport, editorId));
+  const view = useSyncExternalStore(source.subscribe, source.get);
+  const [selected, setSelected] = useState<number | null>(null);
+  const scroller = useRef<HTMLDivElement | null>(null);
   // State, not only a ref: the list may mount a render after this component (the split pane
   // measures first), and the rows are read from it when this component renders.
-  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
-  const {rows} = view
-  const rowCount = rows.length
-  const [sort, setSort] = useState<Sort>({key: "index", descending: false})
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+  const { rows } = view;
+  const rowCount = rows.length;
+  const [sort, setSort] = useState<Sort>({ key: "index", descending: false });
   // Also read by a reveal, which runs outside a render: set with the state, in the event.
-  const sortNow = useRef(sort)
+  const sortNow = useRef(sort);
   const changeSort = (next: Sort) => {
-    sortNow.current = next
-    setSort(next)
-  }
-  const filters = useSyncExternalStore(logFilters.subscribe, logFilters.get)
-  const filtered = filteredRows(rows, filters)
-  const shown = sorted(filtered, sort)
+    sortNow.current = next;
+    setSort(next);
+  };
+  const filters = useSyncExternalStore(logFilters.subscribe, logFilters.get);
+  const filtered = filteredRows(rows, filters);
+  const shown = sorted(filtered, sort);
   // The newest rows come last: new ones are followed.
-  const chronological = (sort.key == "index" || sort.key == "time") && !sort.descending
+  const chronological = (sort.key == "index" || sort.key == "time") && !sort.descending;
 
   // The column header is a sticky row at the top of the scroller.
-  const {indices, height} = useRows(scrollElement, shown.length, ROW, {margin: ROW})
+  const { indices, height } = useRows(scrollElement, shown.length, ROW, { margin: ROW });
 
   // Stable: the list's ref callback uses it, and would subscribe again on a new one.
   const select = useCallback(
     (index: number) => {
-      setSelected(index)
-      const order = sorted(filteredRows(source.get().rows, logFilters.get()), sortNow.current)
+      setSelected(index);
+      const order = sorted(filteredRows(source.get().rows, logFilters.get()), sortNow.current);
       // Two rows of room: the sticky column header covers the first.
-      keepRowInView(scroller.current, order.findIndex(row => row.index == index), ROW, 2)
+      keepRowInView(
+        scroller.current,
+        order.findIndex((row) => row.index == index),
+        ROW,
+        2
+      );
     },
-    [source],
-  )
+    [source]
+  );
 
   // New rows are followed while the list is scrolled to the bottom.
-  const atBottom = useRef(true)
+  const atBottom = useRef(true);
   // Where following scrolled to: its scroll event may come after more rows, and isn't the user's.
-  const followedTo = useRef(-1)
+  const followedTo = useRef(-1);
   // A new callback per row count: React calls it once those rows are committed.
   const followRows = useCallback(
     (element: HTMLDivElement | null) => {
-      const list = scroller.current
-      if (!element || !list || !atBottom.current || !rowCount || !chronological) return
-      list.scrollTop = list.scrollHeight
-      followedTo.current = list.scrollTop
+      const list = scroller.current;
+      if (!element || !list || !atBottom.current || !rowCount || !chronological) return;
+      list.scrollTop = list.scrollHeight;
+      followedTo.current = list.scrollTop;
     },
-    [rowCount, chronological],
-  )
+    [rowCount, chronological]
+  );
 
   // Loads while its tab is shown: on showing (when the log changed meanwhile) and on each change.
   const container = useCallback(
     (element: HTMLDivElement | null) => {
-      scroller.current = element
-      setScrollElement(element)
-      if (!element) return
-      const shown = () => store.get().view == "log"
-      let stale = true
+      scroller.current = element;
+      setScrollElement(element);
+      if (!element) return;
+      const shown = () => store.get().view == "log";
+      let stale = true;
       const load = () => {
-        stale = false
-        void source.load()
-      }
+        stale = false;
+        void source.load();
+      };
       const onScroll = () => {
-        if (element.scrollTop == followedTo.current) return
-        atBottom.current = element.scrollTop + element.clientHeight >= element.scrollHeight - ROW
-      }
-      element.addEventListener("scroll", onScroll, {passive: true})
+        if (element.scrollTop == followedTo.current) return;
+        atBottom.current = element.scrollTop + element.clientHeight >= element.scrollHeight - ROW;
+      };
+      element.addEventListener("scroll", onScroll, { passive: true });
       // An entry another tab links to (a field's change): selected once its rows are in.
       const takeReveal = () => {
-        if (!shown()) return
-        const index = store.takeLogReveal(editorId)
-        if (index == null) return
+        if (!shown()) return;
+        const index = store.takeLogReveal(editorId);
+        if (index == null) return;
         // The entry may be filtered out.
-        logFilters.update(() => noFilters)
-        setSelected(index)
-        void source.load().then(() => requestAnimationFrame(() => select(index)))
-      }
-      const stopReveal = store.onReveal(takeReveal)
-      const stopLog = store.onLogChanged(id => {
-        if (id != editorId) return
-        if (shown()) load()
-        else stale = true
-      })
+        logFilters.update(() => noFilters);
+        setSelected(index);
+        void source.load().then(() => requestAnimationFrame(() => select(index)));
+      };
+      const stopReveal = store.onReveal(takeReveal);
+      const stopLog = store.onLogChanged((id) => {
+        if (id != editorId) return;
+        if (shown()) load();
+        else stale = true;
+      });
       // A list change may be this editor reconnecting with a new log, under the same id.
-      let editors = store.get().editors
+      let editors = store.get().editors;
       const stopStore = store.subscribe(() => {
         if (store.get().editors != editors) {
-          editors = store.get().editors
-          stale = true
+          editors = store.get().editors;
+          stale = true;
         }
-        if (shown() && stale) load()
-      })
+        if (shown() && stale) load();
+      });
       // The tab's red dot: kept mounted while hidden, this tab knows whether its editor records.
-      const report = () => store.setRecording(source.get().recording)
-      const stopSource = source.subscribe(report)
-      report()
-      if (shown()) load()
-      takeReveal()
+      const report = () => store.setRecording(source.get().recording);
+      const stopSource = source.subscribe(report);
+      report();
+      if (shown()) load();
+      takeReveal();
       return () => {
-        stopReveal()
-        element.removeEventListener("scroll", onScroll)
-        stopLog()
-        stopStore()
-        stopSource()
-        store.setRecording(false)
-        scroller.current = null
-      }
+        stopReveal();
+        element.removeEventListener("scroll", onScroll);
+        stopLog();
+        stopStore();
+        stopSource();
+        store.setRecording(false);
+        scroller.current = null;
+      };
     },
-    [store, editorId, source, select],
-  )
+    [store, editorId, source, select]
+  );
 
   // The row a menu opens on is selected.
   const [menu] = useState(() =>
     createMenuAnchor<RowTarget>(
       "[data-index]",
-      row => ({index: Number(row.getAttribute("data-index"))}),
-      (_, target) => setSelected(target.index),
-    ),
-  )
+      (row) => ({ index: Number(row.getAttribute("data-index")) }),
+      (_, target) => setSelected(target.index)
+    )
+  );
 
   const onKeyDown = (event: KeyboardEvent) => {
-    menu.onKeyDown(event)
-    if (event.defaultPrevented) return
-    if (!shown.length) return
-    const position = shown.findIndex(row => row.index == selected)
-    const step: Record<string, number> = {ArrowDown: 1, ArrowUp: -1, PageDown: 10, PageUp: -10}
+    menu.onKeyDown(event);
+    if (event.defaultPrevented) return;
+    if (!shown.length) return;
+    const position = shown.findIndex((row) => row.index == selected);
+    const step: Record<string, number> = { ArrowDown: 1, ArrowUp: -1, PageDown: 10, PageUp: -10 };
     const next =
       event.key == "Home"
         ? 0
         : event.key == "End"
           ? shown.length - 1
           : event.key in step
-            ? Math.max(0, Math.min(shown.length - 1, (position < 0 ? shown.length : position) + (step[event.key] ?? 0)))
-            : null
-    const row = next == null ? undefined : shown[next]
-    if (!row) return
-    event.preventDefault()
-    select(row.index)
-  }
+            ? Math.max(
+                0,
+                Math.min(
+                  shown.length - 1,
+                  (position < 0 ? shown.length : position) + (step[event.key] ?? 0)
+                )
+              )
+            : null;
+    const row = next == null ? undefined : shown[next];
+    if (!row) return;
+    event.preventDefault();
+    select(row.index);
+  };
 
-  const selectedRow = rows.find(row => row.index == selected) ?? null
+  const selectedRow = rows.find((row) => row.index == selected) ?? null;
   // Only a rendered row can be the active descendant.
-  const activeRow = indices.some(index => shown[index]?.index == selected) ? selectedRow : null
-  const slowCount = rows.filter(isSlow).length
+  const activeRow = indices.some((index) => shown[index]?.index == selected) ? selectedRow : null;
+  const slowCount = rows.filter(isSlow).length;
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
@@ -821,15 +937,20 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
           {filtered.length != rows.length && `${filtered.length} of `}
           {rows.length} transaction{rows.length == 1 ? "" : "s"}
           {view.size > 0 && rows.length >= view.size && ` (the last ${view.size} kept)`}
-          {slowCount > 0 && <span className={slowText}> · {slowCount} over {SLOW_MS} ms</span>}
+          {slowCount > 0 && (
+            <span className={slowText}>
+              {" "}
+              · {slowCount} over {SLOW_MS} ms
+            </span>
+          )}
         </span>
         <Button
           variant="ghost"
           size="xs"
           disabled={!rows.length}
           onClick={() => {
-            setSelected(null)
-            void source.clear()
+            setSelected(null);
+            void source.clear();
           }}
         >
           <NoSymbolIcon /> Clear
@@ -865,7 +986,12 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
         {/* The header sits outside the listbox, which holds only rows. */}
         <div ref={container} className="relative min-h-0 min-w-0 flex-1 overflow-auto">
           <div className="min-w-[34rem]">
-            <div className={cn(COLUMNS, "sticky top-0 z-10 h-5 items-center border-b bg-background px-2 text-xs text-muted-foreground")}>
+            <div
+              className={cn(
+                COLUMNS,
+                "sticky top-0 z-10 h-5 items-center border-b bg-background px-2 text-xs text-muted-foreground"
+              )}
+            >
               <SortHeading sortKey="index" label="#" tip="Index" sort={sort} onSort={changeSort} />
               <SortHeading sortKey="time" label="time" tip="Time" sort={sort} onSort={changeSort} />
               <span>userEvent</span>
@@ -873,16 +999,42 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
               <Tip label="Effects">
                 <span>eff</span>
               </Tip>
-              <SortHeading sortKey="annotations" label="ann" tip="Annotations" sort={sort} onSort={changeSort} />
-              <SortHeading sortKey="dispatch" label="disp" tip="Dispatch, ms" sort={sort} onSort={changeSort} right />
-              <SortHeading sortKey="flush" label="flush" tip="Flush, ms; * forced by DevTools" sort={sort} onSort={changeSort} right />
+              <SortHeading
+                sortKey="annotations"
+                label="ann"
+                tip="Annotations"
+                sort={sort}
+                onSort={changeSort}
+              />
+              <SortHeading
+                sortKey="dispatch"
+                label="disp"
+                tip="Dispatch, ms"
+                sort={sort}
+                onSort={changeSort}
+                right
+              />
+              <SortHeading
+                sortKey="flush"
+                label="flush"
+                tip="Flush, ms; * forced by DevTools"
+                sort={sort}
+                onSort={changeSort}
+                right
+              />
             </div>
             {!rows.length && view.loaded && (
               <p className="p-2 text-xs text-muted-foreground">
-                {view.recording ? "Recording: use the editor." : "Not recording. Press Record, then use the editor."}
+                {view.recording
+                  ? "Recording: use the editor."
+                  : "Not recording. Press Record, then use the editor."}
               </p>
             )}
-            {rows.length > 0 && !shown.length && <p className="p-2 text-xs text-muted-foreground">No transactions match the filters.</p>}
+            {rows.length > 0 && !shown.length && (
+              <p className="p-2 text-xs text-muted-foreground">
+                No transactions match the filters.
+              </p>
+            )}
             <div
               ref={followRows}
               role="listbox"
@@ -891,18 +1043,28 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
               aria-activedescendant={activeRow ? `log-row-${activeRow.index}` : undefined}
               onKeyDown={onKeyDown}
               onContextMenu={menu.onContextMenu}
-              onClick={event => {
-                const index = event.target instanceof Element ? event.target.closest("[data-index]")?.getAttribute("data-index") : null
-                if (index != null) setSelected(Number(index))
+              onClick={(event) => {
+                const index =
+                  event.target instanceof Element
+                    ? event.target.closest("[data-index]")?.getAttribute("data-index")
+                    : null;
+                if (index != null) setSelected(Number(index));
               }}
               className="relative outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset"
-              style={{height}}
+              style={{ height }}
             >
-              {indices.map(index => {
-                const row = shown[index]
+              {indices.map((index) => {
+                const row = shown[index];
                 return (
-                  row && <Row key={row.index} row={row} start={index * ROW} selected={row.index == selected} />
-                )
+                  row && (
+                    <Row
+                      key={row.index}
+                      row={row}
+                      start={index * ROW}
+                      selected={row.index == selected}
+                    />
+                  )
+                );
               })}
             </div>
           </div>
@@ -910,5 +1072,5 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
       </SplitPane>
       <RowMenu source={source} rows={rows} anchor={menu} />
     </div>
-  )
-}
+  );
+};

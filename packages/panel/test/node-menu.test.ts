@@ -42,13 +42,13 @@ const shadow = () => {
 
 const tab = (name: string) =>
   [...shadow().querySelectorAll<HTMLElement>("[role='tab']")].find(
-    (element) => element.textContent == name,
+    (element) => element.textContent == name
   );
 const box = (path: string) =>
   shadow().querySelector<HTMLElement>(`[aria-label='Document structure'] [data-path='${path}']`);
 const item = (text: string) =>
   [...shadow().querySelectorAll<HTMLElement>("[role='menuitem']")].find(
-    (element) => element.textContent?.trim() == text,
+    (element) => element.textContent?.trim() == text
   );
 
 const rightClick = (element: HTMLElement) => {
@@ -60,7 +60,7 @@ const rightClick = (element: HTMLElement) => {
       clientX: rect.left + 4,
       clientY: rect.top + 4,
       button: 2,
-    }),
+    })
   );
 };
 
@@ -125,12 +125,18 @@ it("shows the node's type in the Schema, and logs the node in the console", asyn
   (await until(() => item("Log to console"))).click();
   // The heading before it is 0–7.
   await until(() =>
-    logged.some((args) => args[0] == "[wordgard-devtools] Paragraph at range 7–19" && args[1] == wg?.state.doc.content[1]),
+    logged.some(
+      (args) =>
+        args[0] == "[wordgard-devtools] Paragraph at range 7–19" &&
+        args[1] == wg?.state.doc.content[1]
+    )
   );
   rightClick(row);
   (await until(() => item("Log as JSON"))).click();
   await until(() =>
-    logged.some((args) => JSON.stringify(args[1]) == JSON.stringify(wg?.state.doc.content[1]?.toJSON())),
+    logged.some(
+      (args) => JSON.stringify(args[1]) == JSON.stringify(wg?.state.doc.content[1]?.toJSON())
+    )
   );
   rightClick(row);
   (await until(() => item("Show Paragraph type in Schema"))).click();
@@ -165,14 +171,18 @@ it("logs a node's DOM element", async () => {
   rightClick(await until(() => box("1")));
   (await until(() => item("Log DOM element"))).click();
   const paragraph = wg?.contentDOM.children[1];
-  await until(() => logged.some((args) => args[0] == "[wordgard-devtools] Paragraph's element" && args[1] == paragraph));
+  await until(() =>
+    logged.some(
+      (args) => args[0] == "[wordgard-devtools] Paragraph's element" && args[1] == paragraph
+    )
+  );
   rightClick(await until(() => box("2.0")));
   (await until(() => item("Log DOM element"))).click();
   await until(() =>
     logged.some(
       (args) =>
         args[0] == "[wordgard-devtools] Text draws no element; Paragraph's" &&
-        args[1] == wg?.contentDOM.children[2],
-    ),
+        args[1] == wg?.contentDOM.children[2]
+    )
   );
 });

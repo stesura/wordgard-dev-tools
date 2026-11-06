@@ -12,9 +12,9 @@ peer dependency at the same version: both are released together. Register your e
 `wordgardDevtools()`, then:
 
 ```ts
-import {mountDevtools} from "@stesura/wordgard-dev-tools-panel"
+import { mountDevtools } from "@stesura/wordgard-dev-tools-panel";
 
-mountDevtools()
+mountDevtools();
 ```
 
 The panel docks at the bottom of the page and renders in a shadow root, so its styles and your

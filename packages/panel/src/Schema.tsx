@@ -74,7 +74,7 @@ const Links = ({ kind, names, onGo }: { kind: Kind; names: string[]; onGo: Go })
               ? cn(markColour, "px-1 hover:underline")
               : kind == "node"
                 ? cn(typeColour, "hover:underline")
-                : groupLink,
+                : groupLink
           )}
           style={kind == "group" ? undefined : hue(kind, name)}
           onClick={(event) => {
@@ -122,7 +122,7 @@ const Card = ({
     aria-current={selected || undefined}
     className={cn(
       "mb-1.5 rounded border border-l-4 border-l-[hsl(var(--hue)_60%_50%)] px-2 py-1",
-      selected && "ring-2 ring-ring",
+      selected && "ring-2 ring-ring"
     )}
     style={hue(kind, name)}
   >
@@ -226,7 +226,7 @@ const GroupTags = ({ group }: { group: SchemaGroup }) =>
       </Tip>
     ) : (
       <Tag key={tag}>{tag}</Tag>
-    ),
+    )
   );
 
 /** A node group: its types, and the content and mark targets that name it. */
@@ -245,7 +245,7 @@ const GroupCard = ({
     aria-current={selected || undefined}
     className={cn(
       "mb-1.5 rounded border border-l-4 border-l-muted-foreground/40 px-2 py-1",
-      selected && "ring-2 ring-ring",
+      selected && "ring-2 ring-ring"
     )}
   >
     <div className="flex flex-wrap items-center gap-1.5">
@@ -354,8 +354,8 @@ const SpecPane = ({
     createMenuAnchor(
       "[data-spec-json]",
       () => ({}),
-      () => {},
-    ),
+      () => {}
+    )
   );
   // The effective view copies its values, without the comments.
   const copied = () => (shown ? json(effective ? effective.value : shown.value) : "");
@@ -387,7 +387,7 @@ const SpecPane = ({
                       overridden.length > 0 &&
                         (view == "effective"
                           ? "bg-amber-700 text-white"
-                          : "bg-amber-500/20 text-amber-800 hover:text-amber-950 dark:text-amber-300 dark:hover:text-amber-100"),
+                          : "bg-amber-500/20 text-amber-800 hover:text-amber-950 dark:text-amber-300 dark:hover:text-amber-100")
                     )}
                   >
                     Effective
@@ -485,7 +485,7 @@ const SpecMenu = ({
   onLog: Log;
   copied: () => string;
 }) => {
-  const {subscribe, get, setTrigger} = anchor;
+  const { subscribe, get, setTrigger } = anchor;
   const target = useSyncExternalStore(subscribe, get);
   return (
     <ContextMenu>
@@ -527,7 +527,7 @@ const SchemaMenu = ({
   onShow: (card: string) => void;
   onLog: Log;
 }) => {
-  const {subscribe, get, setTrigger} = anchor;
+  const { subscribe, get, setTrigger } = anchor;
   const target = useSyncExternalStore(subscribe, get);
   const card = jsonOf(schema, target?.card ?? null);
   return (
@@ -607,7 +607,7 @@ const Toggle = ({
       pressed
         ? "bg-primary text-primary-foreground"
         : "bg-secondary text-muted-foreground hover:text-foreground",
-      className,
+      className
     )}
   >
     {children}
@@ -734,7 +734,7 @@ const schemaFilters = stored<SchemaFilters>(
     nodes: [...filters.nodes],
     marks: [...filters.marks],
     groups: [...filters.groups],
-  }),
+  })
 );
 
 /** The pressed tags among those shown. */
@@ -768,8 +768,8 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
     createMenuAnchor<MenuTarget>(
       "[data-type]",
       (row) => ({ card: row.getAttribute("data-type") ?? "" }),
-      (_, target) => setSelectedCard(target.card),
-    ),
+      (_, target) => setSelectedCard(target.card)
+    )
   );
 
   // Clears the filters so the card is there, rings it, then scrolls to it once drawn.
@@ -821,7 +821,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
         scroller.current = null;
       };
     },
-    [store, editorId, source],
+    [store, editorId, source]
   );
 
   const allNodes = schema?.nodes ?? [];
@@ -836,17 +836,17 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
   const groups = allGroups.filter(
     (group) =>
       matches(group.name, query) &&
-      groupTags(group).filter((tag) => groupFilter.has(tag)).length == groupFilter.size,
+      groupTags(group).filter((tag) => groupFilter.has(tag)).length == groupFilter.size
   );
   const nodes = allNodes.filter(
     (type) =>
       matches(type.name, query) &&
-      nodeTags(type).filter((tag) => nodeFilter.has(tag)).length == nodeFilter.size,
+      nodeTags(type).filter((tag) => nodeFilter.has(tag)).length == nodeFilter.size
   );
   const filteredMarks = allMarks.filter(
     (type) =>
       matches(type.name, query) &&
-      type.flags.filter((tag) => markFilter.has(tag)).length == markFilter.size,
+      type.flags.filter((tag) => markFilter.has(tag)).length == markFilter.size
   );
   // By rank, unranked last; otherwise in the schema's order.
   const marks = byRank

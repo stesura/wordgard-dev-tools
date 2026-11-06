@@ -279,7 +279,7 @@ const Notices = ({ store }: { store: PanelStore }) => {
         <p key={index} role="alert" className="border-b px-2 py-1 text-destructive">
           {text}
         </p>
-      ),
+      )
   );
 };
 
@@ -344,7 +344,9 @@ const Body = ({ store }: { store: PanelStore }) => {
           <GuideButton view={view} />
           <IconButton
             label="Log the editor to the page's console"
-            onClick={() => void store.transport.send({ type: "logEditor", id: selected }).catch(() => {})}
+            onClick={() =>
+              void store.transport.send({ type: "logEditor", id: selected }).catch(() => {})
+            }
           >
             <CommandLineIcon />
           </IconButton>
@@ -357,7 +359,11 @@ const Body = ({ store }: { store: PanelStore }) => {
       >
         <Structure key={selected} store={store} editorId={selected} />
       </TabsContent>
-      <TabsContent value="selection" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
+      <TabsContent
+        value="selection"
+        keepMounted
+        className="flex min-h-0 flex-col data-hidden:hidden"
+      >
         <SelectionTab key={selected} store={store} editorId={selected} />
       </TabsContent>
       <TabsContent value="state" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
@@ -405,7 +411,7 @@ export const Panel = ({ store, theme, actions, settings, titleRow, className }: 
         className={cn(
           "flex h-full flex-col bg-background font-sans text-sm text-foreground antialiased",
           dark && "dark",
-          className,
+          className
         )}
       >
         {titleRow && (

@@ -1,3 +1,3 @@
-import {startBackground} from "../src/background.ts"
+import { startBackground } from "../src/background.ts";
 
-export default defineBackground(() => startBackground())
+export default defineBackground(() => startBackground());

@@ -1,15 +1,15 @@
 // The agent's own reads of an editor (outlines, picks) can force a flush: the log tags those
 // flushes so they aren't blamed on the app.
 
-let depth = 0
+let depth = 0;
 
 export const byAgent = <T>(read: () => T): T => {
-  depth++
+  depth++;
   try {
-    return read()
+    return read();
   } finally {
-    depth--
+    depth--;
   }
-}
+};
 
-export const agentReading = () => depth > 0
+export const agentReading = () => depth > 0;
