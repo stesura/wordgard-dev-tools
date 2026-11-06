@@ -1,4 +1,5 @@
-import {Wordgard} from "wordgard/editor"
+import type {Wordgard} from "wordgard/editor"
+import * as wordgardEditor from "wordgard/editor"
 import type {GardState, Transaction} from "wordgard/state"
 import {isProduction} from "./production.ts"
 import {currentRegistry, ensureRegistry, type NamedFields} from "./registry.ts"
@@ -46,14 +47,14 @@ const guard =
 let listeners: GardState.Extension | null = null
 const sharedListeners = () =>
   (listeners ??= [
-    Wordgard.updateListener.of(
+    wordgardEditor.Wordgard.updateListener.of(
       guard((update: Wordgard.Update) => {
         const registry = currentRegistry()
         const entry = registry?.editors.get(update.editor)
         if (entry?.attached) registry?.agent?.updated(entry, update)
       }),
     ),
-    Wordgard.transactionListener.of(
+    wordgardEditor.Wordgard.transactionListener.of(
       guard((transactions: readonly Transaction[], wg: Wordgard) => {
         const registry = currentRegistry()
         const entry = registry?.editors.get(wg)
@@ -73,7 +74,7 @@ export const wordgardDevtools = (options: DevtoolsOptions = {}): GardState.Exten
   })
   try {
     const provided = sharedListeners()
-    return Wordgard.Plugin.define(
+    return wordgardEditor.Wordgard.Plugin.define(
       wg => {
         // Added by a reconfigure while connected: Wordgard calls `connect` before creating the
         // value, so `connect` never runs for this instance.

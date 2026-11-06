@@ -1,5 +1,6 @@
 import type {Node as DocNode, Plot} from "wordgard/doc"
-import {GardSelection, type GardState} from "wordgard/state"
+import type {GardState} from "wordgard/state"
+import * as wordgardState from "wordgard/state"
 import type {EditorInfo, NodeDetail, Path, SelectionInfo, StructureNode, TreeNode} from "./protocol.ts"
 import type {Entry} from "./registry.ts"
 
@@ -175,6 +176,6 @@ export const selection = (state: GardState): SelectionInfo => {
     json: toSafe(state.selection.toJSON(state)),
     headPath: pathAt(state.doc, head),
     anchorPath: pathAt(state.doc, anchor),
-    nodePath: state.selection instanceof GardSelection.Node ? pathFrom(state.doc, from) : null,
+    nodePath: state.selection instanceof wordgardState.GardSelection.Node ? pathFrom(state.doc, from) : null,
   }
 }

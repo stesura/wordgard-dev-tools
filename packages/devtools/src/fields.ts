@@ -1,5 +1,6 @@
 import type {Wordgard} from "wordgard/editor"
-import {GardState, Transaction} from "wordgard/state"
+import type {GardState, Transaction} from "wordgard/state"
+import * as wordgardState from "wordgard/state"
 import type {FieldChange, FieldDetail, FieldInfo, FieldsInfo} from "./protocol.ts"
 import type {Entry, Registry} from "./registry.ts"
 import {preview, toSafe} from "./serialise.ts"
@@ -26,9 +27,9 @@ const findFields = (state: GardState): Field[] => {
   const walk = (ext: unknown) => {
     if (typeof ext != "object" || ext == null || seen.has(ext)) return
     seen.add(ext)
-    if (ext instanceof GardState.Field) found.push(ext)
+    if (ext instanceof wordgardState.GardState.Field) found.push(ext)
     else if (Array.isArray(ext)) ext.forEach(walk)
-    else if ("compartment" in ext && ext.compartment instanceof GardState.Compartment) {
+    else if ("compartment" in ext && ext.compartment instanceof wordgardState.GardState.Compartment) {
       walk(ext.compartment.get(state) ?? ("inner" in ext ? ext.inner : null))
     } else if ("inner" in ext) walk(ext.inner)
     else if ("extension" in ext) walk(ext.extension)
@@ -75,7 +76,7 @@ export const createFieldTracker = (
   const tracking = (entry: Entry) => entry.recording || (tracked.get(entry)?.watching.size ?? 0) > 0
 
   const change = (entry: Entry, {tr, value}: Change): FieldChange => ({
-    time: tr.annotation(Transaction.time) ?? 0,
+    time: tr.annotation(wordgardState.Transaction.time) ?? 0,
     log: logIndex(entry, tr),
     preview: preview(value),
   })

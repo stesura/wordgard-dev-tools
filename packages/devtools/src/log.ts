@@ -1,5 +1,6 @@
 import type {Wordgard} from "wordgard/editor"
-import {GardState, Transaction} from "wordgard/state"
+import type {GardState, Transaction} from "wordgard/state"
+import * as wordgardState from "wordgard/state"
 import type {ChangedRange, LogEntryDetail, LogRow, LogSlice, NamedValue, Push} from "./protocol.ts"
 import {agentReading} from "./reads.ts"
 import type {Entry, Registry} from "./registry.ts"
@@ -42,11 +43,14 @@ type Timer = {
 }
 
 type Dispatch = Wordgard["dispatch"]
+type Flush = Wordgard["flush"]
 
 /**
  * Own-property wrappers on `flush` (on the prototype: the rAF callback and `ensureFlushed` look
  * it up on the instance) and `dispatch` (bound in the constructor; callers that kept the
- * original aren't timed).
+ * original aren't timed). They pass every argument and the result through, so a Wordgard whose
+ * signatures changed still works. Our bookkeeping never throws into the app: an error in it
+ * restores the originals, with one warning. The originals' own errors propagate.
  */
 const time = (wg: Wordgard, log: Log, changed: () => void): Timer => {
   const saved = {flush: Object.getOwnPropertyDescriptor(wg, "flush"), dispatch: Object.getOwnPropertyDescriptor(wg, "dispatch")}
@@ -65,42 +69,68 @@ const time = (wg: Wordgard, log: Log, changed: () => void): Timer => {
     else Reflect.deleteProperty(wg, key)
   }
 
-  const timedFlush = () => {
-    if (!wg.connected || (!active && !log.unflushed.length)) return flush.call(wg)
+  let warned = false
+  const ours = (f: () => void) => {
+    try {
+      f()
+    } catch (e) {
+      stop()
+      if (!warned) console.warn("Wordgard DevTools stopped timing this editor after an error.", e)
+      warned = true
+    }
+  }
+
+  const timedFlush: Flush = (...args) => {
+    if (!wg.connected || (!active && !log.unflushed.length)) return flush.apply(wg, args)
+    // Plain reads and assignments: nothing here can throw before the original runs.
     const drawn = log.unflushed
     log.unflushed = []
     const agent = agentReading()
     const start = performance.now()
+    let result: ReturnType<Flush>
     try {
-      flush.call(wg)
+      result = flush.apply(wg, args)
     } catch (e) {
       // Not drawn (react-wordgard refused the update): the next flush draws them.
       log.unflushed = [...drawn, ...log.unflushed]
       throw e
     }
     const ms = performance.now() - start
-    if (drawn.length) {
-      const flushNumber = ++log.flushes
-      for (const item of drawn) Object.assign(item, {flushMs: ms, flush: flushNumber, agentFlush: agent})
-      changed()
-    }
-    if (!active && !log.unflushed.length) restore("flush", timedFlush)
+    ours(() => {
+      if (drawn.length) {
+        const flushNumber = ++log.flushes
+        for (const item of drawn) Object.assign(item, {flushMs: ms, flush: flushNumber, agentFlush: agent})
+        changed()
+      }
+      if (!active && !log.unflushed.length) restore("flush", timedFlush)
+    })
+    return result
   }
 
   // Nested dispatches (a transaction listener dispatching) count toward the outermost call.
-  const timedDispatch: Dispatch = tr => {
-    if (!active) return dispatch.call(wg, tr)
+  const timedDispatch: Dispatch = (...args) => {
+    if (!active) return dispatch.apply(wg, args)
     if (depth++ == 0) log.dispatched = []
     const start = performance.now()
     try {
-      dispatch.call(wg, tr)
+      return dispatch.apply(wg, args)
     } finally {
       if (--depth == 0) {
         const ms = performance.now() - start
-        for (const item of log.dispatched ?? []) item.dispatchMs = ms
+        ours(() => {
+          for (const item of log.dispatched ?? []) item.dispatchMs = ms
+        })
         log.dispatched = null
       }
     }
+  }
+
+  const stop = () => {
+    active = false
+    log.unflushed = []
+    log.dispatched = null
+    restore("flush", timedFlush)
+    restore("dispatch", timedDispatch)
   }
 
   const install = () => {
@@ -118,42 +148,36 @@ const time = (wg: Wordgard, log: Log, changed: () => void): Timer => {
       if (!log.unflushed.length || !wg.connected) restore("flush", timedFlush)
     },
     resume: install,
-    stop: () => {
-      active = false
-      log.unflushed = []
-      log.dispatched = null
-      restore("flush", timedFlush)
-      restore("dispatch", timedDispatch)
-    },
+    stop,
   }
 }
 
 const annotationNames = new Map<object, string>([
-  [Transaction.time, "time"],
-  [Transaction.userEvent, "userEvent"],
-  [Transaction.addToHistory, "addToHistory"],
-  [Transaction.remote, "remote"],
-  [Transaction.appended, "appended"],
+  [wordgardState.Transaction.time, "time"],
+  [wordgardState.Transaction.userEvent, "userEvent"],
+  [wordgardState.Transaction.addToHistory, "addToHistory"],
+  [wordgardState.Transaction.remote, "remote"],
+  [wordgardState.Transaction.appended, "appended"],
 ])
 
 // `annotations` is internal to Wordgard (`annotation(type)` is the public reader): counted when present.
 const annotationsOf = (tr: Transaction): Transaction.Annotation<unknown>[] =>
   "annotations" in tr && Array.isArray(tr.annotations)
-    ? tr.annotations.filter(a => a instanceof Transaction.Annotation)
+    ? tr.annotations.filter(a => a instanceof wordgardState.Transaction.Annotation)
     : []
 
 const effectName = (effect: Transaction.Effect<unknown>) =>
-  effect.is(GardState.reconfigure) ? "reconfigure" : effect.is(GardState.appendConfig) ? "appendConfig" : "effect"
+  effect.is(wordgardState.GardState.reconfigure) ? "reconfigure" : effect.is(wordgardState.GardState.appendConfig) ? "appendConfig" : "effect"
 
 const row = ({index, tr, dispatchMs, flushMs, flush, agentFlush}: Item): LogRow => ({
   index,
-  time: tr.annotation(Transaction.time) ?? 0,
-  userEvent: tr.annotation(Transaction.userEvent) ?? null,
-  appended: tr.annotation(Transaction.appended) ?? false,
+  time: tr.annotation(wordgardState.Transaction.time) ?? 0,
+  userEvent: tr.annotation(wordgardState.Transaction.userEvent) ?? null,
+  appended: tr.annotation(wordgardState.Transaction.appended) ?? false,
   docChanged: tr.docChanged,
   selectionSet: tr.selection != null,
   effects: tr.effects.length,
-  annotations: annotationsOf(tr).filter(a => a.type != Transaction.time).length,
+  annotations: annotationsOf(tr).filter(a => a.type != wordgardState.Transaction.time).length,
   dispatchMs,
   flushMs,
   flush,

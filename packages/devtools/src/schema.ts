@@ -1,28 +1,31 @@
-import {Node, type Mark, type Schema} from "wordgard/doc"
+import type {Mark, Node, Schema} from "wordgard/doc"
+import * as wordgardDoc from "wordgard/doc"
 import type {SchemaInfo, SchemaMarkType, SchemaNodeType, SchemaParam} from "./protocol.ts"
 import {toSafe} from "./serialise.ts"
 
 // Loaded with the serialisers, on the first panel request.
 
+const {Group, Role} = wordgardDoc.Node
+
 // Node groups have no names: Wordgard's own are named here, others numbered per schema.
 const knownGroups = new Map<Node.Group, string>([
-  [Node.Group.All, "All"],
-  [Node.Group.Inline, "Inline"],
-  [Node.Group.Block, "Block"],
-  [Node.Group.Leaf, "Leaf"],
-  [Node.Group.Plot, "Plot"],
-  [Node.Group.Textblock, "Textblock"],
-  [Node.Group.Content, "Content"],
-  [Node.Group.TableCell, "TableCell"],
-  [Node.Group.ListItem, "ListItem"],
+  [Group.All, "All"],
+  [Group.Inline, "Inline"],
+  [Group.Block, "Block"],
+  [Group.Leaf, "Leaf"],
+  [Group.Plot, "Plot"],
+  [Group.Textblock, "Textblock"],
+  [Group.Content, "Content"],
+  [Group.TableCell, "TableCell"],
+  [Group.ListItem, "ListItem"],
 ])
 // Implied by a type's kind and inline flag: not listed among its groups.
-const implied = new Set([Node.Group.All, Node.Group.Inline, Node.Group.Block, Node.Group.Leaf, Node.Group.Plot])
+const implied = new Set([Group.All, Group.Inline, Group.Block, Group.Leaf, Group.Plot])
 
 const roles = new Map<Node.Role, string>([
-  [Node.Role.Code, "Code"],
-  [Node.Role.List, "List"],
-  [Node.Role.LineBreak, "LineBreak"],
+  [Role.Code, "Code"],
+  [Role.List, "List"],
+  [Role.LineBreak, "LineBreak"],
 ])
 
 type Spec = {
@@ -70,7 +73,7 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
   }
 
   const describe = (query: Node.Query): string => {
-    if (query instanceof Node.Group) return groupName(query)
+    if (query instanceof Group) return groupName(query)
     if (isList(query)) return query.map(describe).join(" | ")
     if ("and" in query) return `(${query.and.map(describe).join(" & ")})`
     return query.name
@@ -80,7 +83,7 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
   // its groups. Groups only an override mentions aren't seen.
   for (const type of schema.nodes) {
     const {group} = type.spec
-    for (const g of group instanceof Node.Group ? [group] : (group ?? [])) groupName(g)
+    for (const g of group instanceof Group ? [group] : (group ?? [])) groupName(g)
     if (type.isPlot && type.spec.blockContent) describe(type.spec.blockContent)
     if (type.isPlot && type.spec.inlineContent && type.spec.inlineContent !== true) describe(type.spec.inlineContent)
   }

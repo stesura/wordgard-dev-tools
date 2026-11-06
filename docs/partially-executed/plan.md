@@ -4,7 +4,9 @@ Status: PARTIALLY EXECUTED. Phases 0, 1, 2, 2b, 3, 4, 4b, 5, 5b and 5c done on 2
 implementation notes for [0-2](#implementation-notes-phases-0-2-2026-11-04),
 [2b](#implementation-notes-phase-2b-2026-11-04), [3](#implementation-notes-phase-3-2026-11-04),
 [4](#implementation-notes-phase-4-2026-11-04), [4b](#implementation-notes-phase-4b-2026-11-04),
-[5](#implementation-notes-phase-5-2026-11-04) and [5b and 5c](#implementation-notes-phases-5b-and-5c-2026-11-04). Drafted 2026-11-04, revised
+[5](#implementation-notes-phase-5-2026-11-04) and [5b and 5c](#implementation-notes-phases-5b-and-5c-2026-11-04). Phase 9 partially
+executed on 2026-11-06 (npm side; the extension stores are parked), see
+[Packaging and publishing](#packaging-and-publishing-2026-11-06). Drafted 2026-11-04, revised
 after a Fable review the same day, see [Review](#review-2026-11-04).
 
 A browser DevTools panel for [Wordgard](../../../wordgard) editors, the counterpart of
@@ -46,9 +48,9 @@ schema check. Added later at the user's request (2026-11-04): a Structure tab (4
 
 ```
 wordgard-devtools/            npm workspaces, MIT
-  packages/devtools/          "wordgard-devtools": page-side, framework-free
-  packages/panel/             "wordgard-devtools-panel": the React panel UI, transport-agnostic,
-                              also mountable in-page
+  packages/devtools/          "@stesura/wordgard-dev-tools": page-side, framework-free
+  packages/panel/             "@stesura/wordgard-dev-tools-panel": the React panel UI,
+                              transport-agnostic, also mountable in-page
   packages/extension/         Chrome (and Firefox) extension: a thin shell around the panel
   demo/                       Wordgard + react-wordgard editors with the in-page panel docked
   docs/
@@ -75,7 +77,8 @@ The panel is usable from Phase 3 in the demo without building the extension, whi
 the extension shell the last piece rather than the first.
 
 During development, `wordgard` and `@stesura/react-wordgard` are local path dependencies on
-`../wordgard` and `../react-wordgard`. `wordgard` is a peer dependency of `wordgard-devtools`.
+`../wordgard` and `../react-wordgard`. `wordgard` is a peer dependency of `@stesura/wordgard-dev-tools`
+(`>=0.6.2 <1` since 2026-11-06, see [Wordgard versions](#wordgard-versions)).
 
 ## Page side: `wordgard-devtools`
 
@@ -295,7 +298,9 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
 7. Copy as repro, tested by running the generated script in Node.
 8. ~~react-wordgard automatic registration (react-wordgard repo).~~ Dropped (2026-11-05): apps
    add the plugin themselves. See [react-wordgard integration](#react-wordgard-integration).
-9. Publishing: npm package and extension stores.
+9. **Partially executed** (2026-11-06). Publishing: the npm packages are ready (metadata,
+   release workflow, lockstep versions, Wordgard version support); the extension stores are
+   parked. See [Packaging and publishing](#packaging-and-publishing-2026-11-06).
 
 E2E: Playwright with the built extension loaded (`--load-extension`, persistent context)
 against the demo. It covers two editors, switching between them, remounting, iframes, editors
@@ -319,6 +324,8 @@ created before the panel opened, and picking without moving the caret.
    works on any page whatever React version the page uses (or none), or take React 19 as a
    peer? Bundling is simpler and costs nothing until `mountDevtools()` lazy-loads it.
    Recommendation: bundle.
+   Closed (2026-11-06): bundled, production React only, and React is a devDependency. See
+   [Packaging and publishing](#packaging-and-publishing-2026-11-06).
 
 ## Review (2026-11-04)
 
@@ -391,7 +398,8 @@ while typing, remounting the react-wordgard editor, theme toggle, collapse.
 - **Collapse detaches.** A collapsed dock stops listening and sends `select(null)`. Stale replies
   after a stop are dropped, so they can't re-attach an editor.
 - **React is bundled** in the panel's build (open question 5's recommendation); the lazy chunk is
-  about 1.2 MB unminified (library builds aren't minified).
+  about 1.2 MB unminified (library builds aren't minified). Superseded on 2026-11-06: production
+  React only, about 0.9 MB, see [Packaging and publishing](#packaging-and-publishing-2026-11-06).
 - **Extension.** Firefox is built as MV3 too (WXT defaults Firefox to MV2), with a placeholder
   gecko id. The DevTools panel page is a placeholder until phase 2b. Icons are WXT's defaults.
 
@@ -443,7 +451,8 @@ built demo in Chromium, now in CI). A Fable audit followed; its accepted finding
   Chrome); the choice is kept in `chrome.storage.local`. The panel's theme store takes a source
   and a storage, synchronous or not.
 - **Panel package**: new `./ui` (the panel without the dock), `./transport` and `./styles.css`
-  exports. The extension bundle has no Wordgard code (tree-shaken through `sideEffects: false`).
+  exports. `./ui` is internal since 2026-11-06, see
+  [Packaging and publishing](#packaging-and-publishing-2026-11-06). The extension bundle has no Wordgard code (tree-shaken through `sideEffects: false`).
 - **Demo**: an editor in an iframe (`demo/frame.html`). The in-page dock lists only the top
   page's editors; the extension lists all.
 - **E2E**: opens the panel page as a tab with `?tabId=` (Playwright can't drive DevTools).
@@ -944,3 +953,124 @@ Added at the user's request.
   production build. Checked that the demo's build folds `isProduction` to `true`.
 - Not done: export conditions with no-op builds. They'd save the page side's few KB but can't honour
   the option; the README shows the `import.meta.env.DEV` guard for zero bytes.
+
+## Packaging and publishing (2026-11-06)
+
+Phase 9, npm side. Done at the user's request; the extension stores are parked.
+
+### What a user installs
+
+- `@stesura/wordgard-dev-tools` (about 25 kB packed): no dependencies, `wordgard` as a peer.
+- `@stesura/wordgard-dev-tools-panel` (about 256 kB packed, 1 MB unpacked): no dependencies of
+  its own, `@stesura/wordgard-dev-tools` as a peer at the exact same version. React, Base UI and
+  the other UI libraries are compiled into one lazy chunk (about 0.9 MB, not minified: the app's
+  bundler minifies). They are devDependencies, so no `react` lands in the app's `node_modules`.
+- Both ship `LICENSE`, a short `README.md` and a `repository` field; the panel also ships
+  `dist/THIRD_PARTY_LICENSES.txt`. publint is clean on both.
+
+### Panel build
+
+- `process.env.NODE_ENV` is defined as `"production"` in the build only (`command == "build"`):
+  production React only, and the chunk no longer depends on the app's bundler to pick a React
+  build. Tests and the extension build from source and keep development React.
+- `@stesura/wordgard-dev-tools` is external. The old external pattern (`wordgard-devtools`) had
+  gone stale with the rename, so the panel bundled its own copy of the page side. That copy's
+  `isProduction()` would have been folded to `true` by the define, and `mountDevtools()` would
+  never have mounted. Now the panel imports the page's copy, and the page's bundler decides.
+- `./ui` is internal: exported only under the `source` condition and not built. Its `<Panel>`
+  bundles React, so a host's own React couldn't render it (two Reacts, invalid hook calls). The
+  extension, its one user, builds from source.
+
+### Releases
+
+- Lockstep: both packages are always released together at one version. `npm run
+  release:version -- X.Y.Z` (`scripts/version.ts`) sets it in both packages, in every workspace
+  that refers to them, in the agent's `VERSION` and in the lockfile, editing text to keep each
+  file's formatting. `npm run release:check` fails on drift; CI runs it.
+- `prepack` builds each package, so a publish from a clean checkout can't ship an empty `dist/`.
+- `.github/workflows/release.yml`: on a `v*` tag it runs CI (`ci.yml` is now callable), checks
+  that the versions match the tag, then publishes the page side, then the panel, with
+  provenance. A prerelease tag publishes to the `next` dist-tag (npm 11 requires one).
+- `.github/actions/setup`: Node, the sibling `wordgard` and `react-wordgard` folders from npm,
+  and the install, shared by CI, Release and the latest-Wordgard run.
+- Steps are in `CONTRIBUTING.md` ("Releasing").
+
+### Wordgard versions
+
+- The page side's peer is `wordgard >=0.6.2 <1` (was `~0.6.2`). npm enforces peer ranges, so the
+  narrow range would have blocked every app's Wordgard upgrade until a devtools release.
+- Fail safe: the first error from the devtools' code in the app's editor (most likely a Wordgard
+  API they don't support) turns them off for the page with one console warning, and
+  `wordgardDevtools()` returns `[]` from then on. This covers building the plugin, its listeners
+  and registration. It matters even without version changes: Wordgard catches errors from update
+  listeners and plugins, but not from transaction listeners, so an agent error while recording
+  reached the app's `dispatch`. The shared listeners are built on first use, not on import.
+  Tested (`fail-safe.test.ts`, `fail-safe-api.test.ts`); both fail against the old plugin.
+- CI tests the floor (the setup action's `wordgard` default, 0.6.2). `release:check` fails unless
+  it equals the peer range's floor, so a newer API used without raising the floor fails CI. A local
+  `../wordgard` can be newer than the floor.
+- `.github/workflows/wordgard-latest.yml` runs daily against the newest `wordgard@<1`: typecheck
+  and tests of the page side and the panel. It installs without the lockfile and with
+  `--legacy-peer-deps`, since react-wordgard may not accept that Wordgard yet. Not run yet.
+- The panel has no `wordgard` peer: it only uses Wordgard types, none of which reach its `.d.ts`.
+
+### Deviations
+
+- No Fable audit: the work was done in small steps at the user's request, each checked
+  (typecheck, 155 unit tests, build, 11 e2e).
+- None of the workflows (CI with the shared action, Release, Latest Wordgard) has run on GitHub
+  yet.
+
+### Parked: extension stores
+
+Parked by the user (2026-11-06). To do before the first store release:
+
+- **Protocol compatibility.** The extension updates itself; apps stay on the page side they
+  installed. Today the extension accepts exactly `PROTOCOL` (`frames-transport.ts`), so the first
+  protocol change breaks every app on an older page side, with no rollback. Before releasing:
+  - additive changes don't bump `PROTOCOL`; the agent's `announce` lists what it supports, and
+    the panel greys out what an older agent lacks;
+  - the extension accepts a range of protocols, with an adapter for the previous one for a
+    published period;
+  - the `announce` envelope (`source`, `v`, `agent: {version, protocol}`) is frozen;
+  - the mismatch message says which side to update and how, and points to `mountDevtools()`,
+    which always matches;
+  - e2e against the previous release's agent (an npm alias).
+- **Store checklist.** Real icons (WXT defaults now); a manifest version (`0.0.0` now); a written
+  reason for each permission (`<all_urls>` with `scripting` means in-depth review on the Chrome
+  Web Store); privacy declarations and a short privacy policy; the final Firefox add-on ID (it
+  can't change once listed); `strict_min_version` 140 for `data_collection_permissions`; listing
+  assets.
+- **Firefox source review.** AMO needs the source of bundled code and steps that rebuild it. The
+  `file:` dependencies on `../wordgard` and `../react-wordgard` must become registry versions first.
+- No need to wait for Wordgard v1: the extension only speaks the protocol. What matters is that
+  the protocol is stable and the compatibility rules above are in place.
+
+### Open points addressed (2026-11-06)
+
+- **Missing named exports.** The page side imports Wordgard values through namespaces only
+  (`import * as wordgardState from "wordgard/state"`; named imports stay for types). A value the
+  app's Wordgard lacks is then `undefined`, and the guards handle what follows. Checked with
+  Vite's bundler: a missing namespace member builds with an `IMPORT_IS_UNDEFINED` warning, a
+  missing named import fails the build. Only `plugin.ts` loads with the page; the other modules
+  load lazily, and a failure there becomes an error reply. `imports.test.ts` fails on any named
+  value import from `wordgard`.
+- **Timing wrappers.** The Log's `dispatch` and `flush` wrappers pass every argument and the
+  result through, and their bookkeeping can't throw into the app: an error there restores the
+  originals, with one warning. The originals' own errors still propagate. Tested in
+  `log.test.ts`; the test fails against the old wrappers (`Error: boom` thrown out of the app's
+  `flush`).
+- **`npm ls` crash.** Not the `file:` siblings: four junctions in `node_modules` (`demo`,
+  `wordgard-devtools-extension`, `wordgard`, `@stesura/react-wordgard`) pointed at `c:\…` with a
+  lowercase drive letter, from an install run where the working directory was spelled that way,
+  and npm lost their targets. Removed and reinstalled; `npm ls` works. If it comes back: `rmdir`
+  the lowercase junctions and run `npm install` from a `C:\` directory.
+
+### Open points
+
+- Publishing: the first release can go out by hand after `npm login` (no token, no provenance),
+  then trusted publishing on npmjs.com for both packages, so the Release workflow needs no
+  `NPM_TOKEN`. Pinned by the user (2026-11-06); the workflow comment and CONTRIBUTING still
+  mention the token.
+- When Wordgard v1 is released, the page side needs a release that accepts it (the README says
+  so).

@@ -1,4 +1,4 @@
-import {afterEach, expect, it} from "vitest"
+import {afterEach, expect, it, vi} from "vitest"
 import {Leaf} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
 import {Transaction} from "wordgard/state"
@@ -148,6 +148,27 @@ it("times dispatch and flush with own-property wrappers, restored on pause", asy
   await ask({type: "record", id: idOf(wg), on: false})
   expect(Object.hasOwn(wg, "flush")).toBe(false)
   expect(wg.dispatch).toBe(dispatch)
+})
+
+it("an error in the timing bookkeeping restores the originals instead of reaching the app", async () => {
+  const wg = open()
+  const dispatch = wg.dispatch
+  await recording(wg)
+  type(wg, "a")
+  // Lets the push scheduled for "a" go, so the flush schedules a new one.
+  await Promise.resolve()
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+  // The flush wrapper's bookkeeping schedules the panel's push with queueMicrotask.
+  const schedule = vi.spyOn(window, "queueMicrotask").mockImplementationOnce(() => {
+    throw new Error("boom")
+  })
+  expect(() => wg.flush()).not.toThrow()
+  schedule.mockRestore()
+  expect(Object.hasOwn(wg, "flush")).toBe(false)
+  expect(wg.dispatch).toBe(dispatch)
+  expect(warn).toHaveBeenCalledOnce()
+  warn.mockRestore()
+  expect(() => type(wg, "b")).not.toThrow()
 })
 
 it("times the last flush after a pause, then restores flush", async () => {
