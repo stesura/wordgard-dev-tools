@@ -5,12 +5,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-
-# wordgard and @stesura/react-wordgard are local path dependencies on ../wordgard and
-# ../react-wordgard. CI fills those folders from their npm releases.
-env:
-  WORDGARD_VERSION: 0.6.2
-  REACT_WORDGARD_VERSION: 0.1.0
+  # The release workflow runs it before publishing.
+  workflow_call:
 
 jobs:
   check:
@@ -19,24 +15,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: wordgard-devtools
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Sibling packages
-        run: |
-          fetch() {
-            mkdir -p "$2"
-            npm pack "$1" --pack-destination "$RUNNER_TEMP" --silent > "$RUNNER_TEMP/$2.name"
-            tar -xzf "$RUNNER_TEMP/$(cat "$RUNNER_TEMP/$2.name")" -C "$2" --strip-components=1
-            # The tarballs ship dist/ built, not the build scripts: npm ci would run `prepare` on these
-            # file: links and fail.
-            (cd "$2" && npm pkg delete scripts.prepare && npm install --omit=dev --ignore-scripts --no-package-lock --no-audit --no-fund)
-          }
-          fetch "wordgard@$WORDGARD_VERSION" wordgard
-          fetch "@stesura/react-wordgard@$REACT_WORDGARD_VERSION" react-wordgard
-      - name: Install
+      - uses: ./wordgard-devtools/.github/actions/setup
+      - name: Lockstep versions
         working-directory: wordgard-devtools
-        run: npm ci
+        run: npm run release:check
       - name: Playwright
         working-directory: wordgard-devtools
         run: npx playwright install --with-deps chromium

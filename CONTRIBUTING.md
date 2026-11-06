@@ -47,6 +47,20 @@ Add or update tests for what you change.
 - New runtime dependencies end up in the panel bundle and the extension: say why one is needed.
   Their licences are collected into `THIRD_PARTY_LICENSES.txt` at build time.
 
+## Releasing
+
+`@stesura/wordgard-dev-tools` and `@stesura/wordgard-dev-tools-panel` are always released
+together, at one version.
+
+1. `npm run release:version -- 0.2.0` sets that version in both packages, in every workspace
+   that refers to them, in the agent's `VERSION`, and in the lockfile.
+2. Commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
+3. The Release workflow runs CI, checks that the versions match the tag, then publishes both
+   packages with provenance. Each one is built by its `prepack` script. A prerelease tag
+   (`v0.2.0-beta.1`) publishes to the `next` dist-tag.
+
+CI fails if the versions drift (`npm run release:check`).
+
 ## Security
 
 Don't open public issues for vulnerabilities: see [SECURITY.md](SECURITY.md).

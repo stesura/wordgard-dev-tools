@@ -1,0 +1,44 @@
+name: Release
+
+# Push a tag vX.Y.Z made after `npm run release:version -- X.Y.Z`: CI runs, then both packages
+# are published together.
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm provenance and trusted publishing.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: wordgard-devtools
+      - uses: ./wordgard-devtools/.github/actions/setup
+        with:
+          registry-url: https://registry.npmjs.org
+      - name: Versions match the tag
+        working-directory: wordgard-devtools
+        run: npm run release:check -- "$GITHUB_REF_NAME"
+      # prepack builds each package. The page side goes first: the panel peers on it.
+      - name: Publish
+        working-directory: wordgard-devtools
+        # A prerelease (v1.0.0-beta.1) goes to the `next` dist-tag, not `latest`.
+        run: |
+          tag=latest
+          case "$GITHUB_REF_NAME" in *-*) tag=next ;; esac
+          npm publish -w packages/devtools -w packages/panel --provenance --tag "$tag"
+        env:
+          # Only needed until trusted publishing is set up on npmjs.com for both packages.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
