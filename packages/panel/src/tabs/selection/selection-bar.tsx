@@ -1,5 +1,5 @@
+import { useStore } from "@nanostores/react";
 import { CommandLineIcon, EyeIcon } from "#icons";
-import { useSyncExternalStore } from "react";
 import { Button } from "#components/ui/button";
 import { CopyButton } from "#components/copy-button";
 import { GuidePopover } from "#components/guide-popover";
@@ -14,7 +14,7 @@ export const selectionType = (json: unknown) =>
 
 /** The selected editor's selection, under every tab. */
 export const SelectionBar = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
-  const { selection } = useSyncExternalStore(store.subscribe, store.get);
+  const { selection } = useStore(store.state);
   const info = selection?.id == editorId ? selection.info : null;
   return (
     <div

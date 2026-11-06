@@ -1,3 +1,4 @@
+import { useStore } from "@nanostores/react";
 import { cn } from "cn";
 import {
   ArrowDownTrayIcon,
@@ -8,7 +9,7 @@ import {
   CommandLineIcon,
   InformationCircleIcon,
 } from "#icons";
-import { useCallback, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Path } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
 import { CopyButton } from "#components/copy-button";
@@ -34,7 +35,7 @@ import { type MenuTarget, StateMenu } from "./state-menu.tsx";
 /** The editor's state as plain JSON (`GardState.toJSON`), collapsible and virtualized. Mounted per editor. */
 export const State = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createStateSource(store.transport, editorId));
-  const { json, loaded, error } = useSyncExternalStore(source.subscribe, source.get);
+  const { json, loaded, error } = useStore(source.state);
 
   // The outcome of a replace: shown for 5 s, then closed. Timers, not transitionend: it doesn't
   // fire with reduced motion.
@@ -49,7 +50,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
     ];
   };
   const editorName = () =>
-    store.get().editors.find((editor) => editor.id == editorId)?.name ?? "editor";
+    store.state.get().editors.find((editor) => editor.id == editorId)?.name ?? "editor";
 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   // Nothing until the user picks a line.
@@ -107,7 +108,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
     (element: HTMLDivElement | null) => {
       setScrollElement(element);
       if (!element) return;
-      const shown = () => store.get().tab == "state";
+      const shown = () => store.state.get().tab == "state";
       let stale = true;
       const load = () => {
         stale = false;
@@ -122,7 +123,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
       const stopDoc = store.onDocChanged((id) => {
         if (id == editorId) highlight(null);
       });
-      const stopStore = store.subscribe(() => {
+      const stopStore = store.state.listen(() => {
         if (!shown()) highlight(null);
         else if (stale) load();
       });

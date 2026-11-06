@@ -1,5 +1,5 @@
+import { useStore } from "@nanostores/react";
 import { ClipboardDocumentIcon, CodeBracketIcon, CommandLineIcon, EyeIcon } from "#icons";
-import { useSyncExternalStore } from "react";
 import type { SchemaInfo } from "@stesura/wordgard-dev-tools";
 import {
   ContextMenu,
@@ -30,8 +30,8 @@ export const SchemaMenu = ({
   onShow: (card: string) => void;
   onLog: Log;
 }) => {
-  const { subscribe, get, setTrigger } = anchor;
-  const target = useSyncExternalStore(subscribe, get);
+  const { target: opened, setTrigger } = anchor;
+  const target = useStore(opened);
   const card = jsonOf(schema, target?.card ?? null);
   return (
     <ContextMenu>

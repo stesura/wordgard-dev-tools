@@ -1,11 +1,13 @@
 import type { SchemaInfo } from "@stesura/wordgard-dev-tools";
+import { atom, type ReadableAtom } from "nanostores";
 import { errorMessage } from "#lib/json.ts";
 import type { Transport } from "../../transport.ts";
 
+/** The last schema stays up, with the error. */
+export type SchemaState = { schema: SchemaInfo | null; error: string | null };
+
 export type SchemaSource = {
-  schema: () => SchemaInfo | null;
-  error: () => string | null;
-  subscribe: (listener: () => void) => () => void;
+  state: ReadableAtom<SchemaState>;
   /** Replies to an older load are dropped. Never rejects. */
   load: () => Promise<void>;
   /** Resolves once the latest load is in. */
@@ -14,35 +16,21 @@ export type SchemaSource = {
 
 export const createSchemaSource = (transport: Transport, id: number): SchemaSource => {
   let version = 0;
-  let schema: SchemaInfo | null = null;
-  let error: string | null = null;
-  const listeners = new Set<() => void>();
+  const state = atom<SchemaState>({ schema: null, error: null });
   let pending: Promise<void> = Promise.resolve();
 
   const load = async () => {
     const at = ++version;
     try {
-      const loaded = await transport.send({ type: "schema", id });
-      if (at != version) return;
-      schema = loaded;
-      error = null;
+      const schema = await transport.send({ type: "schema", id });
+      if (at == version) state.set({ schema, error: null });
     } catch (e) {
-      if (at != version) return;
-      // The last schema stays up, with the error.
-      error = errorMessage(e);
+      if (at == version) state.set({ ...state.get(), error: errorMessage(e) });
     }
-    for (const listener of listeners) listener();
   };
 
   return {
-    schema: () => schema,
-    error: () => error,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    state,
     load: () => (pending = load()),
     ready: () => pending,
   };

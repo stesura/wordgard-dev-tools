@@ -8,8 +8,10 @@ import type {
 } from "@stesura/wordgard-dev-tools";
 import type { ColourKind } from "#lib/colours.ts";
 import type { Transport } from "../transport.ts";
+import { atom, type ReadableAtom } from "nanostores";
 import { errorMessage, isRecord } from "#lib/json.ts";
 import { isTab, type Tab } from "../tabs/tabs.ts";
+import { asJSON, persistent } from "./persistent.ts";
 
 // The tab and the editor shown last, restored on reload. The editor by name: ids don't survive one.
 const KEY = "wordgard-devtools:panel";
@@ -21,25 +23,10 @@ const savedTab = (stored: unknown): Tab => {
   return tab == "view" ? "dom" : isTab(tab) ? tab : "structure";
 };
 
-const readSaved = (): Saved => {
-  try {
-    const stored: unknown = JSON.parse(localStorage.getItem(KEY) ?? "null");
-    return {
-      tab: savedTab(stored),
-      editor: isRecord(stored) && typeof stored.editor == "string" ? stored.editor : null,
-    };
-  } catch {
-    return { tab: "structure", editor: null };
-  }
-};
-
-const writeSaved = (saved: Saved) => {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(saved));
-  } catch {
-    // Storage blocked: nothing is restored.
-  }
-};
+const readSaved = (json: unknown): Saved => ({
+  tab: savedTab(json),
+  editor: isRecord(json) && typeof json.editor == "string" ? json.editor : null,
+});
 
 export type PanelState = {
   agent: AgentInfo | null;
@@ -61,8 +48,7 @@ export type PanelState = {
 };
 
 export type PanelStore = {
-  get: () => PanelState;
-  subscribe: (listener: () => void) => () => void;
+  state: ReadableAtom<PanelState>;
   select: (id: number | null) => Promise<void>;
   /** The selected editor's document changed (coalesced per frame). */
   onDocChanged: (listener: (id: number) => void) => () => void;
@@ -99,7 +85,8 @@ export type PanelStore = {
 };
 
 export const createPanelStore = (transport: Transport): PanelStore => {
-  const saved = readSaved();
+  const saved = persistent<Saved>(KEY, { tab: "structure", editor: null }, asJSON(readSaved));
+  // The working copy; `published` is what components and tabs read.
   let state: PanelState = {
     agent: null,
     editors: [],
@@ -109,10 +96,10 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     notices: [],
     picking: false,
     paused: false,
-    tab: saved.tab,
+    tab: saved.get().tab,
     recording: false,
   };
-  const listeners = new Set<() => void>();
+  const published = atom(state);
   const docListeners = new Set<(id: number) => void>();
   const logListeners = new Set<(id: number) => void>();
   const configListeners = new Set<(id: number) => void>();
@@ -125,7 +112,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   const set = (patch: Partial<PanelState>) => {
     state = { ...state, ...patch };
     if (patch.tab) save();
-    for (const listener of listeners) listener();
+    published.set(state);
   };
   const fail = (e: unknown) => set({ error: errorMessage(e) });
 
@@ -137,9 +124,10 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   // The user's pick, followed when it comes back: the same instance reconnected keeps its id,
   // a remount (a new instance) or a reload is matched by name. Until it's there, if ever, the
   // first editor is shown.
+  const savedEditor = saved.get().editor;
   let chosen: { id: number | null; name: string } | null =
-    saved.editor == null ? null : { id: null, name: saved.editor };
-  const save = () => writeSaved({ tab: state.tab, editor: chosen?.name ?? null });
+    savedEditor == null ? null : { id: null, name: savedEditor };
+  const save = () => saved.set({ tab: state.tab, editor: chosen?.name ?? null });
 
   // Replies can arrive out of order: only the latest selection request lands.
   let selectionRun = 0;
@@ -284,13 +272,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   };
 
   return {
-    get: () => state,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    state: published,
     select,
     onDocChanged: (listener) => {
       docListeners.add(listener);

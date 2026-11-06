@@ -1,5 +1,5 @@
-import { stored, stringSet } from "#stores/stored.ts";
-import { isRecord } from "#lib/json.ts";
+import { asJSON, persistent } from "#stores/persistent.ts";
+import { isRecord, stringSet } from "#lib/json.ts";
 import type { Kind } from "./schema-cards.tsx";
 
 export const matches = (name: string, query: string) =>
@@ -35,28 +35,36 @@ export const noFilters: SchemaFilters = {
   groups: none,
 };
 
-// Saved, shared by every editor: a tag no schema of this one has is left out (`pressedIn`).
-export const schemaFilters = stored<SchemaFilters>(
-  "wordgard-devtools:schema-filters",
-  noFilters,
-  (json) => {
-    if (!isRecord(json)) return noFilters;
-    const open = isRecord(json.open) ? json.open : {};
-    return {
-      query: typeof json.query == "string" ? json.query : "",
-      open: { node: open.node !== false, mark: open.mark !== false, group: open.group !== false },
-      nodes: stringSet(json.nodes),
-      marks: stringSet(json.marks),
-      groups: stringSet(json.groups),
-    };
-  },
-  (filters) => ({
-    ...filters,
-    nodes: [...filters.nodes],
-    marks: [...filters.marks],
-    groups: [...filters.groups],
-  })
-);
+// Saved, shared by every editor: created by the Schema as it mounts. A tag no schema of this one
+// has is left out (`pressedIn`).
+export const createSchemaFilters = () =>
+  persistent(
+    "wordgard-devtools:schema-filters",
+    noFilters,
+    asJSON(
+      (json): SchemaFilters => {
+        if (!isRecord(json)) return noFilters;
+        const open = isRecord(json.open) ? json.open : {};
+        return {
+          query: typeof json.query == "string" ? json.query : "",
+          open: {
+            node: open.node !== false,
+            mark: open.mark !== false,
+            group: open.group !== false,
+          },
+          nodes: stringSet(json.nodes),
+          marks: stringSet(json.marks),
+          groups: stringSet(json.groups),
+        };
+      },
+      (filters) => ({
+        ...filters,
+        nodes: [...filters.nodes],
+        marks: [...filters.marks],
+        groups: [...filters.groups],
+      })
+    )
+  );
 
 /** The pressed tags among those shown. */
 export const pressedIn = (pressed: ReadonlySet<string>, tags: string[]): ReadonlySet<string> =>

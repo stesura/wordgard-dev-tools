@@ -1,6 +1,7 @@
+import { useStore } from "@nanostores/react";
 import { cn } from "cn";
 import { ClipboardDocumentIcon, CodeBracketIcon, CommandLineIcon, XMarkIcon } from "#icons";
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import type { EffectiveSpec, SchemaInfo } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
 import {
@@ -238,8 +239,8 @@ const SpecMenu = ({
   onLog: Log;
   copied: () => string;
 }) => {
-  const { subscribe, get, setTrigger } = anchor;
-  const target = useSyncExternalStore(subscribe, get);
+  const { target: opened, setTrigger } = anchor;
+  const target = useStore(opened);
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">

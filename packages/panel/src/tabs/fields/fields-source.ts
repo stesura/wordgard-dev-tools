@@ -1,4 +1,5 @@
 import type { FieldDetail, FieldsInfo } from "@stesura/wordgard-dev-tools";
+import { atom, type ReadableAtom } from "nanostores";
 import { errorMessage } from "#lib/json.ts";
 import type { Transport } from "../../transport.ts";
 
@@ -7,12 +8,16 @@ export type FieldResult =
 export type ChangeResult =
   { value: unknown; error?: undefined } | { value?: undefined; error: string };
 
+export type FieldsState = {
+  fields: FieldsInfo | null;
+  /** The last fields stay up, with the error. */
+  error: string | null;
+  /** The load these are from: a field's detail is cached per version. */
+  version: number;
+};
+
 export type FieldsSource = {
-  fields: () => FieldsInfo | null;
-  error: () => string | null;
-  /** Bumped by each load: a field's detail is cached per version. */
-  version: () => number;
-  subscribe: (listener: () => void) => () => void;
+  state: ReadableAtom<FieldsState>;
   /** Replies to an older load are dropped. Never rejects. */
   load: () => Promise<void>;
   /** A promise per (version, field), cached: for `use()`. */
@@ -32,34 +37,20 @@ const KEPT = 32;
 
 export const createFieldsSource = (transport: Transport, id: number): FieldsSource => {
   let version = 0;
-  let fields: FieldsInfo | null = null;
-  let error: string | null = null;
-  const listeners = new Set<() => void>();
+  const state = atom<FieldsState>({ fields: null, error: null, version });
   const details = new Map<string, Promise<FieldResult>>();
   const changes = new Map<string, Promise<ChangeResult>>();
 
   return {
-    fields: () => fields,
-    error: () => error,
-    version: () => version,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    state,
     load: async () => {
       const at = ++version;
       try {
         const loaded = await transport.send({ type: "fields", id });
-        if (at != version) return;
-        fields = loaded;
-        error = null;
+        if (at == version) state.set({ fields: loaded, error: null, version: at });
       } catch (e) {
-        if (at != version) return;
-        error = errorMessage(e);
+        if (at == version) state.set({ ...state.get(), error: errorMessage(e), version: at });
       }
-      for (const listener of listeners) listener();
     },
     detail: (index, at) => {
       const key = `${at}|${index}`;

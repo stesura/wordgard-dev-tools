@@ -1,5 +1,6 @@
+import { useStore } from "@nanostores/react";
 import { ChevronDownIcon, ChevronRightIcon, ClipboardDocumentIcon, CommandLineIcon } from "#icons";
-import { Suspense, use, useState, useSyncExternalStore } from "react";
+import { Suspense, use, useState } from "react";
 import type { FieldChange } from "@stesura/wordgard-dev-tools";
 import {
   ContextMenu,
@@ -115,8 +116,8 @@ export const HistoryMenu = ({
   index: number;
   anchor: MenuAnchor<HistoryTarget>;
 }) => {
-  const { subscribe, get, setTrigger } = anchor;
-  const target = useSyncExternalStore(subscribe, get);
+  const { target: opened, setTrigger } = anchor;
+  const target = useStore(opened);
   const copyValue = async (seq: number) => {
     const result = await source.change(index, seq);
     if (result.error == null) await copy(json(result.value));
@@ -128,7 +129,7 @@ export const HistoryMenu = ({
       </ContextMenuTrigger>
       <ContextMenuContent
         className="w-52"
-        finalFocus={() => get()?.row.querySelector("button") ?? true}
+        finalFocus={() => opened.get()?.row.querySelector("button") ?? true}
       >
         <CopySelection text={target?.selection} />
         <ContextMenuItem

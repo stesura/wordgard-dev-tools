@@ -1,6 +1,6 @@
 # Panel restructure — plan
 
-Status: PARTIALLY EXECUTED. Phases 0 to 4 done on 2026-11-06, see
+Status: PARTIALLY EXECUTED. Phases 0 to 5 done on 2026-11-06, see
 [Implementation notes](#implementation-notes). Drafted 2026-11-06 from an audit of
 `packages/panel`, scope agreed with the user the same day; revised after a Fable review the same
 day, see [Review](#review-2026-11-06).
@@ -308,7 +308,7 @@ Add the import rules from [Target layout](#target-layout), each with `dependency
 "^packages/panel/src/tabs/[^/]+$"]}`. The second `pathNot` lets a tab reach `tabs/tabs.ts`, which
 sits beside the tab folders, not in one. CI runs these from phase 1 on.
 
-## Phase 5: nanostores
+## Phase 5: nanostores (executed 2026-11-06)
 
 Dependencies: `nanostores` and `@nanostores/react` (devDependencies of the panel, as React is:
 the build bundles them; CONTRIBUTING asks new runtime dependencies to be justified, this is about
@@ -609,4 +609,48 @@ Found while applying them: the tab-to-tab rule's `pathNot` must also let a tab i
 - Checks: typecheck, lint, tests (87 + 154 + 12), build, `compiler:check` (panel 132, extension
   127, demo 133: one memo slot fewer each, from the tab bar's map; `panicThreshold: "all_errors"`
   means every component still compiles), `format:check`, `readme:check`, `dependency-check`,
+  e2e (11): all pass.
+
+### Phase 5 (2026-11-06)
+
+- `nanostores` and `@nanostores/react` (panel devDependencies, bundled; both in
+  `optimizeDeps.include`).
+- `stores/persistent.ts`: `persistent(key, fallback, codec)` returns an `atom`, read once when
+  created and written on each change, both guarded; `asJSON(read, write)` is the usual codec.
+  Storage keys and formats are unchanged: the Log's record settings stay `"true"`/`"false"` and
+  the Fields tab's last field a bare name, through their own small codecs. `stores/stored.ts` is
+  gone (`stringSet` moved to `lib/json.ts`).
+- Who creates what (never at module level):
+  - `createPanelStore`: the panel layout (`wordgard-devtools:panel`).
+  - `renderDock`: the dock layout (`createDockLayout`); `Dock` reads it with `useStore`, and a
+    drag's live size stays local until the drag ends, then is saved.
+  - `Panel`: `createPanelSettings()` (guides shown, split-pane sizes per kind), given to
+    components through `PanelSettingsContext` (`components/panel-settings.tsx`).
+  - The tabs, as they mount: the Log and Schema filters (`createLogFilters`,
+    `createSchemaFilters`), the Fields tab's last field; `createLogSource`: the record settings.
+    Tabs remount per editor, so they read storage fresh as `stored()` used to.
+- Deviation: the plan put the settings on `createPanelStore`. The Log and Schema filter types and
+  codecs belong to their tabs, and `stores/` can't import tabs, so each owner creates its own,
+  as above. Same effect: one per mount, nothing at module level.
+- `PanelStore`: `get`/`subscribe` are replaced by `state: ReadableAtom<PanelState>` (an `atom`,
+  not a `map`: every change is a merged patch). Components read `useStore(store.state)`, tabs
+  `store.state.get()` and `store.state.listen(…)`. The extension only calls `start`, so it
+  doesn't change. The events (`onDocChanged`…) and reveals stay as they were (phase 6).
+- Sources: each has a `state` atom in place of its getters and listener set. The loaders' logic is
+  unchanged: the Log source, the selection source and the panel store keep their working copy
+  and publish it. `DetailSource.version` is an atom, set when a load lands (it was a counter bumped
+  when one started and read after the notification: the same in practice). The Fields version is
+  part of its state.
+- The menu anchor's target is an atom (`anchor.target`).
+- Theme: unchanged, as planned.
+- Found and fixed on the way: the Schema's section switch read the filters of the last render,
+  so two quick clicks lost the first (`schema.test.ts` caught it); it reads the latest now. The
+  React Compiler refused two `useCallback`s whose dependencies no longer matched (the filters'
+  atom, and `go`, now a `useCallback` itself).
+- New `test/storage.test.ts`: with `getItem` and `setItem` throwing, the panel mounts, the guides
+  turn off, the dock closes and opens, and nothing throws. Checked that it fails with the write
+  guard removed.
+- Checks: typecheck, lint, tests (87 + 155 + 12), build, `compiler:check` (panel 125, extension
+  120, demo 126: `useStore(atom)` caches fewer values than `useSyncExternalStore(x.subscribe,
+x.get)`; every component still compiles), `format:check`, `readme:check`, `dependency-check`,
   e2e (11): all pass.

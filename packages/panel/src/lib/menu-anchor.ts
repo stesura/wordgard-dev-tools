@@ -1,3 +1,4 @@
+import { atom, type ReadableAtom } from "nanostores";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { selectedText } from "./selected-text.ts";
 
@@ -10,9 +11,8 @@ import { selectedText } from "./selected-text.ts";
  * whole anchor for a ref, and reject reading it during render.
  */
 export type MenuAnchor<T> = {
-  /** `selection`: the text selected in the view when the menu opened, for its "Copy" item. */
-  get: () => (T & { row: HTMLElement; selection: string | null }) | null;
-  subscribe: (listener: () => void) => () => void;
+  /** What the menu opened on. `selection`: the text selected in the view then, for its "Copy" item. */
+  target: ReadableAtom<(T & { row: HTMLElement; selection: string | null }) | null>;
   setTrigger: (element: HTMLElement | null) => void;
   /** For the rows' container: a right-click, or Shift+F10 / the ContextMenu key on the focused row. */
   onContextMenu: (event: MouseEvent) => void;
@@ -41,14 +41,12 @@ export const createMenuAnchor = <T extends object>(
   read: (row: HTMLElement) => T,
   focus: (row: HTMLElement, target: T) => void
 ): MenuAnchor<T> => {
-  let target: (T & { row: HTMLElement; selection: string | null }) | null = null;
+  const target = atom<(T & { row: HTMLElement; selection: string | null }) | null>(null);
   let trigger: HTMLElement | null = null;
-  const listeners = new Set<() => void>();
   const open = (view: Element, row: HTMLElement, clientX: number, clientY: number) => {
     const found = read(row);
-    target = { ...found, row, selection: selectedText(view) };
     focus(row, found);
-    for (const listener of listeners) listener();
+    target.set({ ...found, row, selection: selectedText(view) });
     trigger?.dispatchEvent(
       new globalThis.MouseEvent("contextmenu", {
         bubbles: true,
@@ -59,13 +57,7 @@ export const createMenuAnchor = <T extends object>(
     );
   };
   return {
-    get: () => target,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    target,
     setTrigger: (element) => {
       trigger = element;
     },

@@ -1,5 +1,5 @@
+import { useStore } from "@nanostores/react";
 import { ClipboardDocumentIcon, CodeBracketIcon, CommandLineIcon } from "#icons";
-import { useSyncExternalStore } from "react";
 import type { LogRow } from "@stesura/wordgard-dev-tools";
 import {
   ContextMenu,
@@ -40,8 +40,8 @@ export const RowMenu = ({
   rows: LogRow[];
   anchor: MenuAnchor<RowTarget>;
 }) => {
-  const { subscribe, get, setTrigger } = anchor;
-  const target = useSyncExternalStore(subscribe, get);
+  const { target: opened, setTrigger } = anchor;
+  const target = useStore(opened);
   const row = target ? rows.find((r) => r.index == target.index) : undefined;
   const copyJSON = async (row: LogRow) => {
     const detail = await source.detail(row.index, row.flush);
@@ -55,7 +55,7 @@ export const RowMenu = ({
       <ContextMenuContent
         className="w-48"
         finalFocus={() => {
-          const list = get()?.row.closest("[role='listbox']");
+          const list = opened.get()?.row.closest("[role='listbox']");
           return list instanceof HTMLElement ? list : true;
         }}
       >

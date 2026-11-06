@@ -1,12 +1,6 @@
+import { useStore } from "@nanostores/react";
 import { ChevronDownUpIcon, ChevronUpDownIcon } from "#icons";
-import {
-  useCallback,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type KeyboardEvent,
-  type MouseEvent,
-} from "react";
+import { useCallback, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import type { Path, StructureNode } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
 import { ROOT, itemId, pathOf } from "#lib/paths.ts";
@@ -53,9 +47,8 @@ const pathOfItem = (element: Element | null) => {
 /** The whole document as nested boxes, with positions. Mounted per editor. */
 export const Structure = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createStructureSource(store.transport, editorId));
-  const doc = useSyncExternalStore(source.subscribe, source.doc);
-  const error = useSyncExternalStore(source.subscribe, source.error);
-  const { selection } = useSyncExternalStore(store.subscribe, store.get);
+  const { doc, error } = useStore(source.state);
+  const { selection } = useStore(store.state);
   const info = selection?.id == editorId ? selection.info : null;
   const [focused, setFocused] = useState<string>(ROOT);
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -100,7 +93,7 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
     (element: HTMLDivElement | null) => {
       scroller.current = element;
       if (!element) return;
-      const shown = () => store.get().tab == "structure";
+      const shown = () => store.state.get().tab == "structure";
       let stale = true;
       const load = () => {
         stale = false;
@@ -116,7 +109,7 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
         if (shown()) load();
         else stale = true;
       });
-      const stopStore = store.subscribe(() => {
+      const stopStore = store.state.listen(() => {
         if (!shown()) highlight(null);
         else if (stale) load();
       });

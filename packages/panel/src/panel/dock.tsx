@@ -1,3 +1,5 @@
+import { useStore } from "@nanostores/react";
+import type { WritableAtom } from "nanostores";
 import { cn } from "cn";
 import {
   ArrowDownLeftIcon,
@@ -43,7 +45,6 @@ import {
   cornerPlace,
   growKeys,
   placement,
-  saveLayout,
   vertical,
 } from "./dock-layout.ts";
 
@@ -114,26 +115,24 @@ const ReopenSettings = ({
 export type DockProps = {
   store: PanelStore;
   theme: ThemeStore;
-  initial: DockLayout;
+  /** Saved as it changes; a resize is saved when the drag ends. */
+  layout: WritableAtom<DockLayout>;
   /** Called on collapse and expand: a collapsed dock stops listening to the page. */
   setActive: (active: boolean) => void;
 };
 
-export const Dock = ({ store, theme, initial, setActive }: DockProps) => {
+export const Dock = ({ store, theme, layout, setActive }: DockProps) => {
   const { dark } = useSyncExternalStore(theme.subscribe, theme.get);
-  const [side, setSide] = useState(initial.side);
-  const [size, setSize] = useState(() => clamp(initial.side, initial.size));
-  const [collapsed, setCollapsed] = useState(initial.collapsed);
-  const [corner, setCorner] = useState(initial.corner);
+  const { side, collapsed, corner, minimized, ...saved } = useStore(layout);
+  // While dragging, the size the pointer gives; saved when the drag ends.
+  const [dragged, setDragged] = useState<number | null>(null);
+  const size = dragged ?? clamp(side, saved.size);
   const [reopenRoot, setReopenRoot] = useState<HTMLDivElement | null>(null);
-  const [minimized, setMinimized] = useState(initial.minimized);
-  const save = (patch: Partial<DockLayout>) =>
-    saveLayout({ side, size, collapsed, corner, minimized, ...patch });
+  const save = (patch: Partial<DockLayout>) => layout.set({ ...layout.get(), size, ...patch });
   const drag = useRef<{ x: number; y: number; size: number } | null>(null);
   const place = placement[side];
 
   const collapse = (value: boolean) => {
-    setCollapsed(value);
     setActive(!value);
     save({ collapsed: value });
   };
@@ -145,8 +144,6 @@ export const Dock = ({ store, theme, initial, setActive }: DockProps) => {
       vertical(next) == vertical(side)
         ? size
         : clamp(next, DEFAULT_SIZE[vertical(next) ? "vertical" : "horizontal"]);
-    setSide(next);
-    setSize(nextSize);
     save({ side: next, size: nextSize });
   };
 
@@ -164,24 +161,22 @@ export const Dock = ({ store, theme, initial, setActive }: DockProps) => {
   };
   const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     const next = resized(event);
-    if (next != null) setSize(next);
+    if (next != null) setDragged(next);
   };
   const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
     // From the event: the last pointermove's size may not have rendered yet.
     const next = resized(event);
     drag.current = null;
     if (next == null) return;
-    setSize(next);
     save({ size: next });
+    setDragged(null);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const [grow, shrink] = growKeys[side];
     const step = event.key == grow ? 20 : event.key == shrink ? -20 : 0;
     if (!step) return;
     event.preventDefault();
-    const next = clamp(side, size + step);
-    setSize(next);
-    save({ size: next });
+    save({ size: clamp(side, size + step) });
   };
 
   if (collapsed) {
@@ -250,14 +245,8 @@ export const Dock = ({ store, theme, initial, setActive }: DockProps) => {
           <ReopenSettings
             corner={corner}
             minimized={minimized}
-            onCorner={(value) => {
-              setCorner(value);
-              save({ corner: value });
-            }}
-            onMinimized={(value) => {
-              setMinimized(value);
-              save({ minimized: value });
-            }}
+            onCorner={(value) => save({ corner: value })}
+            onMinimized={(value) => save({ minimized: value })}
           />
         }
         actions={

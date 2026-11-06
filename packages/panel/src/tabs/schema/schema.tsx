@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Button } from "#components/ui/button";
 import { ClearFilters } from "#components/clear-filters";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
@@ -7,13 +7,14 @@ import type { PanelStore } from "#stores/panel-store.ts";
 import { SCHEMA_GROUPS, SCHEMA_MARKS, SCHEMA_NODES } from "../../guides/guides.ts";
 import { SplitPane } from "#components/split-pane";
 import { scrollInto } from "#lib/dom.ts";
+import { useStore } from "@nanostores/react";
 import {
   type SchemaFilters,
   matches,
   noFilters,
   none,
   pressedIn,
-  schemaFilters,
+  createSchemaFilters,
   tagsOf,
   toggled,
 } from "./schema-filters.ts";
@@ -33,12 +34,12 @@ import { Heading, Toggle, count } from "./schema-heading.tsx";
 /** The editor's node and mark types. Mounted per editor. */
 export const Schema = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createSchemaSource(store.transport, editorId));
-  const schema = useSyncExternalStore(source.subscribe, source.schema);
-  const error = useSyncExternalStore(source.subscribe, source.error);
-  const filters = useSyncExternalStore(schemaFilters.subscribe, schemaFilters.get);
+  const { schema, error } = useStore(source.state);
+  const [savedFilters] = useState(createSchemaFilters);
+  const filters = useStore(savedFilters);
   const { query, open } = filters;
   const setFilters = (patch: Partial<SchemaFilters>) =>
-    schemaFilters.update((f) => ({ ...f, ...patch }));
+    savedFilters.set({ ...savedFilters.get(), ...patch });
   const [byRank, setByRank] = useState(false);
   // The card clicked or shown last (a "show type" from the Structure): ringed.
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
@@ -62,17 +63,21 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
   );
 
   // Clears the filters so the card is there, rings it, then scrolls to it once drawn.
-  const go: Go = (kind, name) => {
-    setSelectedCard(`${kind}-${name}`);
-    schemaFilters.update(() => noFilters);
-    requestAnimationFrame(() => {
-      const container = scroller.current;
-      const card = container?.querySelector(`[data-type='${kind}-${CSS.escape(name)}']`);
-      const heading = card?.closest("[data-list]")?.querySelector("[data-heading]");
-      if (container && card)
-        scrollInto(container, card, heading instanceof HTMLElement ? heading.offsetHeight : 0);
-    });
-  };
+  // Stable: the list's ref callback takes reveals with it.
+  const go: Go = useCallback(
+    (kind, name) => {
+      setSelectedCard(`${kind}-${name}`);
+      savedFilters.set(noFilters);
+      requestAnimationFrame(() => {
+        const container = scroller.current;
+        const card = container?.querySelector(`[data-type='${kind}-${CSS.escape(name)}']`);
+        const heading = card?.closest("[data-list]")?.querySelector("[data-heading]");
+        if (container && card)
+          scrollInto(container, card, heading instanceof HTMLElement ? heading.offsetHeight : 0);
+      });
+    },
+    [savedFilters]
+  );
 
   // Loads while its tab is shown: on showing (when the configuration changed meanwhile) and on
   // each configuration change.
@@ -80,7 +85,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
     (element: HTMLDivElement | null) => {
       scroller.current = element;
       if (!element) return;
-      const shown = () => store.get().tab == "schema";
+      const shown = () => store.state.get().tab == "schema";
       let stale = true;
       const load = () => {
         stale = false;
@@ -91,7 +96,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
         if (shown()) load();
         else stale = true;
       });
-      const stopStore = store.subscribe(() => {
+      const stopStore = store.state.listen(() => {
         if (shown() && stale) load();
       });
       // A context menu's "show type": once the schema is in, the card is scrolled to.
@@ -110,7 +115,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
         scroller.current = null;
       };
     },
-    [store, editorId, source]
+    [store, editorId, source, go]
   );
 
   const allNodes = schema?.nodes ?? [];
@@ -141,8 +146,11 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
   const marks = byRank
     ? filteredMarks.toSorted((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity))
     : filteredMarks;
-  const toggleOpen = (kind: Kind) =>
-    schemaFilters.update((f) => ({ ...f, open: { ...f.open, [kind]: !f.open[kind] } }));
+  // From the latest: two clicks can land before a render.
+  const toggleOpen = (kind: Kind) => {
+    const latest = savedFilters.get();
+    savedFilters.set({ ...latest, open: { ...latest.open, [kind]: !latest.open[kind] } });
+  };
   // A collapsed section counts as a filter.
   const filtered =
     query != "" ||
@@ -150,7 +158,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
     markFilter.size > 0 ||
     groupFilter.size > 0 ||
     !(open.node && open.group && open.mark);
-  const clearAll = () => schemaFilters.update(() => noFilters);
+  const clearAll = () => savedFilters.set(noFilters);
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">

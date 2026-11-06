@@ -1,4 +1,5 @@
 import type { ResolvedPos, SelectionDetail } from "@stesura/wordgard-dev-tools";
+import { atom, type ReadableAtom } from "nanostores";
 import { errorMessage } from "#lib/json.ts";
 import type { Transport } from "../../transport.ts";
 
@@ -12,8 +13,7 @@ export type SelectionView = {
 };
 
 export type SelectionSource = {
-  get: () => SelectionView;
-  subscribe: (listener: () => void) => () => void;
+  state: ReadableAtom<SelectionView>;
   /** The selection, and the probe again (the document may have moved under it). Never rejects. */
   load: () => Promise<void>;
   /** Resolves a position, or clears it with `null`. Never rejects. */
@@ -27,10 +27,11 @@ export const createSelectionSource = (transport: Transport, id: number): Selecti
   let probes = 0;
   // The position asked for last: a reload re-resolves it, not the one shown (its reply may be pending).
   let wanted: number | null = null;
-  const listeners = new Set<() => void>();
+  // `view` is the working copy; `state` publishes it.
+  const state = atom(view);
   const set = (next: Partial<SelectionView>) => {
     view = { ...view, ...next };
-    for (const listener of listeners) listener();
+    state.set(view);
   };
   const probe = async (pos: number | null) => {
     const at = ++probes;
@@ -44,13 +45,7 @@ export const createSelectionSource = (transport: Transport, id: number): Selecti
     }
   };
   return {
-    get: () => view,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    state,
     load: async () => {
       const at = ++loads;
       if (wanted != null) void probe(wanted);

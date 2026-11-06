@@ -1,12 +1,12 @@
 import type { Path, ViewInfo } from "@stesura/wordgard-dev-tools";
+import { atom, type ReadableAtom } from "nanostores";
 import { errorMessage } from "#lib/json.ts";
 import type { Transport } from "../../transport.ts";
 
 export type DomState = { info: ViewInfo | null; error: string | null };
 
 export type DomSource = {
-  get: () => DomState;
-  subscribe: (listener: () => void) => () => void;
+  state: ReadableAtom<DomState>;
   /** Replies to an older load are dropped. Never rejects. */
   load: () => Promise<void>;
   /** An action on a line's element in the page. The element may have changed since the last load: on failure it loads again. */
@@ -16,31 +16,21 @@ export type DomSource = {
 };
 
 export const createDomSource = (transport: Transport, id: number): DomSource => {
-  let state: DomState = { info: null, error: null };
+  const state = atom<DomState>({ info: null, error: null });
   let version = 0;
-  const listeners = new Set<() => void>();
   let outlined = false;
   const load = async () => {
     const at = ++version;
     try {
       const info = await transport.send({ type: "view", id });
-      if (at != version) return;
-      state = { info, error: null };
+      if (at == version) state.set({ info, error: null });
     } catch (e) {
-      if (at != version) return;
       // The last view stays up, with the error.
-      state = { ...state, error: errorMessage(e) };
+      if (at == version) state.set({ ...state.get(), error: errorMessage(e) });
     }
-    for (const listener of listeners) listener();
   };
   return {
-    get: () => state,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    state,
     load,
     element: async (path, action) => {
       if (action == "outline") outlined = true;

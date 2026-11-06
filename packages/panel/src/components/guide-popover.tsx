@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { QuestionMarkCircleIcon } from "#icons";
-import { useSyncExternalStore } from "react";
+import { useStore } from "@nanostores/react";
 import { Button } from "#components/ui/button";
 import {
   Popover,
@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
 } from "#components/ui/popover";
 import type { Guide } from "../guides/guides.ts";
-import { stored } from "#stores/stored.ts";
+import { usePanelSettings } from "./panel-settings.tsx";
 
 const LINK = /^\[([^\]]+)\]\(([^)]+)\)$/;
 
@@ -41,14 +41,6 @@ const Text = ({ text }: { text: string }) =>
     );
   });
 
-/** Whether the guides' ? buttons show (the Settings menu): saved, on by default. */
-export const guidesShown = stored<boolean>(
-  "wordgard-devtools:guides",
-  true,
-  (json) => json !== false,
-  (shown) => shown
-);
-
 /**
  * A guide: what something shows, tips, links to Wordgard's reference. Opens on click, or on hover.
  * `dim`: faint until pointed at, focused or open, so the guides inside a tab don't compete with its
@@ -65,7 +57,8 @@ export const GuidePopover = ({
   align?: "start" | "end";
   dim?: boolean;
 }) => {
-  if (!useSyncExternalStore(guidesShown.subscribe, guidesShown.get)) return null;
+  // Shown unless the Settings menu turned the guides off.
+  if (!useStore(usePanelSettings().guidesShown)) return null;
   return (
     <Popover>
       <PopoverTrigger

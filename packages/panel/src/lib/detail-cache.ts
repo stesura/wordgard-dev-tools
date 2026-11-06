@@ -1,4 +1,5 @@
 import type { NodeDetail, Path } from "@stesura/wordgard-dev-tools";
+import type { ReadableAtom } from "nanostores";
 import { errorMessage } from "./json.ts";
 import type { Transport } from "../transport.ts";
 import { itemId } from "./paths.ts";
@@ -9,8 +10,8 @@ export type Detail = { node: NodeDetail; error?: undefined } | { node?: undefine
 export type DetailSource = {
   /** A promise per (document version, path), cached: for `use()`. */
   detail: (path: Path, version: number) => Promise<Detail>;
-  version: () => number;
-  subscribe: (listener: () => void) => () => void;
+  /** The load the shown document is from. */
+  version: ReadableAtom<number>;
 };
 
 // Detail promises kept: a deferred render may still show an older version's.

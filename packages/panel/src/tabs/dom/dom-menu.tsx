@@ -1,10 +1,10 @@
+import { useStore } from "@nanostores/react";
 import {
   ClipboardDocumentIcon,
   CodeBracketIcon,
   CommandLineIcon,
   RectangleGroupIcon,
 } from "#icons";
-import { useSyncExternalStore } from "react";
 import type { ViewNode } from "@stesura/wordgard-dev-tools";
 import {
   ContextMenu,
@@ -48,8 +48,8 @@ export const DomMenu = ({
   tree: HTMLElement | null;
   onElement: (id: string, action: "log" | "logHTML") => void;
 }) => {
-  const { subscribe, get, setTrigger } = anchor;
-  const target = useSyncExternalStore(subscribe, get);
+  const { target: opened, setTrigger } = anchor;
+  const target = useStore(opened);
   const node = target && dom ? drawnBy(dom, target.id) : null;
   const copyHTML = async (id: string) =>
     copy(await store.transport.send({ type: "viewHTML", id: editorId, path: pathOf(id) }));

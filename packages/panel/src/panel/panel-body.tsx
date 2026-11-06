@@ -1,5 +1,5 @@
+import { useStore } from "@nanostores/react";
 import { CommandLineIcon, RecordIcon } from "#icons";
-import { useSyncExternalStore } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#components/ui/tabs";
 import { GuideButton } from "#components/guide-popover";
 import { IconButton } from "#components/icon-button";
@@ -15,7 +15,7 @@ const tabClass =
   "-mb-px h-7 flex-none rounded-none border-0 border-r border-r-border px-3 text-xs text-muted-foreground hover:text-foreground focus-visible:border-r-border focus-visible:ring-2 focus-visible:ring-inset data-active:bg-strip data-active:text-foreground dark:data-active:bg-strip dark:data-active:border-r-border group-data-[variant=default]/tabs-list:data-active:shadow-none";
 
 export const Body = ({ store }: { store: PanelStore }) => {
-  const { editors, selected, tab, recording } = useSyncExternalStore(store.subscribe, store.get);
+  const { editors, selected, tab, recording } = useStore(store.state);
   if (!editors.length) {
     return (
       <p className="p-2 text-muted-foreground">

@@ -1,3 +1,4 @@
+import { useStore } from "@nanostores/react";
 import {
   ChevronDownUpIcon,
   ChevronUpDownIcon,
@@ -5,7 +6,7 @@ import {
   InformationCircleIcon,
   NoSymbolIcon,
 } from "#icons";
-import { useCallback, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Path, ViewNode } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
 import { SearchBox, matchClass, useSearch } from "#components/search-box";
@@ -23,7 +24,7 @@ import { Status } from "./dom-status.tsx";
 /** The editor's view: its status and its content's DOM, mapped to the document. Mounted per editor. */
 export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createDomSource(store.transport, editorId));
-  const { info, error } = useSyncExternalStore(source.subscribe, source.get);
+  const { info, error } = useStore(source.state);
   const [collapsed, setCollapsedState] = useState<ReadonlySet<string>>(() => new Set());
   // Also read by a reveal, which runs outside a render.
   const collapsedNow = useRef(collapsed);
@@ -89,7 +90,7 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
     (scroller: HTMLDivElement | null) => {
       setScrollElement(scroller);
       if (!scroller) return;
-      const shown = () => store.get().tab == "dom";
+      const shown = () => store.state.get().tab == "dom";
       let stale = true;
       const load = () => {
         stale = false;
@@ -100,13 +101,13 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
         if (shown()) load();
         else stale = true;
       });
-      const stopStore = store.subscribe(() => {
+      const stopStore = store.state.listen(() => {
         if (!shown()) hide();
         else if (stale) load();
       });
       // A "show in DOM" from the Structure: its element (or nearest ancestor's) opened up to, selected and scrolled to.
       const reveal = (path: Path) => {
-        const info = source.get().info;
+        const info = source.state.get().info;
         if (info) showLine(info.dom, lineOf(info.dom, path), scroller);
       };
       const takeReveal = () => {

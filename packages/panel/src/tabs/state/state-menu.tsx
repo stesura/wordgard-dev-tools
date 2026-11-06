@@ -1,3 +1,4 @@
+import { useStore } from "@nanostores/react";
 import {
   ClipboardDocumentIcon,
   CodeBracketIcon,
@@ -6,7 +7,6 @@ import {
   RectangleGroupIcon,
   ViewfinderCircleIcon,
 } from "#icons";
-import { useSyncExternalStore } from "react";
 import { accessor, type Path } from "@stesura/wordgard-dev-tools";
 import {
   ContextMenu,
@@ -39,8 +39,8 @@ export const StateMenu = ({
   tree: HTMLElement | null;
   onHighlight: (path: Path) => void;
 }) => {
-  const { subscribe, get, setTrigger } = anchor;
-  const target = useSyncExternalStore(subscribe, get);
+  const { target: opened, setTrigger } = anchor;
+  const target = useStore(opened);
   const keys = target?.keys ?? [];
   const path = nodePathOf(keys);
   const log = (json: boolean) =>

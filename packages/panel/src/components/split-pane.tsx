@@ -1,8 +1,10 @@
+import { useStore } from "@nanostores/react";
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#components/ui/resizable";
+import { usePanelSettings } from "./panel-settings.tsx";
 
 export type Orientation = "horizontal" | "vertical";
-type Sizes = Record<Orientation, number>;
+export type Sizes = Record<Orientation, number>;
 
 /** A kind of split: where its sizes are saved, from what width (px) it's side by side, its pane's sizes (px). */
 export type SplitKind = { key: string; wide: number; defaults: Sizes; min: Sizes };
@@ -13,30 +15,6 @@ const MAIN: SplitKind = {
   wide: 672,
   defaults: { horizontal: 352, vertical: 192 },
   min: { horizontal: 200, vertical: 80 },
-};
-
-const load = ({ key, defaults }: SplitKind): Sizes => {
-  try {
-    const stored = JSON.parse(localStorage.getItem(key) ?? "null");
-    const size = (orientation: Orientation) =>
-      typeof stored?.[orientation] == "number" ? stored[orientation] : defaults[orientation];
-    return { horizontal: size("horizontal"), vertical: size("vertical") };
-  } catch {
-    return { ...defaults };
-  }
-};
-
-// Per kind, shared by every tab and editor: a pane keeps the size the user gave it.
-const sizes = new Map<string, Sizes>();
-const sizesOf = (kind: SplitKind) => sizes.get(kind.key) ?? load(kind);
-const save = (kind: SplitKind, orientation: Orientation, size: number) => {
-  const next = { ...sizesOf(kind), [orientation]: Math.round(size) };
-  sizes.set(kind.key, next);
-  try {
-    localStorage.setItem(kind.key, JSON.stringify(next));
-  } catch {
-    // Storage blocked: the size lasts until reload.
-  }
 };
 
 /**
@@ -58,6 +36,9 @@ export const SplitPane = ({
   const [measured, setOrientation] = useState<Orientation | null>(null);
   const orientation = fixed ?? measured;
   const paneSize = useRef(0);
+  // Per kind, shared by every tab and editor: a pane keeps the size the user gave it.
+  const sizes = usePanelSettings().paneSizes(kind);
+  const saved = useStore(sizes);
   const measure = useCallback(
     (element: HTMLDivElement | null) => {
       if (!element) return;
@@ -79,7 +60,7 @@ export const SplitPane = ({
           orientation={orientation}
           onLayoutChanged={(_, meta) => {
             if (meta.isUserInteraction && paneSize.current)
-              save(kind, orientation, paneSize.current);
+              sizes.set({ ...sizes.get(), [orientation]: Math.round(paneSize.current) });
           }}
         >
           <ResizablePanel id="content" minSize={120} className="flex min-h-0 min-w-0 flex-col">
@@ -91,7 +72,7 @@ export const SplitPane = ({
               <ResizableHandle />
               <ResizablePanel
                 id="pane"
-                defaultSize={sizesOf(kind)[orientation]}
+                defaultSize={saved[orientation]}
                 minSize={kind.min[orientation]}
                 onResize={(size) => {
                   paneSize.current = size.inPixels;

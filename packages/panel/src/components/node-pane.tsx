@@ -1,12 +1,6 @@
+import { useStore } from "@nanostores/react";
 import { ClipboardDocumentIcon, CommandLineIcon } from "#icons";
-import {
-  Suspense,
-  use,
-  useDeferredValue,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { Suspense, use, useDeferredValue, useState, type ReactNode } from "react";
 import type { NodePart, Path } from "@stesura/wordgard-dev-tools";
 import { Button } from "./ui/button.tsx";
 import {
@@ -65,8 +59,8 @@ const PaneMenu = ({
   anchor: MenuAnchor<PaneTarget>;
   onLog: (part: PaneLog) => void;
 }) => {
-  const { subscribe, get, setTrigger } = anchor;
-  const target = useSyncExternalStore(subscribe, get);
+  const { target: opened, setTrigger } = anchor;
+  const target = useStore(opened);
   const part = target?.part;
   return (
     <ContextMenu>
@@ -183,7 +177,7 @@ export const NodePane = ({
   onLog: (path: Path, part: PaneLog) => void;
 }) => {
   // Deferred: the previous detail stays up while the next one loads, instead of a fallback.
-  const version = useDeferredValue(useSyncExternalStore(source.subscribe, source.version));
+  const version = useDeferredValue(useStore(source.version));
   const id = useDeferredValue(focused);
   const [menu] = useState(() =>
     createMenuAnchor<PaneTarget>(

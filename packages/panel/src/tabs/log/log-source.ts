@@ -1,5 +1,7 @@
 import type { EntryPart, LogEntryDetail, LogRow } from "@stesura/wordgard-dev-tools";
+import { atom, type ReadableAtom } from "nanostores";
 import { errorMessage } from "#lib/json.ts";
+import { persistent } from "#stores/persistent.ts";
 import type { Transport } from "../../transport.ts";
 
 export type LogView = {
@@ -25,8 +27,7 @@ export type EntryDetail =
   { entry: LogEntryDetail; error?: undefined } | { entry?: undefined; error: string };
 
 export type LogSource = {
-  get: () => LogView;
-  subscribe: (listener: () => void) => () => void;
+  state: ReadableAtom<LogView>;
   /** Fetches the rows appended or changed since the last load. Never rejects. */
   load: () => Promise<void>;
   record: (on: boolean) => Promise<void>;
@@ -46,44 +47,36 @@ const SETTING_KEYS: Record<RecordSetting, string> = {
   focusChanges: "wordgard-devtools:log-focus-changes",
 };
 
-// On unless saved off.
-const readSetting = (setting: RecordSetting) => {
-  try {
-    return localStorage.getItem(SETTING_KEYS[setting]) != "false";
-  } catch {
-    return true;
-  }
-};
+// On unless saved off. Read as the Log mounts: what's saved now.
+const recordSetting = (setting: RecordSetting) =>
+  persistent(SETTING_KEYS[setting], true, { decode: (text) => text != "false", encode: String });
 
-const saveSetting = (setting: RecordSetting, on: boolean) => {
-  try {
-    localStorage.setItem(SETTING_KEYS[setting], String(on));
-  } catch {
-    // Storage blocked: the setting lasts until reload.
-  }
-};
-
-const empty = (): LogView => ({
-  rows: [],
-  start: 0,
-  end: 0,
-  pending: 0,
-  recording: false,
-  size: 0,
-  loaded: false,
-  error: null,
-  selectPointer: readSetting("selectPointer"),
-  focusChanges: readSetting("focusChanges"),
-});
 const KEPT = 32;
 
 export const createLogSource = (transport: Transport, id: number): LogSource => {
+  const settings = {
+    selectPointer: recordSetting("selectPointer"),
+    focusChanges: recordSetting("focusChanges"),
+  };
+  const empty = (): LogView => ({
+    rows: [],
+    start: 0,
+    end: 0,
+    pending: 0,
+    recording: false,
+    size: 0,
+    loaded: false,
+    error: null,
+    selectPointer: settings.selectPointer.get(),
+    focusChanges: settings.focusChanges.get(),
+  });
+  // The working copy; `state` publishes it.
   let view = empty();
+  const state = atom(view);
   let version = 0;
-  const listeners = new Set<() => void>();
   const set = (patch: Partial<LogView>) => {
     view = { ...view, ...patch };
-    for (const listener of listeners) listener();
+    state.set(view);
   };
 
   const details = new Map<string, Promise<EntryDetail>>();
@@ -129,13 +122,7 @@ export const createLogSource = (transport: Transport, id: number): LogSource => 
   };
 
   return {
-    get: () => view,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    state,
     load,
     record: (on) =>
       act(() =>
@@ -148,7 +135,7 @@ export const createLogSource = (transport: Transport, id: number): LogSource => 
         })
       ),
     setSetting: async (setting, on) => {
-      saveSetting(setting, on);
+      settings[setting].set(on);
       set({ [setting]: on });
       if (view.recording)
         await act(() => transport.send({ type: "record", id, on: true, [setting]: on }));

@@ -1,4 +1,5 @@
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useStore } from "@nanostores/react";
+import { useCallback, useState } from "react";
 import { Button } from "#components/ui/button";
 import { GuidePopover } from "#components/guide-popover";
 import { RESOLVED_POSITIONS, SELECTION } from "../../guides/guides.ts";
@@ -13,8 +14,8 @@ import { type Links, Marks, Position, Section, SliceCard, pathLink } from "./sel
 /** The selected editor's selection, resolved, and any position typed in. Mounted per editor. */
 export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createSelectionSource(store.transport, editorId));
-  const { detail, error, probe } = useSyncExternalStore(source.subscribe, source.get);
-  const { selection } = useSyncExternalStore(store.subscribe, store.get);
+  const { detail, error, probe } = useStore(source.state);
+  const { selection } = useStore(store.state);
   const info = selection?.id == editorId ? selection.info : null;
   const [typed, setTyped] = useState("");
   const links: Links = {
@@ -32,7 +33,7 @@ export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId:
   const container = useCallback(
     (element: HTMLDivElement | null) => {
       if (!element) return;
-      const shown = () => store.get().tab == "selection";
+      const shown = () => store.state.get().tab == "selection";
       let stale = true;
       const load = () => {
         stale = false;
@@ -43,7 +44,7 @@ export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId:
         if (shown()) load();
         else stale = true;
       });
-      const stopStore = store.subscribe(() => {
+      const stopStore = store.state.listen(() => {
         if (shown() && stale) load();
       });
       if (shown()) load();

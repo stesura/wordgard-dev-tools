@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { NoSymbolIcon, RecordIcon, PauseIcon } from "#icons";
-import { useCallback, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import { SLOW_MS } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
 import { createLogSource } from "./log-source.ts";
@@ -10,7 +10,14 @@ import { Tip } from "#components/tip";
 import { SplitPane } from "#components/split-pane";
 import { keepRowInView, useRows } from "#hooks/use-rows.ts";
 import { COLUMNS, ROW, Row, type Sort, SortHeading, sorted } from "./log-rows.tsx";
-import { FilterBar, SettingBox, filteredRows, logFilters, noFilters } from "./log-filters.tsx";
+import { useStore } from "@nanostores/react";
+import {
+  FilterBar,
+  SettingBox,
+  createLogFilters,
+  filteredRows,
+  noFilters,
+} from "./log-filters.tsx";
 import { RowMenu, type RowTarget } from "./row-menu.tsx";
 import { isSlow, slowText } from "./log-format.ts";
 import { Timeline } from "./log-timeline.tsx";
@@ -19,7 +26,7 @@ import { EntryPane } from "./entry-pane.tsx";
 /** The transaction log of one editor, with record/pause and per-update timing. Mounted per editor. */
 export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createLogSource(store.transport, editorId));
-  const view = useSyncExternalStore(source.subscribe, source.get);
+  const view = useStore(source.state);
   const [selected, setSelected] = useState<number | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
   // State, not only a ref: the list may mount a render after this component (the split pane
@@ -34,7 +41,8 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
     sortNow.current = next;
     setSort(next);
   };
-  const filters = useSyncExternalStore(logFilters.subscribe, logFilters.get);
+  const [savedFilters] = useState(createLogFilters);
+  const filters = useStore(savedFilters);
   const filtered = filteredRows(rows, filters);
   const shown = sorted(filtered, sort);
   // The newest rows come last: new ones are followed.
@@ -47,7 +55,10 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
   const select = useCallback(
     (index: number) => {
       setSelected(index);
-      const order = sorted(filteredRows(source.get().rows, logFilters.get()), sortNow.current);
+      const order = sorted(
+        filteredRows(source.state.get().rows, savedFilters.get()),
+        sortNow.current
+      );
       // Two rows of room: the sticky column header covers the first.
       keepRowInView(
         scroller.current,
@@ -56,7 +67,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
         2
       );
     },
-    [source]
+    [source, savedFilters]
   );
 
   // New rows are followed while the list is scrolled to the bottom.
@@ -80,7 +91,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
       scroller.current = element;
       setScrollElement(element);
       if (!element) return;
-      const shown = () => store.get().tab == "log";
+      const shown = () => store.state.get().tab == "log";
       let stale = true;
       const load = () => {
         stale = false;
@@ -97,7 +108,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
         const index = store.takeLogReveal(editorId);
         if (index == null) return;
         // The entry may be filtered out.
-        logFilters.update(() => noFilters);
+        savedFilters.set(noFilters);
         setSelected(index);
         void source.load().then(() => requestAnimationFrame(() => select(index)));
       };
@@ -108,17 +119,17 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
         else stale = true;
       });
       // A list change may be this editor reconnecting with a new log, under the same id.
-      let editors = store.get().editors;
-      const stopStore = store.subscribe(() => {
-        if (store.get().editors != editors) {
-          editors = store.get().editors;
+      let editors = store.state.get().editors;
+      const stopStore = store.state.listen(() => {
+        if (store.state.get().editors != editors) {
+          editors = store.state.get().editors;
           stale = true;
         }
         if (shown() && stale) load();
       });
       // The tab's red dot: kept mounted while hidden, this tab knows whether its editor records.
-      const report = () => store.setRecording(source.get().recording);
-      const stopSource = source.subscribe(report);
+      const report = () => store.setRecording(source.state.get().recording);
+      const stopSource = source.state.listen(report);
       report();
       if (shown()) load();
       takeReveal();
@@ -132,7 +143,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
         scroller.current = null;
       };
     },
-    [store, editorId, source, select]
+    [store, editorId, source, select, savedFilters]
   );
 
   // The row a menu opens on is selected.
@@ -234,7 +245,11 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
           </Button>
         </p>
       )}
-      <FilterBar rows={rows} filters={filters} onChange={logFilters.update} />
+      <FilterBar
+        rows={rows}
+        filters={filters}
+        onChange={(update) => savedFilters.set(update(savedFilters.get()))}
+      />
       <Timeline rows={filtered} selected={selected} onSelect={select} />
       <SplitPane pane={<EntryPane source={source} row={selectedRow} />}>
         {/* The header sits outside the listbox, which holds only rows. */}

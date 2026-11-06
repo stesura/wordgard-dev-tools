@@ -1,3 +1,6 @@
+import { isRecord } from "#lib/json.ts";
+import { asJSON, persistent } from "#stores/persistent.ts";
+
 export type DockSide = "bottom" | "right" | "top" | "left";
 
 export type Corner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
@@ -23,38 +26,23 @@ export const vertical = (side: DockSide) => side == "top" || side == "bottom";
 
 export const DEFAULT_SIZE = { vertical: 280, horizontal: 420 };
 
-export const readLayout = (): DockLayout => {
-  try {
-    const stored = JSON.parse(localStorage.getItem(KEY) ?? "null");
-    const side = isSide(stored?.side) ? stored.side : "bottom";
-    return {
-      side,
-      size:
-        typeof stored?.size == "number"
-          ? stored.size
-          : DEFAULT_SIZE[vertical(side) ? "vertical" : "horizontal"],
-      collapsed: stored?.collapsed === true,
-      corner: isCorner(stored?.corner) ? stored.corner : "bottom-right",
-      minimized: stored?.minimized === true,
-    };
-  } catch {
-    return {
-      side: "bottom",
-      size: DEFAULT_SIZE.vertical,
-      collapsed: false,
-      corner: "bottom-right",
-      minimized: false,
-    };
-  }
+const readLayout = (json: unknown): DockLayout => {
+  const saved = isRecord(json) ? json : {};
+  const side = isSide(saved.side) ? saved.side : "bottom";
+  return {
+    side,
+    size:
+      typeof saved.size == "number"
+        ? saved.size
+        : DEFAULT_SIZE[vertical(side) ? "vertical" : "horizontal"],
+    collapsed: saved.collapsed === true,
+    corner: isCorner(saved.corner) ? saved.corner : "bottom-right",
+    minimized: saved.minimized === true,
+  };
 };
 
-export const saveLayout = (layout: DockLayout) => {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(layout));
-  } catch {
-    // Storage blocked: the layout lasts until reload.
-  }
-};
+/** The dock's layout, saved: created by `renderDock` as it mounts. */
+export const createDockLayout = () => persistent(KEY, readLayout(null), asJSON(readLayout));
 
 export const clamp = (side: DockSide, size: number) => {
   const [min, max] = vertical(side)

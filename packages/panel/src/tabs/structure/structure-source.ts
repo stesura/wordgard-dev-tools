@@ -1,11 +1,14 @@
 import type { StructureNode } from "@stesura/wordgard-dev-tools";
+import { atom, type ReadableAtom } from "nanostores";
 import { createDetailCache, type DetailSource } from "#lib/detail-cache.ts";
 import { errorMessage } from "#lib/json.ts";
 import type { Transport } from "../../transport.ts";
 
+/** The last structure stays up, with the error. */
+export type StructureState = { doc: StructureNode | null; error: string | null };
+
 export type StructureSource = DetailSource & {
-  doc: () => StructureNode | null;
-  error: () => string | null;
+  state: ReadableAtom<StructureState>;
   /** Fetches the whole document; replies to an older load are dropped. Never rejects. */
   load: () => Promise<void>;
   /** Resolves once the latest load is in. */
@@ -13,39 +16,29 @@ export type StructureSource = DetailSource & {
 };
 
 export const createStructureSource = (transport: Transport, id: number): StructureSource => {
-  let version = 0;
-  let doc: StructureNode | null = null;
-  let error: string | null = null;
-  const listeners = new Set<() => void>();
+  let at = 0;
+  const state = atom<StructureState>({ doc: null, error: null });
+  const version = atom(0);
   let pending: Promise<void> = Promise.resolve();
 
   const load = async () => {
-    const at = ++version;
+    const mine = ++at;
     try {
-      const loaded = await transport.send({ type: "structure", id });
-      if (at != version) return;
-      doc = loaded;
-      error = null;
+      const doc = await transport.send({ type: "structure", id });
+      if (mine != at) return;
+      state.set({ doc, error: null });
     } catch (e) {
-      if (at != version) return;
-      // The last structure stays up, with the error.
-      error = errorMessage(e);
+      if (mine != at) return;
+      state.set({ ...state.get(), error: errorMessage(e) });
     }
-    for (const listener of listeners) listener();
+    version.set(mine);
   };
 
   return {
-    doc: () => doc,
-    error: () => error,
+    state,
+    version,
     load: () => (pending = load()),
     ready: () => pending,
     detail: createDetailCache(transport, id),
-    version: () => version,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
   };
 };

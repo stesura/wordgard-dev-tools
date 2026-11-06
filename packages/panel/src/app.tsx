@@ -2,7 +2,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Dock } from "./panel/dock.tsx";
-import { readLayout } from "./panel/dock-layout.ts";
+import { createDockLayout } from "./panel/dock-layout.ts";
 import { createPanelStore } from "#stores/panel-store.ts";
 import css from "./styles.css?inline";
 import { createThemeStore } from "#stores/theme.ts";
@@ -41,12 +41,12 @@ export const renderDock = (shadow: ShadowRoot, transport: Transport) => {
       stop = null;
     }
   };
-  const initial = readLayout();
-  setActive(!initial.collapsed);
+  const layout = createDockLayout();
+  setActive(!layout.get().collapsed);
   const root = createRoot(container);
   root.render(
     <StrictMode>
-      <Dock store={store} theme={theme} initial={initial} setActive={setActive} />
+      <Dock store={store} theme={theme} layout={layout} setActive={setActive} />
     </StrictMode>
   );
   return () => {

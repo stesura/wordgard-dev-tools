@@ -1,5 +1,6 @@
+import { useStore } from "@nanostores/react";
 import { ClipboardDocumentIcon, CommandLineIcon, NoSymbolIcon } from "#icons";
-import { use, useState, useSyncExternalStore, type ReactNode } from "react";
+import { use, useState, type ReactNode } from "react";
 import { Button } from "#components/ui/button";
 import {
   ContextMenu,
@@ -36,8 +37,8 @@ const ValueMenu = ({
   onLog: () => void;
   text: () => string;
 }) => {
-  const { subscribe, get, setTrigger } = anchor;
-  const target = useSyncExternalStore(subscribe, get);
+  const { target: opened, setTrigger } = anchor;
+  const target = useStore(opened);
   return (
     <ContextMenu>
       <ContextMenuTrigger className="hidden">

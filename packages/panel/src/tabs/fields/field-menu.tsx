@@ -1,5 +1,5 @@
+import { useStore } from "@nanostores/react";
 import { ClipboardDocumentIcon, CommandLineIcon } from "#icons";
-import { useSyncExternalStore } from "react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -24,11 +24,11 @@ export const FieldMenu = ({
   anchor: MenuAnchor<MenuTarget>;
   list: HTMLElement | null;
 }) => {
-  const { subscribe, get, setTrigger } = anchor;
-  const target = useSyncExternalStore(subscribe, get);
+  const { target: opened, setTrigger } = anchor;
+  const target = useStore(opened);
   const index = target?.index;
   const copyValue = async (index: number) => {
-    const result = await source.detail(index, source.version());
+    const result = await source.detail(index, source.state.get().version);
     if (result.field) await copy(json(result.field.value));
   };
   return (

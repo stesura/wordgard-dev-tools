@@ -1,3 +1,4 @@
+import { useStore } from "@nanostores/react";
 import {
   BookOpenIcon,
   ClipboardDocumentIcon,
@@ -6,7 +7,6 @@ import {
   EyeIcon,
   MapPinIcon,
 } from "#icons";
-import { useSyncExternalStore } from "react";
 import type { Path } from "@stesura/wordgard-dev-tools";
 import {
   ContextMenu,
@@ -46,8 +46,8 @@ export const NodeMenu = ({
   editorId: number;
   anchor: NodeMenuAnchor;
 }) => {
-  const { subscribe, get, setTrigger } = anchor;
-  const target = useSyncExternalStore(subscribe, get);
+  const { target: opened, setTrigger } = anchor;
+  const target = useStore(opened);
   const path = target?.path ?? [];
   const copyJSON = async () => {
     const node = await store.transport.send({ type: "node", id: editorId, path });
@@ -58,7 +58,7 @@ export const NodeMenu = ({
       <ContextMenuTrigger className="hidden">
         <span ref={setTrigger} />
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-52" finalFocus={() => get()?.row ?? true}>
+      <ContextMenuContent className="w-52" finalFocus={() => opened.get()?.row ?? true}>
         <CopySelection text={target?.selection} />
         <ContextMenuItem
           className="text-xs"

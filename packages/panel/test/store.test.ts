@@ -138,10 +138,10 @@ it("restores the tab and the editor, by name, after a reload", async () => {
   agent.add(8, "e2");
   agent.remove(6);
   const store = createPanelStore(agent.transport);
-  expect(store.get().tab).toBe("schema");
+  expect(store.state.get().tab).toBe("schema");
   const stop = store.start();
   await settle();
-  expect(store.get().selected).toBe(8);
+  expect(store.state.get().selected).toBe(8);
   stop();
 });
 
@@ -149,19 +149,19 @@ it("shows the first editor when the saved one is gone, and a stored tab that isn
   localStorage.setItem("wordgard-devtools:panel", JSON.stringify({ tab: "nope", editor: "gone" }));
   const agent = fakeAgent([1, 2]);
   const store = createPanelStore(agent.transport);
-  expect(store.get().tab).toBe("structure");
+  expect(store.state.get().tab).toBe("structure");
   const stop = store.start();
   await settle();
-  expect(store.get().selected).toBe(1);
+  expect(store.state.get().selected).toBe(1);
   expect(agent.attached()).toEqual([1]);
   stop();
 });
 
 it("reads a tab saved before the DOM tab's id was dom", () => {
   localStorage.setItem("wordgard-devtools:panel", JSON.stringify({ view: "view", editor: null }));
-  expect(createPanelStore(fakeAgent([]).transport).get().tab).toBe("dom");
+  expect(createPanelStore(fakeAgent([]).transport).state.get().tab).toBe("dom");
   localStorage.setItem("wordgard-devtools:panel", JSON.stringify({ view: "log", editor: null }));
-  expect(createPanelStore(fakeAgent([]).transport).get().tab).toBe("log");
+  expect(createPanelStore(fakeAgent([]).transport).state.get().tab).toBe("log");
 });
 
 it("doesn't attach an editor once stopped", async () => {
@@ -179,14 +179,14 @@ it("follows the chosen editor when it comes back", async () => {
   const store = createPanelStore(agent.transport);
   const stop = store.start();
   await settle();
-  expect(store.get().selected).toBe(1);
+  expect(store.state.get().selected).toBe(1);
   await store.select(2);
   agent.remove(2);
   await settle();
-  expect(store.get().selected).toBe(1);
+  expect(store.state.get().selected).toBe(1);
   agent.add(2);
   await settle();
-  expect(store.get().selected).toBe(2);
+  expect(store.state.get().selected).toBe(2);
   expect(agent.attached()).toEqual([2]);
   stop();
 });
@@ -201,7 +201,7 @@ it("follows the chosen editor's name when it is remounted as a new instance", as
   await settle();
   agent.add(3, "e2");
   await settle();
-  expect(store.get().selected).toBe(3);
+  expect(store.state.get().selected).toBe(3);
   stop();
 });
 
@@ -212,7 +212,7 @@ it("ignores another panel's picks", async () => {
   await settle();
   agent.push({ type: "picked", id: 2, path: [0] });
   await settle();
-  expect(store.get().selected).toBe(1);
+  expect(store.state.get().selected).toBe(1);
   expect(store.takeReveal(2)).toBeNull();
   stop();
 });
@@ -226,13 +226,13 @@ it("leaves pick mode when picking ends elsewhere", async () => {
   await settle();
   agent.sent.length = 0;
   agent.push({ type: "pickCancelled" });
-  expect(store.get().picking).toBe(false);
+  expect(store.state.get().picking).toBe(false);
   await settle();
   expect(agent.sent).toEqual([]);
   store.pick(true);
   agent.push({ type: "picked", id: 2, path: [0, 1] });
   await settle();
-  expect(store.get()).toMatchObject({ picking: false, selected: 2 });
+  expect(store.state.get()).toMatchObject({ picking: false, selected: 2 });
   expect(store.takeReveal(2)).toEqual([0, 1]);
   stop();
 });
@@ -245,7 +245,7 @@ it("detaches while paused, and attaches again on resume", async () => {
   expect(agent.attached()).toEqual([1]);
   store.pause(true);
   await settle();
-  expect(store.get().paused).toBe(true);
+  expect(store.state.get().paused).toBe(true);
   expect(agent.attached()).toEqual([]);
   // No pushes while paused: an editor list change goes unseen.
   agent.sent.length = 0;
@@ -255,6 +255,6 @@ it("detaches while paused, and attaches again on resume", async () => {
   store.pause(false);
   await settle();
   expect(agent.attached()).toEqual([1]);
-  expect(store.get().editors.map((e) => e.id)).toEqual([1, 2, 3]);
+  expect(store.state.get().editors.map((e) => e.id)).toEqual([1, 2, 3]);
   stop();
 });

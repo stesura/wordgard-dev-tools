@@ -1,13 +1,8 @@
+import { useStore } from "@nanostores/react";
+import { persistent } from "#stores/persistent.ts";
 import { cn } from "cn";
 import { NoSymbolIcon } from "#icons";
-import {
-  Suspense,
-  useCallback,
-  useDeferredValue,
-  useState,
-  useSyncExternalStore,
-  type KeyboardEvent,
-} from "react";
+import { Suspense, useCallback, useDeferredValue, useState, type KeyboardEvent } from "react";
 import { Tag } from "#components/ui/badge";
 import { Button } from "#components/ui/button";
 import { createFieldsSource } from "./fields-source.ts";
@@ -30,36 +25,21 @@ const FIELDS_SPLIT: SplitKind = {
 const COLUMNS = "grid grid-cols-[8rem_minmax(0,1fr)_4rem_10rem] items-center gap-x-3";
 
 // The field selected last, by name, selected again after a reload (when it's still there).
-const FIELD_KEY = "wordgard-devtools:field";
-
-const readSavedField = () => {
-  try {
-    return localStorage.getItem(FIELD_KEY);
-  } catch {
-    return null;
-  }
-};
-
-const saveField = (name: string) => {
-  try {
-    localStorage.setItem(FIELD_KEY, name);
-  } catch {
-    // Storage blocked: nothing is restored.
-  }
-};
+const lastField = () =>
+  persistent("wordgard-devtools:field", "", { decode: (name) => name, encode: (name) => name });
 
 /** The editor's state fields: values, last change, history linked to the log. Mounted per editor. */
 export const Fields = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createFieldsSource(store.transport, editorId));
-  const info = useSyncExternalStore(source.subscribe, source.fields);
-  const error = useSyncExternalStore(source.subscribe, source.error);
-  const version = useDeferredValue(useSyncExternalStore(source.subscribe, source.version));
+  const { fields: info, error, version: loaded } = useStore(source.state);
+  const version = useDeferredValue(loaded);
   const [picked, setPicked] = useState<number | null>(null);
-  const [saved] = useState(readSavedField);
+  const [savedField] = useState(lastField);
+  const saved = useStore(savedField);
   const setSelected = (index: number) => {
     setPicked(index);
-    const name = source.fields()?.fields.find((f) => f.index == index)?.name;
-    if (name != null) saveField(name);
+    const name = source.state.get().fields?.fields.find((f) => f.index == index)?.name;
+    if (name != null) savedField.set(name);
   };
   // Until one is picked, the saved one, if the editor has it.
   const selected = picked ?? info?.fields.find((f) => f.name == saved)?.index ?? null;
@@ -81,7 +61,7 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
     (element: HTMLDivElement | null) => {
       setList(element);
       if (!element) return;
-      const shown = () => store.get().tab == "fields";
+      const shown = () => store.state.get().tab == "fields";
       let stale = true;
       let watching = false;
       const watch = (on: boolean) => {
@@ -103,10 +83,10 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
         else stale = true;
       });
       // A list change may be this editor reconnecting under the same id, its tracking dropped.
-      let editors = store.get().editors;
-      const stopStore = store.subscribe(() => {
-        if (store.get().editors != editors) {
-          editors = store.get().editors;
+      let editors = store.state.get().editors;
+      const stopStore = store.state.listen(() => {
+        if (store.state.get().editors != editors) {
+          editors = store.state.get().editors;
           watching = false;
           stale = true;
         }

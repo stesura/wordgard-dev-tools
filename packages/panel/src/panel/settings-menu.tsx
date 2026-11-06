@@ -1,4 +1,5 @@
 import { ArrowUpRightIcon, Cog6ToothIcon, ComputerDesktopIcon, MoonIcon, SunIcon } from "#icons";
+import { useStore } from "@nanostores/react";
 import { useSyncExternalStore, type ReactNode } from "react";
 import { Button } from "#components/ui/button";
 import {
@@ -10,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "#components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#components/ui/tooltip";
-import { guidesShown } from "#components/guide-popover";
+import { usePanelSettings } from "#components/panel-settings";
 import type { ThemeChoice, ThemeStore } from "#stores/theme.ts";
 import { type Choice, ChoiceMenu } from "#components/choice-menu";
 
@@ -29,7 +30,8 @@ const REPOSITORY = "https://github.com/stesura/wordgard-devtools";
 
 /** The panel's settings; `extra`: more groups, first (the in-page dock's reopen button). */
 export const SettingsMenu = ({ extra }: { extra?: ReactNode }) => {
-  const shown = useSyncExternalStore(guidesShown.subscribe, guidesShown.get);
+  const { guidesShown } = usePanelSettings();
+  const shown = useStore(guidesShown);
   return (
     <DropdownMenu>
       <Tooltip>
@@ -53,7 +55,7 @@ export const SettingsMenu = ({ extra }: { extra?: ReactNode }) => {
         )}
         <DropdownMenuCheckboxItem
           checked={shown}
-          onCheckedChange={(on) => guidesShown.update(() => on)}
+          onCheckedChange={(on) => guidesShown.set(on)}
           closeOnClick
           className="text-xs"
         >

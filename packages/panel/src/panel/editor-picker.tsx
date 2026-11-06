@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useStore } from "@nanostores/react";
 import type { EditorInfo } from "@stesura/wordgard-dev-tools";
 import {
   Select,
@@ -13,7 +13,7 @@ const editorLabel = (editor: EditorInfo) =>
   `${editor.name} · #${editor.id}` + (editor.frame ? ` · ${editor.frame}` : "");
 
 export const EditorPicker = ({ store }: { store: PanelStore }) => {
-  const { editors, selected, paused } = useSyncExternalStore(store.subscribe, store.get);
+  const { editors, selected, paused } = useStore(store.state);
   const items = editors.map((editor) => ({ value: editor.id, label: editorLabel(editor) }));
   return (
     <Select

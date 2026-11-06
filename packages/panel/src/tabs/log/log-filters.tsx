@@ -7,8 +7,8 @@ import { ClearFilters } from "#components/clear-filters";
 import { Popover, PopoverContent, PopoverTrigger } from "#components/ui/popover";
 import type { LogSource, RecordSetting } from "./log-source.ts";
 import { Tip } from "#components/tip";
-import { stored, stringSet } from "#stores/stored.ts";
-import { isRecord } from "#lib/json.ts";
+import { asJSON, persistent } from "#stores/persistent.ts";
+import { isRecord, stringSet } from "#lib/json.ts";
 import { FLAGS, FLAG_TIPS, type Flag, flags, label } from "./log-format.ts";
 
 // Rows without a user event, in the user event filter.
@@ -31,25 +31,29 @@ const filtering = (filters: Filters) =>
 // Numbered as first seen, page-wide: "annotation #1" may be another annotation after a reload.
 const unnamed = /^annotation #\d+$/;
 
-// Saved, shared by every editor. Unnamed annotations last only until reload.
-export const logFilters = stored<Filters>(
-  "wordgard-devtools:log-filters",
-  noFilters,
-  (json) => {
-    if (!isRecord(json)) return noFilters;
-    const hidden = stringSet(json.hidden);
-    return {
-      events: stringSet(json.events),
-      hidden: new Set(FLAGS.filter((flag) => hidden.has(flag))),
-      annotations: stringSet(json.annotations),
-    };
-  },
-  (filters) => ({
-    events: [...filters.events],
-    hidden: [...filters.hidden],
-    annotations: [...filters.annotations].filter((name) => !unnamed.test(name)),
-  })
-);
+// Saved, shared by every editor: created by the Log as it mounts. Unnamed annotations last only
+// until reload.
+export const createLogFilters = () =>
+  persistent(
+    "wordgard-devtools:log-filters",
+    noFilters,
+    asJSON(
+      (json): Filters => {
+        if (!isRecord(json)) return noFilters;
+        const hidden = stringSet(json.hidden);
+        return {
+          events: stringSet(json.events),
+          hidden: new Set(FLAGS.filter((flag) => hidden.has(flag))),
+          annotations: stringSet(json.annotations),
+        };
+      },
+      (filters) => ({
+        events: [...filters.events],
+        hidden: [...filters.hidden],
+        annotations: [...filters.annotations].filter((name) => !unnamed.test(name)),
+      })
+    )
+  );
 
 const matches = (row: LogRow, { events, hidden, annotations }: Filters) =>
   !events.has(eventOf(row)) &&
