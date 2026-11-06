@@ -19,6 +19,9 @@ jobs:
       - name: Lockstep versions
         working-directory: wordgard-devtools
         run: npm run release:check
+      - name: README in step with the panel's guides
+        working-directory: wordgard-devtools
+        run: npm run readme:check
       - name: Playwright
         working-directory: wordgard-devtools
         run: npx playwright install --with-deps chromium

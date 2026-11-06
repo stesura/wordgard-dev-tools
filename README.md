@@ -49,17 +49,103 @@ production builds (see [Keep it out of production](#keep-it-out-of-production)).
 ## Features
 
 - **Editor picker**: every connected editor on the page, iframes included.
-- **Structure**: the document as nested boxes with positions. The selection is marked. Hovering a
-  box outlines its node in the page.
 - **Element picker**: click a node in the page to find it in the panel. Picking doesn't move the caret.
-- **State**: the editor's state as collapsible JSON.
-- **DOM**: the editor's status and its content DOM. Each element shows the node it draws. Log the editor itself to the console from here.
-- **Schema**: node and mark types with their groups, content and attributes.
-- **Fields**: each `GardState.Field` with its value and its history of changes.
-- **Log**: recorded transactions with their changes, selection, effects and annotations. Shows
-  per-update timing and flags updates over 16 ms.
+- **Tabs**: Structure, Selection, State, DOM, Schema, Fields and Log, described [below](#tabs). The ?
+  in the tab bar shows the same guide in the panel, with links to Wordgard's reference.
+- **Log the editor**: the button at the right of the tab bar logs the `Wordgard` instance to the
+  console.
 
 Nothing runs until the panel opens, and nothing is recorded until you press record.
+
+<!-- tabs:start: written from packages/panel/src/guides.ts by `npm run readme`; edit there -->
+
+## Tabs
+
+### Structure
+
+![The Structure tab](docs/screenshots/structure.png)
+
+The document as nested boxes: each node with its type, marks and from–to positions. The selection is marked.
+
+- Hover a box to outline its node in the page; click it for its detail, parameters and JSON.
+- Right-click a box to scroll it into view, show its type in Schema or its element in DOM, log it, or copy its JSON or path.
+- Press the pick button in the header, then click in the page, to find a node here.
+
+Reference: [Document](https://wordgard.net/docs/ref/#h-document) · [Pos](https://wordgard.net/docs/ref/#doc.Pos)
+
+### Selection
+
+![The Selection tab](docs/screenshots/selection.png)
+
+The selection: its type and range, its anchor and head resolved, the slice copying it would take, and any position you type, resolved.
+
+- A resolved position (`doc.resolve(pos)`) gives its parent, depth, the nodes either side and the marks there.
+- Type a position in the box to resolve it. Nodes link to the Structure, types to the Schema.
+- Each card logs to the page's console or copies its JSON.
+
+Reference: [GardSelection](https://wordgard.net/docs/ref/#state.GardSelection) · [doc.resolve](https://wordgard.net/docs/ref/#doc.Plot.Doc.resolve) · [Pos](https://wordgard.net/docs/ref/#doc.Pos)
+
+### State
+
+![The State tab](docs/screenshots/state.png)
+
+The editor's state as collapsible JSON: `GardState.toJSON()`, with the named fields that serialise.
+
+- Right-click a line to highlight its node in the editor, show it in the Structure, log it (live or as JSON), or copy its JSON or path.
+- The toolbar logs the whole state, live or as JSON.
+- Name your fields with `wordgardDevtools({fields: {name: field}})` to see them here.
+
+Reference: [GardState](https://wordgard.net/docs/ref/#state.GardState)
+
+### DOM
+
+![The DOM tab](docs/screenshots/view.png)
+
+The editor's content DOM. Each element shows the document node it draws; text shows its position.
+
+- Click an element to outline it in the page, and log it from the toolbar.
+- Elements that draw no node (widgets, decorations) are marked as chrome.
+- The status line says whether the editor is connected, editable, focused or composing; hover a label for more.
+
+Reference: [Wordgard (the editor)](https://wordgard.net/docs/ref/#editor)
+
+### Schema
+
+![The Schema tab](docs/screenshots/schema.png)
+
+The schema's node and mark types and node groups: what each holds, where it can go, its parameter and its spec.
+
+- Filter by name or tag. Collapse a section from its title.
+- Type names link between cards. Double-click a card to see its spec as JSON.
+- Order marks by rank to see how they nest.
+
+Reference: [Schema](https://wordgard.net/docs/ref/#doc.Schema) · [Schemas (wordgard/doc)](https://wordgard.net/docs/ref/#h-schema)
+
+### Fields
+
+![The Fields tab](docs/screenshots/fields.png)
+
+Each `GardState.Field` (plugin state): its value, and the changes seen to it, each linked to its transaction in the Log.
+
+- Changes are tracked while this tab is shown, or while the Log records.
+- Unnamed fields show as "field #n": name them with `wordgardDevtools({fields: {name: field}})`.
+- Expand a change to see the value it set; right-click it to log or copy it.
+
+Reference: [GardState.Field](https://wordgard.net/docs/ref/#state.GardState.Field)
+
+### Log
+
+![The Log tab](docs/screenshots/log.png)
+
+Recorded transactions: what each changed, its selection, effects and annotations, and how long its dispatch and flush took.
+
+- Press Record, then use the editor. Updates over 16 ms are flagged.
+- Filter by user event, what changed or annotation; sort by any timing column.
+- Untick record select.pointer to leave out selections made with the pointer.
+
+Reference: [Transaction](https://wordgard.net/docs/ref/#state.Transaction) · [userEvent](https://wordgard.net/docs/ref/#state.Transaction.userEvent) · [Annotation](https://wordgard.net/docs/ref/#state.Transaction.Annotation)
+
+<!-- tabs:end -->
 
 ## Inspiration
 

@@ -265,3 +265,19 @@ it("shows the reopen button's tooltip", async () => {
   await userEvent.hover(reopen)
   await until(() => [...shadow().querySelectorAll("[data-slot='tooltip-content']")].some(t => t.textContent == "Open Wordgard DevTools"))
 })
+
+it("shows the shown tab's guide, with links to Wordgard's reference", async () => {
+  open("first", "<p>Alpha</p>")
+  mounted = mountDevtools()
+  await mounted.ready
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='About the Structure tab']"))).click()
+  const popup = await until(() => shadow().querySelector<HTMLElement>("[data-slot='popover-content']"))
+  expect(popup.textContent).toContain("The document as nested boxes")
+  const link = popup.querySelector<HTMLAnchorElement>("a[href^='https://wordgard.net/docs/ref/']")
+  expect(link?.target).toBe("_blank")
+  await userEvent.keyboard("{Escape}")
+  await until(() => !shadow().querySelector("[data-slot='popover-content'][data-open]"))
+  ;[...shadow().querySelectorAll<HTMLElement>("[role='tab']")].find(t => t.textContent == "Log")?.click()
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='About the Log tab']"))).click()
+  await until(() => shadow().querySelector("[data-slot='popover-content']")?.textContent?.includes("Recorded transactions"))
+})

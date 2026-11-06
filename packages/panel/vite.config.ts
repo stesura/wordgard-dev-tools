@@ -25,6 +25,7 @@ export default defineConfig(({command}) => ({
       "@base-ui/react/context-menu",
       "@base-ui/react/menu",
       "@base-ui/react/merge-props",
+      "@base-ui/react/popover",
       "@base-ui/react/use-render",
       "@base-ui/react/select",
       "@base-ui/react/tabs",

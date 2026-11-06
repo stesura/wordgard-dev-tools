@@ -35,6 +35,7 @@ import { Fields } from "./Fields.tsx";
 import { Schema } from "./Schema.tsx";
 import { State } from "./State.tsx";
 import { View as ViewTab } from "./View.tsx";
+import { GuideButton } from "./guide.tsx";
 import { isView, type PanelStore } from "./store.ts";
 import { SelectionBar } from "./node-pane.tsx";
 import { SelectionTab } from "./Selection.tsx";
@@ -279,7 +280,8 @@ const Body = ({ store }: { store: PanelStore }) => {
             Log
           </TabsTrigger>
         </TabsList>
-        <span className="flex h-7 shrink-0 items-center px-1">
+        <span className="flex h-7 shrink-0 items-center gap-0.5 px-1">
+          <GuideButton view={view} />
           <IconButton
             label="Log the editor to the page's console"
             onClick={() => void store.transport.send({ type: "logEditor", id: selected }).catch(() => {})}

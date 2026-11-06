@@ -1,5 +1,5 @@
 import {cn} from "cn"
-import {ChevronDownIcon, ChevronRightIcon, ClipboardDocumentIcon, CommandLineIcon, InformationCircleIcon, NoSymbolIcon} from "#icons"
+import {ChevronDownIcon, ChevronRightIcon, ClipboardDocumentIcon, CommandLineIcon, NoSymbolIcon} from "#icons"
 import {Suspense, use, useCallback, useDeferredValue, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode} from "react"
 import type {FieldChange} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
@@ -430,18 +430,6 @@ export const Fields = ({store, editorId}: {store: PanelStore; editorId: number})
         >
           <NoSymbolIcon /> Clear all
         </Button>
-        <Tip
-          label={
-            <span className="block max-w-72">
-              Changes are tracked while this tab is shown or the log records. Unnamed fields show as "field #n": name them
-              with <code className="font-mono">wordgardDevtools({"{fields: {name: field}}"})</code>.
-            </span>
-          }
-        >
-          <button type="button" aria-label="About the fields" className="flex text-muted-foreground hover:text-foreground [&_svg]:size-3.5">
-            <InformationCircleIcon />
-          </button>
-        </Tip>
       </div>
       <SplitPane kind={FIELDS_SPLIT} pane={pane}>
         <div
