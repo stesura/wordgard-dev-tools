@@ -1,3 +1,5 @@
+import { fire } from "../transport.ts";
+import { dataPath } from "#lib/paths.ts";
 import { useStore } from "@nanostores/react";
 import {
   BookOpenIcon,
@@ -23,17 +25,12 @@ import { CopySelection } from "./copy-selection.tsx";
 type Target = { path: Path; name: string | null };
 export type NodeMenuAnchor = MenuAnchor<Target>;
 
-const pathOf = (row: HTMLElement): Path => {
-  const path = row.getAttribute("data-path") ?? "";
-  return path ? path.split(".").map(Number) : [];
-};
-
 export const createNodeMenuAnchor = (
   focus: (row: HTMLElement, path: Path) => void
 ): NodeMenuAnchor =>
   createMenuAnchor(
     "[data-path]",
-    (row) => ({ path: pathOf(row), name: row.getAttribute("data-name") }),
+    (row) => ({ path: dataPath(row) ?? [], name: row.getAttribute("data-name") }),
     (row, target) => focus(row, target.path)
   );
 
@@ -61,59 +58,40 @@ export const NodeMenu = ({
       <ContextMenuContent className="w-52" finalFocus={() => opened.get()?.row ?? true}>
         <CopySelection text={target?.selection} />
         <ContextMenuItem
-          className="text-xs"
-          onClick={() =>
-            store.transport.send({ type: "scrollIntoView", id: editorId, path }).catch(() => {})
-          }
+          onClick={() => fire(store.transport, { type: "scrollIntoView", id: editorId, path })}
         >
           <EyeIcon /> Scroll into view in the page
         </ContextMenuItem>
         <ContextMenuItem
-          className="text-xs"
           disabled={target?.name == null}
           onClick={() => target?.name != null && store.showType(editorId, target.name)}
         >
           <BookOpenIcon /> Show {target?.name ?? "its"} type in Schema
         </ContextMenuItem>
         <ContextMenuItem
-          className="text-xs"
-          onClick={() =>
-            store.transport.send({ type: "logNode", id: editorId, path }).catch(() => {})
-          }
+          onClick={() => fire(store.transport, { type: "logNode", id: editorId, path })}
         >
           <CommandLineIcon /> Log to console
         </ContextMenuItem>
         <ContextMenuItem
-          className="text-xs"
-          onClick={() =>
-            store.transport
-              .send({ type: "logNode", id: editorId, path, json: true })
-              .catch(() => {})
-          }
+          onClick={() => fire(store.transport, { type: "logNode", id: editorId, path, json: true })}
         >
           <CodeBracketIcon /> Log as JSON
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem className="text-xs" onClick={() => store.showDom(editorId, path)}>
+        <ContextMenuItem onClick={() => store.showDom(editorId, path)}>
           <CodeBracketIcon /> Show in DOM
         </ContextMenuItem>
         <ContextMenuItem
-          className="text-xs"
-          onClick={() =>
-            store.transport.send({ type: "logNodeDOM", id: editorId, path }).catch(() => {})
-          }
+          onClick={() => fire(store.transport, { type: "logNodeDOM", id: editorId, path })}
         >
           <CommandLineIcon /> Log DOM element
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem
-          className="text-xs"
-          disabled={!path.length}
-          onClick={() => void copyJSON().catch(() => {})}
-        >
+        <ContextMenuItem disabled={!path.length} onClick={() => void copyJSON().catch(() => {})}>
           <ClipboardDocumentIcon /> Copy JSON
         </ContextMenuItem>
-        <ContextMenuItem className="text-xs" onClick={() => void copy(`[${path.join(", ")}]`)}>
+        <ContextMenuItem onClick={() => void copy(`[${path.join(", ")}]`)}>
           <MapPinIcon /> Copy path
         </ContextMenuItem>
       </ContextMenuContent>

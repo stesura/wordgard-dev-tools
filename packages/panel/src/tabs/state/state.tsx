@@ -1,17 +1,20 @@
+import { createOutline } from "#lib/outline.ts";
+import { whileShown } from "#stores/while-shown.ts";
+import { ExpandCollapse } from "#components/expand-collapse";
+import { IconButton } from "#components/icon-button";
+import { LoadError } from "#components/load-error";
+import { fire } from "../../transport.ts";
 import { useStore } from "@nanostores/react";
 import { cn } from "cn";
 import {
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
-  ChevronDownUpIcon,
-  ChevronUpDownIcon,
   CodeBracketIcon,
   CommandLineIcon,
   InformationCircleIcon,
 } from "#icons";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Path } from "@stesura/wordgard-dev-tools";
-import { Button } from "#components/ui/button";
 import { CopyButton } from "#components/copy-button";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
 import { SearchBox, matchClass, useSearch } from "#components/search-box";
@@ -35,7 +38,9 @@ import { type MenuTarget, StateMenu } from "./state-menu.tsx";
 /** The editor's state as plain JSON (`GardState.toJSON`), collapsible and virtualized. Mounted per editor. */
 export const State = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createStateSource(store.transport, editorId));
-  const { json, loaded, error } = useStore(source.state);
+  const { value: json, error } = useStore(source.state);
+  // The state is an object: null until the first load.
+  const loaded = json != null;
 
   // The outcome of a replace: shown for 5 s, then closed. Timers, not transitionend: it doesn't
   // fire with reduced motion.
@@ -63,17 +68,11 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
 
   // A node highlighted from the menu stays outlined in the page until a line is clicked, the
   // document changes, or the tab or editor does.
-  const outlined = useRef(false);
-  const highlight = useCallback(
-    (path: Path | null) => {
-      if (!path && !outlined.current) return;
-      outlined.current = path != null;
-      store.transport.send({ type: "highlight", id: editorId, path }).catch(() => {});
-      if (path)
-        store.transport.send({ type: "scrollIntoView", id: editorId, path }).catch(() => {});
-    },
-    [store, editorId]
-  );
+  const [outline] = useState(() => createOutline(store.transport, editorId));
+  const highlight = (path: Path) => {
+    outline.show(path);
+    fire(store.transport, { type: "scrollIntoView", id: editorId, path });
+  };
 
   // The line a context menu opens on takes focus.
   const [menu] = useState(() =>
@@ -108,34 +107,24 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
     (element: HTMLDivElement | null) => {
       setScrollElement(element);
       if (!element) return;
-      const shown = () => store.state.get().tab == "state";
-      let stale = true;
-      const load = () => {
-        stale = false;
-        void source.load();
-      };
-      const stopState = store.onStateChanged((id) => {
-        if (id != editorId) return;
-        if (shown()) load();
-        else stale = true;
+      const stop = whileShown(store, {
+        tab: "state",
+        editorId,
+        on: "state",
+        load: () => void source.load(),
+        onHide: outline.hide,
       });
       // The outline follows a path: after an edit it could be another node's.
-      const stopDoc = store.onDocChanged((id) => {
-        if (id == editorId) highlight(null);
+      const stopDoc = store.on("doc", (id) => {
+        if (id == editorId) outline.hide();
       });
-      const stopStore = store.state.listen(() => {
-        if (!shown()) highlight(null);
-        else if (stale) load();
-      });
-      if (shown()) load();
       return () => {
-        highlight(null);
-        stopState();
+        outline.hide();
+        stop();
         stopDoc();
-        stopStore();
       };
     },
-    [store, editorId, source, highlight]
+    [store, editorId, source, outline]
   );
 
   const focusLine = (position: number) => {
@@ -206,14 +195,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {error != null && (
-        <p role="alert" className="flex items-center gap-2 border-b px-2 py-1 text-destructive">
-          Couldn't load the state: {error}
-          <Button variant="outline" size="xs" onClick={() => void source.load()}>
-            Retry
-          </Button>
-        </p>
-      )}
+      <LoadError what="the state" error={error} onRetry={() => void source.load()} />
       <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
         <SearchBox
           search={searching}
@@ -237,87 +219,51 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
           </button>
         </Tip>
         <span className="flex items-center gap-1">
-          <Tip label="Expand all">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Expand all"
-              onClick={() => setCollapsed(new Set())}
-            >
-              <ChevronUpDownIcon />
-            </Button>
-          </Tip>
-          <Tip label="Collapse all">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Collapse all"
-              // The root stays open: its keys show.
-              onClick={collapseAll}
-            >
-              <ChevronDownUpIcon />
-            </Button>
-          </Tip>
-          <Tip label="Log the state to the page's console">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Log the state to the page's console"
-              onClick={() =>
-                store.transport.send({ type: "logState", id: editorId, keys: [] }).catch(() => {})
-              }
-            >
-              <CommandLineIcon />
-            </Button>
-          </Tip>
-          <Tip label="Log the state's JSON to the page's console">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Log the state's JSON to the page's console"
-              onClick={() =>
-                store.transport
-                  .send({ type: "logState", id: editorId, keys: [], json: true })
-                  .catch(() => {})
-              }
-            >
-              <CodeBracketIcon />
-            </Button>
-          </Tip>
+          <ExpandCollapse
+            onExpand={() => setCollapsed(new Set())}
+            // The root stays open: its keys show.
+            onCollapse={collapseAll}
+          />
+          <IconButton
+            label="Log the state to the page's console"
+            onClick={() => fire(store.transport, { type: "logState", id: editorId, keys: [] })}
+          >
+            <CommandLineIcon />
+          </IconButton>
+          <IconButton
+            label="Log the state's JSON to the page's console"
+            onClick={() =>
+              fire(store.transport, { type: "logState", id: editorId, keys: [], json: true })
+            }
+          >
+            <CodeBracketIcon />
+          </IconButton>
           <CopyButton label="Copy the JSON" text={() => JSON.stringify(json, null, 2)} />
-          <Tip label="Download the state as a JSON file">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Download the state as a JSON file"
-              disabled={!loaded}
-              onClick={() => download(json, fileName(editorName()))}
-            >
-              <ArrowDownTrayIcon />
-            </Button>
-          </Tip>
-          <Tip label="Replace the state from a JSON file">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Replace the state from a JSON file"
-              render={<label />}
-              nativeButton={false}
-            >
-              <ArrowUpTrayIcon />
-              <input
-                type="file"
-                accept="application/json,.json"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  // The same file can be picked again.
-                  event.target.value = "";
-                  if (file) void replaceFrom(store, editorId, file, notify);
-                }}
-              />
-            </Button>
-          </Tip>
+          <IconButton
+            label="Download the state as a JSON file"
+            disabled={!loaded}
+            onClick={() => download(json, fileName(editorName()))}
+          >
+            <ArrowDownTrayIcon />
+          </IconButton>
+          <IconButton
+            label="Replace the state from a JSON file"
+            render={<label />}
+            nativeButton={false}
+          >
+            <ArrowUpTrayIcon />
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                // The same file can be picked again.
+                event.target.value = "";
+                if (file) void replaceFrom(store, editorId, file, notify);
+              }}
+            />
+          </IconButton>
         </span>
       </div>
       {notice && (
@@ -358,7 +304,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
               ? event.target.closest("[data-line]")?.getAttribute("data-line")
               : null;
           if (id != null) setFocused(id);
-          highlight(null);
+          outline.hide();
         }}
         className="relative min-h-0 flex-1 overflow-auto outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >

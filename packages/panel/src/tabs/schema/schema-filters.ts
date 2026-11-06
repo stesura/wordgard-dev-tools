@@ -2,19 +2,10 @@ import { asJSON, persistent } from "#stores/persistent.ts";
 import { isRecord, stringSet } from "#lib/json.ts";
 import type { Kind } from "./schema-cards.tsx";
 
-export const matches = (name: string, query: string) =>
-  name.toLowerCase().includes(query.toLowerCase());
-
 /** Every tag the types carry, in first-seen order. */
 export const tagsOf = <T>(types: T[], tags: (type: T) => string[]) => [
   ...new Set(types.flatMap(tags)),
 ];
-
-export const toggled = (set: ReadonlySet<string>, tag: string) => {
-  const next = new Set(set);
-  if (!next.delete(tag)) next.add(tag);
-  return next;
-};
 
 const allOpen = { node: true, group: true, mark: true };
 export const none: ReadonlySet<string> = new Set();

@@ -38,13 +38,10 @@ export const FieldMenu = ({
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52" finalFocus={() => list ?? true}>
         <CopySelection text={target?.selection} />
-        <ContextMenuItem
-          className="text-xs"
-          onClick={() => index != null && source.logValue(index)}
-        >
+        <ContextMenuItem onClick={() => index != null && source.logValue(index)}>
           <CommandLineIcon /> Log to console
         </ContextMenuItem>
-        <ContextMenuItem className="text-xs" onClick={() => index != null && void copyValue(index)}>
+        <ContextMenuItem onClick={() => index != null && void copyValue(index)}>
           <ClipboardDocumentIcon /> Copy value
         </ContextMenuItem>
       </ContextMenuContent>

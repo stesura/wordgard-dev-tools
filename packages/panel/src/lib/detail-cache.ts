@@ -1,3 +1,4 @@
+import { createPromiseCache } from "./promise-cache.ts";
 import type { NodeDetail, Path } from "@stesura/wordgard-dev-tools";
 import type { ReadableAtom } from "nanostores";
 import { errorMessage } from "./json.ts";
@@ -10,29 +11,17 @@ export type Detail = { node: NodeDetail; error?: undefined } | { node?: undefine
 export type DetailSource = {
   /** A promise per (document version, path), cached: for `use()`. */
   detail: (path: Path, version: number) => Promise<Detail>;
-  /** The load the shown document is from. */
-  version: ReadableAtom<number>;
+  /** `version`: the load the shown document is from. */
+  state: ReadableAtom<{ version: number }>;
 };
 
-// Detail promises kept: a deferred render may still show an older version's.
-const KEPT = 32;
-
 export const createDetailCache = (transport: Transport, id: number) => {
-  const details = new Map<string, Promise<Detail>>();
-  return (path: Path, version: number) => {
-    const key = `${version}|${itemId(path)}`;
-    let found = details.get(key);
-    if (!found) {
-      found = transport.send({ type: "node", id, path }).then(
+  const details = createPromiseCache<Detail>();
+  return (path: Path, version: number) =>
+    details.get(`${version}|${itemId(path)}`, () =>
+      transport.send({ type: "node", id, path }).then(
         (node): Detail => ({ node }),
         (e): Detail => ({ error: errorMessage(e) })
-      );
-      details.set(key, found);
-      for (const old of details.keys()) {
-        if (details.size <= KEPT) break;
-        details.delete(old);
-      }
-    }
-    return found;
-  };
+      )
+    );
 };

@@ -1,6 +1,7 @@
+import { IconButton } from "#components/icon-button";
+import { fire } from "../../transport.ts";
 import { useStore } from "@nanostores/react";
 import { CommandLineIcon, EyeIcon } from "#icons";
-import { Button } from "#components/ui/button";
 import { CopyButton } from "#components/copy-button";
 import { GuidePopover } from "#components/guide-popover";
 import { SELECTION_BAR } from "../../guides/guides.ts";
@@ -68,30 +69,20 @@ export const SelectionBar = ({ store, editorId }: { store: PanelStore; editorId:
             </span>
           )}
           <span className="ml-auto flex items-center gap-1">
-            <Tip label="Show the node holding the selection's head in the Structure">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Show the node holding the selection's head in the Structure"
-                onClick={() => store.showNode(editorId, info.headPath)}
-              >
-                <EyeIcon />
-              </Button>
-            </Tip>
-            <Tip label="Log the selection to the page's console">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Log the selection to the page's console"
-                onClick={() =>
-                  store.transport
-                    .send({ type: "logState", id: editorId, keys: ["selection"] })
-                    .catch(() => {})
-                }
-              >
-                <CommandLineIcon />
-              </Button>
-            </Tip>
+            <IconButton
+              label="Show the node holding the selection's head in the Structure"
+              onClick={() => store.showNode(editorId, info.headPath)}
+            >
+              <EyeIcon />
+            </IconButton>
+            <IconButton
+              label="Log the selection to the page's console"
+              onClick={() =>
+                fire(store.transport, { type: "logState", id: editorId, keys: ["selection"] })
+              }
+            >
+              <CommandLineIcon />
+            </IconButton>
             <CopyButton label="Copy the selection's JSON" text={() => json(info.json)} />
           </span>
         </>

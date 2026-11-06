@@ -47,10 +47,10 @@ const Section = ({
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
         <CopySelection text={selection} />
-        <ContextMenuItem className="text-xs" onClick={onLog}>
+        <ContextMenuItem onClick={onLog}>
           <CommandLineIcon /> Log to console
         </ContextMenuItem>
-        <ContextMenuItem className="text-xs" onClick={() => void copy(copied())}>
+        <ContextMenuItem onClick={() => void copy(copied())}>
           <CodeBracketIcon /> Copy as JSON
         </ContextMenuItem>
       </ContextMenuContent>

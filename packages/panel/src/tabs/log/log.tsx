@@ -1,3 +1,5 @@
+import { whileShown } from "#stores/while-shown.ts";
+import { LoadError } from "#components/load-error";
 import { cn } from "cn";
 import { NoSymbolIcon, RecordIcon, PauseIcon } from "#icons";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
@@ -91,53 +93,35 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
       scroller.current = element;
       setScrollElement(element);
       if (!element) return;
-      const shown = () => store.state.get().tab == "log";
-      let stale = true;
-      const load = () => {
-        stale = false;
-        void source.load();
-      };
       const onScroll = () => {
         if (element.scrollTop == followedTo.current) return;
         atBottom.current = element.scrollTop + element.clientHeight >= element.scrollHeight - ROW;
       };
       element.addEventListener("scroll", onScroll, { passive: true });
-      // An entry another tab links to (a field's change): selected once its rows are in.
-      const takeReveal = () => {
-        if (!shown()) return;
-        const index = store.takeLogReveal(editorId);
-        if (index == null) return;
-        // The entry may be filtered out.
-        savedFilters.set(noFilters);
-        setSelected(index);
-        void source.load().then(() => requestAnimationFrame(() => select(index)));
-      };
-      const stopReveal = store.onReveal(takeReveal);
-      const stopLog = store.onLogChanged((id) => {
-        if (id != editorId) return;
-        if (shown()) load();
-        else stale = true;
-      });
-      // A list change may be this editor reconnecting with a new log, under the same id.
-      let editors = store.state.get().editors;
-      const stopStore = store.state.listen(() => {
-        if (store.state.get().editors != editors) {
-          editors = store.state.get().editors;
-          stale = true;
-        }
-        if (shown() && stale) load();
-      });
       // The tab's red dot: kept mounted while hidden, this tab knows whether its editor records.
       const report = () => store.setRecording(source.state.get().recording);
       const stopSource = source.state.listen(report);
       report();
-      if (shown()) load();
-      takeReveal();
+      const stop = whileShown(store, {
+        tab: "log",
+        editorId,
+        on: "log",
+        load: () => void source.load(),
+        // An editor list change may be this editor reconnecting with a new log, under the same id.
+        reconnect: true,
+        // An entry another tab links to (a field's change): selected once its rows are in.
+        onReveal: () => {
+          const index = store.takeLogReveal(editorId);
+          if (index == null) return;
+          // The entry may be filtered out.
+          savedFilters.set(noFilters);
+          setSelected(index);
+          void source.load().then(() => requestAnimationFrame(() => select(index)));
+        },
+      });
       return () => {
-        stopReveal();
+        stop();
         element.removeEventListener("scroll", onScroll);
-        stopLog();
-        stopStore();
         stopSource();
         store.setRecording(false);
         scroller.current = null;
@@ -237,14 +221,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
           />
         </span>
       </div>
-      {view.error != null && (
-        <p role="alert" className="flex items-center gap-2 border-b px-2 py-1 text-destructive">
-          Couldn't load the log: {view.error}
-          <Button variant="outline" size="xs" onClick={() => void source.load()}>
-            Retry
-          </Button>
-        </p>
-      )}
+      <LoadError what="the log" error={view.error} onRetry={() => void source.load()} />
       <FilterBar
         rows={rows}
         filters={filters}

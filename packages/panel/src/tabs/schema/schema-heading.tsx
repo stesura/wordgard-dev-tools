@@ -50,6 +50,19 @@ const Clear = ({ label, onClick }: { label: string; onClick: () => void }) => (
 /** A section's bar: its title, its count and its tag filters (a type shows when it has every
  * pressed tag). Sticky, so the section scrolling under it stays named. Its title, and the empty
  * stretch after its filters, collapse or expand the section. */
+type HeadingProps = {
+  title: string;
+  count: string;
+  guide: Guide;
+  open: boolean;
+  onToggleOpen: () => void;
+  tags: string[];
+  pressed: ReadonlySet<string>;
+  onToggle: (tag: string) => void;
+  onClear: () => void;
+  children?: ReactNode;
+};
+
 export const Heading = ({
   title,
   count,
@@ -61,18 +74,7 @@ export const Heading = ({
   onClear,
   guide,
   children,
-}: {
-  title: string;
-  count: string;
-  guide: Guide;
-  open: boolean;
-  onToggleOpen: () => void;
-  tags: string[];
-  pressed: ReadonlySet<string>;
-  onToggle: (tag: string) => void;
-  onClear: () => void;
-  children?: ReactNode;
-}) => (
+}: HeadingProps) => (
   <div
     data-heading
     className="sticky top-0 z-10 flex min-h-7 flex-wrap items-center gap-1 border-b bg-strip px-2 py-1 font-sans"
@@ -114,3 +116,31 @@ export const Heading = ({
 /** "12", or "3 of 12" when filtered. */
 export const count = (shown: number, all: number) =>
   shown == all ? String(all) : `${shown} of ${all}`;
+
+/**
+ * A section: its bar (`actions` at its end), then its cards while open, or `empty` when none
+ * match. `last`: no line under it. The line above a bar is the section before's: the bar's own
+ * would double the toolbar's, stuck under it.
+ */
+export const SchemaSection = ({
+  actions,
+  empty,
+  last,
+  children,
+  ...heading
+}: Omit<HeadingProps, "children"> & {
+  actions?: ReactNode;
+  empty: string | null;
+  last?: boolean;
+  children: ReactNode;
+}) => (
+  <section data-list aria-label={heading.title}>
+    <Heading {...heading}>{actions}</Heading>
+    {heading.open && (
+      <div className={cn("p-2", !last && "border-b")}>
+        {children}
+        {empty && <p className="font-sans text-muted-foreground">{empty}</p>}
+      </div>
+    )}
+  </section>
+);

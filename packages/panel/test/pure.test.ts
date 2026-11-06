@@ -5,7 +5,9 @@ import { isPrefix, itemId, parentOf, pathOf } from "../src/lib/paths.ts";
 import { clock } from "../src/lib/time.ts";
 import { containers, flatten, keysOf, nodePathOf, search } from "../src/tabs/state/json-lines.ts";
 import { flags, flushTitle, isSlow, ms } from "../src/tabs/log/log-format.ts";
-import { matches, pressedIn, tagsOf, toggled } from "../src/tabs/schema/schema-filters.ts";
+import { pressedIn, tagsOf } from "../src/tabs/schema/schema-filters.ts";
+import { toggled } from "../src/lib/sets.ts";
+import { includes } from "../src/lib/text.ts";
 import { TABS, isTab } from "../src/tabs/tabs.ts";
 import { GUIDES } from "../src/guides/guides.ts";
 import { parseGuide } from "../src/guides/parse.ts";
@@ -93,8 +95,8 @@ it("formats a log row's timings and flags", () => {
 });
 
 it("filters schema types by name and tags", () => {
-  expect(matches("Paragraph", "graph")).toBe(true);
-  expect(matches("Paragraph", "x")).toBe(false);
+  expect(includes("Paragraph", "graph")).toBe(true);
+  expect(includes("Paragraph", "x")).toBe(false);
   expect(tagsOf([{ t: ["a", "b"] }, { t: ["b", "c"] }], (type) => type.t)).toEqual(["a", "b", "c"]);
   expect([...toggled(new Set(["a"]), "a")]).toEqual([]);
   expect([...toggled(new Set(["a"]), "b")]).toEqual(["a", "b"]);

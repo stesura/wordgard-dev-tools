@@ -132,13 +132,10 @@ export const HistoryMenu = ({
         finalFocus={() => opened.get()?.row.querySelector("button") ?? true}
       >
         <CopySelection text={target?.selection} />
-        <ContextMenuItem
-          className="text-xs"
-          onClick={() => target && source.logChange(index, target.seq)}
-        >
+        <ContextMenuItem onClick={() => target && source.logChange(index, target.seq)}>
           <CommandLineIcon /> Log to console
         </ContextMenuItem>
-        <ContextMenuItem className="text-xs" onClick={() => target && void copyValue(target.seq)}>
+        <ContextMenuItem onClick={() => target && void copyValue(target.seq)}>
           <ClipboardDocumentIcon /> Copy value
         </ContextMenuItem>
       </ContextMenuContent>

@@ -1,11 +1,9 @@
+import { whileShown } from "#stores/while-shown.ts";
+import { ExpandCollapse } from "#components/expand-collapse";
+import { LoadError } from "#components/load-error";
+import { parsePath } from "#lib/paths.ts";
 import { useStore } from "@nanostores/react";
-import {
-  ChevronDownUpIcon,
-  ChevronUpDownIcon,
-  CommandLineIcon,
-  InformationCircleIcon,
-  NoSymbolIcon,
-} from "#icons";
+import { CommandLineIcon, InformationCircleIcon, NoSymbolIcon } from "#icons";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Path, ViewNode } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
@@ -16,7 +14,7 @@ import type { PanelStore } from "#stores/panel-store.ts";
 import { Tip } from "#components/tip";
 import { createDomSource } from "./dom-source.ts";
 import { keepRowInView, useRows } from "#hooks/use-rows.ts";
-import { flatten, folders, lineOf, pathOf, search } from "./dom-lines.ts";
+import { flatten, folders, lineOf, search } from "./dom-lines.ts";
 import { ROW, Row } from "./dom-row.tsx";
 import { DomMenu, type DomTarget } from "./dom-menu.tsx";
 import { Status } from "./dom-status.tsx";
@@ -24,7 +22,7 @@ import { Status } from "./dom-status.tsx";
 /** The editor's view: its status and its content's DOM, mapped to the document. Mounted per editor. */
 export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createDomSource(store.transport, editorId));
-  const { info, error } = useStore(source.state);
+  const { value: info, error } = useStore(source.state);
   const [collapsed, setCollapsedState] = useState<ReadonlySet<string>>(() => new Set());
   // Also read by a reveal, which runs outside a render.
   const collapsedNow = useRef(collapsed);
@@ -41,7 +39,7 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
   const { indices, height } = useRows(scrollElement, lines.length, ROW);
 
   const element = (id: string, action: "outline" | "log" | "logHTML") =>
-    source.element(pathOf(id), action);
+    source.element(parsePath(id), action);
 
   const hide = source.hideOutline;
 
@@ -49,7 +47,7 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
   const select = useCallback(
     (id: string) => {
       setFocused(id);
-      void source.element(pathOf(id), "outline");
+      void source.element(parsePath(id), "outline");
     },
     [source]
   );
@@ -90,38 +88,24 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
     (scroller: HTMLDivElement | null) => {
       setScrollElement(scroller);
       if (!scroller) return;
-      const shown = () => store.state.get().tab == "dom";
-      let stale = true;
-      const load = () => {
-        stale = false;
-        void source.load();
-      };
-      const stopState = store.onStateChanged((id) => {
-        if (id != editorId) return;
-        if (shown()) load();
-        else stale = true;
-      });
-      const stopStore = store.state.listen(() => {
-        if (!shown()) hide();
-        else if (stale) load();
-      });
       // A "show in DOM" from the Structure: its element (or nearest ancestor's) opened up to, selected and scrolled to.
       const reveal = (path: Path) => {
-        const info = source.state.get().info;
+        const info = source.state.get().value;
         if (info) showLine(info.dom, lineOf(info.dom, path), scroller);
       };
-      const takeReveal = () => {
-        if (!shown()) return;
-        const path = store.takeDomReveal(editorId);
-        if (path) void source.load().then(() => reveal(path));
-      };
-      const stopReveal = store.onReveal(takeReveal);
-      if (shown()) load();
-      takeReveal();
+      const stop = whileShown(store, {
+        tab: "dom",
+        editorId,
+        on: "state",
+        load: () => void source.load(),
+        onHide: hide,
+        onReveal: () => {
+          const path = store.takeDomReveal(editorId);
+          if (path) void source.load().then(() => reveal(path));
+        },
+      });
       return () => {
-        stopState();
-        stopStore();
-        stopReveal();
+        stop();
         hide();
       };
     },
@@ -177,14 +161,7 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {error != null && (
-        <p role="alert" className="flex items-center gap-2 border-b px-2 py-1 text-destructive">
-          Couldn't load the DOM: {error}
-          <Button variant="outline" size="xs" onClick={() => void source.load()}>
-            Retry
-          </Button>
-        </p>
-      )}
+      <LoadError what="the DOM" error={error} onRetry={() => void source.load()} />
       {info && <Status status={info.status} />}
       <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
         <SearchBox
@@ -226,30 +203,14 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
               <CommandLineIcon />
             </Button>
           </Tip>
-          <Tip label="Expand all">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Expand all"
-              onClick={() => setCollapsed(new Set())}
-            >
-              <ChevronUpDownIcon />
-            </Button>
-          </Tip>
-          <Tip label="Collapse all">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Collapse all"
-              // The content element stays open: its blocks show.
-              onClick={() => {
-                setCollapsed(new Set(info ? folders(info.dom).filter((id) => id != "") : []));
-                if (focused) setFocused(focused.split(".")[0] ?? "");
-              }}
-            >
-              <ChevronDownUpIcon />
-            </Button>
-          </Tip>
+          <ExpandCollapse
+            onExpand={() => setCollapsed(new Set())}
+            // The content element stays open: its blocks show.
+            onCollapse={() => {
+              setCollapsed(new Set(info ? folders(info.dom).filter((id) => id != "") : []));
+              if (focused) setFocused(focused.split(".")[0] ?? "");
+            }}
+          />
         </span>
       </div>
       <div

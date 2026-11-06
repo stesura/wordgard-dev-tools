@@ -1,33 +1,25 @@
-import type { ReactNode } from "react";
+import type { ComponentProps } from "react";
+import { Tip } from "./tip.tsx";
 import { Button } from "./ui/button.tsx";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip.tsx";
 
+/** An icon button with its label as tooltip and accessible name. `pressed`: a toggle's state. */
 export const IconButton = ({
   label,
-  onClick,
   pressed,
-  children,
-}: {
+  side,
+  ...props
+}: Omit<ComponentProps<typeof Button>, "aria-label"> & {
   label: string;
-  onClick: () => void;
-  /** A toggle's state. */
   pressed?: boolean;
-  children: ReactNode;
+  side?: "top" | "bottom";
 }) => (
-  <Tooltip>
-    <TooltipTrigger
-      render={
-        <Button
-          variant={pressed ? "secondary" : "ghost"}
-          size="icon-xs"
-          aria-label={label}
-          aria-pressed={pressed}
-          onClick={onClick}
-        />
-      }
-    >
-      {children}
-    </TooltipTrigger>
-    <TooltipContent side="top">{label}</TooltipContent>
-  </Tooltip>
+  <Tip label={label} side={side}>
+    <Button
+      variant={pressed ? "secondary" : "ghost"}
+      size="icon-xs"
+      aria-label={label}
+      aria-pressed={pressed}
+      {...props}
+    />
+  </Tip>
 );

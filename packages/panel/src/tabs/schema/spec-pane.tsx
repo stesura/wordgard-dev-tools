@@ -1,3 +1,4 @@
+import { IconButton } from "#components/icon-button";
 import { useStore } from "@nanostores/react";
 import { cn } from "cn";
 import { ClipboardDocumentIcon, CodeBracketIcon, CommandLineIcon, XMarkIcon } from "#icons";
@@ -161,16 +162,12 @@ export const SpecPane = ({
         )}
         <span className="ml-auto flex items-center gap-1">
           {shown && shown.kind != "group" && (
-            <Tip label={`Log the ${shown.name} ${shown.kind} type to the page's console`}>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label={`Log the ${shown.name} ${shown.kind} type to the page's console`}
-                onClick={() => onLog(shown.kind, shown.name, false)}
-              >
-                <CommandLineIcon />
-              </Button>
-            </Tip>
+            <IconButton
+              label={`Log the ${shown.name} ${shown.kind} type to the page's console`}
+              onClick={() => onLog(shown.kind, shown.name, false)}
+            >
+              <CommandLineIcon />
+            </IconButton>
           )}
           {shown && <CopyButton label="Copy the JSON" text={copied} />}
           <Tip label="Close">
@@ -249,15 +246,15 @@ const SpecMenu = ({
       <ContextMenuContent className="w-52">
         <CopySelection text={target?.selection} />
         {shown.kind != "group" && (
-          <ContextMenuItem className="text-xs" onClick={() => onLog(shown.kind, shown.name, false)}>
+          <ContextMenuItem onClick={() => onLog(shown.kind, shown.name, false)}>
             <CommandLineIcon /> Log to console
           </ContextMenuItem>
         )}
-        <ContextMenuItem className="text-xs" onClick={() => onLog(shown.kind, shown.name, true)}>
+        <ContextMenuItem onClick={() => onLog(shown.kind, shown.name, true)}>
           <CodeBracketIcon /> Log JSON
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem className="text-xs" onClick={() => void copy(copied())}>
+        <ContextMenuItem onClick={() => void copy(copied())}>
           <ClipboardDocumentIcon /> Copy JSON
         </ContextMenuItem>
       </ContextMenuContent>

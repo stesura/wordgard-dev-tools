@@ -1,5 +1,9 @@
+import { whileShown } from "#stores/while-shown.ts";
+import { LoadError } from "#components/load-error";
+import { fire } from "../../transport.ts";
+import { includes } from "#lib/text.ts";
+import { toggled } from "#lib/sets.ts";
 import { useCallback, useRef, useState } from "react";
-import { Button } from "#components/ui/button";
 import { ClearFilters } from "#components/clear-filters";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
 import { createSchemaSource } from "./schema-source.ts";
@@ -10,13 +14,11 @@ import { scrollInto } from "#lib/dom.ts";
 import { useStore } from "@nanostores/react";
 import {
   type SchemaFilters,
-  matches,
   noFilters,
   none,
   pressedIn,
   createSchemaFilters,
   tagsOf,
-  toggled,
 } from "./schema-filters.ts";
 import { type JSONView, type Log, SpecPane, jsonOf } from "./spec-pane.tsx";
 import { type MenuTarget, SchemaMenu } from "./schema-menu.tsx";
@@ -29,12 +31,12 @@ import {
   groupTags,
   nodeTags,
 } from "./schema-cards.tsx";
-import { Heading, Toggle, count } from "./schema-heading.tsx";
+import { SchemaSection, Toggle, count } from "./schema-heading.tsx";
 
 /** The editor's node and mark types. Mounted per editor. */
 export const Schema = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createSchemaSource(store.transport, editorId));
-  const { schema, error } = useStore(source.state);
+  const { value: schema, error } = useStore(source.state);
   const [savedFilters] = useState(createSchemaFilters);
   const filters = useStore(savedFilters);
   const { query, open } = filters;
@@ -52,7 +54,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
     setPaneOpen(true);
   };
   const logCard: Log = (kind, name, json) =>
-    void store.transport.send({ type: "logType", id: editorId, kind, name, json }).catch(() => {});
+    fire(store.transport, { type: "logType", id: editorId, kind, name, json });
   // The card a context menu opens on is selected.
   const [menu] = useState(() =>
     createMenuAnchor<MenuTarget>(
@@ -85,33 +87,19 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
     (element: HTMLDivElement | null) => {
       scroller.current = element;
       if (!element) return;
-      const shown = () => store.state.get().tab == "schema";
-      let stale = true;
-      const load = () => {
-        stale = false;
-        void source.load();
-      };
-      const stopConfig = store.onConfigChanged((id) => {
-        if (id != editorId) return;
-        if (shown()) load();
-        else stale = true;
+      const stop = whileShown(store, {
+        tab: "schema",
+        editorId,
+        on: "config",
+        load: () => void source.load(),
+        // A context menu's "show type": once the schema is in, the card is scrolled to.
+        onReveal: () => {
+          const type = store.takeTypeReveal(editorId);
+          if (type) void source.ready().then(() => go(type.kind, type.name));
+        },
       });
-      const stopStore = store.state.listen(() => {
-        if (shown() && stale) load();
-      });
-      // A context menu's "show type": once the schema is in, the card is scrolled to.
-      const takeReveal = () => {
-        if (!shown()) return;
-        const type = store.takeTypeReveal(editorId);
-        if (type) void source.ready().then(() => go(type.kind, type.name));
-      };
-      const stopReveal = store.onReveal(takeReveal);
-      if (shown()) load();
-      takeReveal();
       return () => {
-        stopConfig();
-        stopStore();
-        stopReveal();
+        stop();
         scroller.current = null;
       };
     },
@@ -129,17 +117,17 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
   const groupFilter = pressedIn(filters.groups, groupTagList);
   const groups = allGroups.filter(
     (group) =>
-      matches(group.name, query) &&
+      includes(group.name, query) &&
       groupTags(group).filter((tag) => groupFilter.has(tag)).length == groupFilter.size
   );
   const nodes = allNodes.filter(
     (type) =>
-      matches(type.name, query) &&
+      includes(type.name, query) &&
       nodeTags(type).filter((tag) => nodeFilter.has(tag)).length == nodeFilter.size
   );
   const filteredMarks = allMarks.filter(
     (type) =>
-      matches(type.name, query) &&
+      includes(type.name, query) &&
       type.flags.filter((tag) => markFilter.has(tag)).length == markFilter.size
   );
   // By rank, unranked last; otherwise in the schema's order.
@@ -162,14 +150,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
-      {error != null && (
-        <p role="alert" className="flex items-center gap-2 border-b px-2 py-1 text-destructive">
-          Couldn't load the schema: {error}
-          <Button variant="outline" size="xs" onClick={() => void source.load()}>
-            Retry
-          </Button>
-        </p>
-      )}
+      <LoadError what="the schema" error={error} onRetry={() => void source.load()} />
       {/* Narrow: the filter on its own line, its buttons under it. */}
       <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-2 border-b bg-strip px-2 pb-1 text-xs @md:flex-nowrap @md:pb-0">
         <input
@@ -228,99 +209,81 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
           }}
           onContextMenu={menu.onContextMenu}
         >
-          <section data-list aria-label="Nodes">
-            <Heading
-              title="Nodes"
-              guide={SCHEMA_NODES}
-              count={count(nodes.length, allNodes.length)}
-              open={open.node}
-              onToggleOpen={() => toggleOpen("node")}
-              tags={nodeTagList}
-              pressed={nodeFilter}
-              onToggle={(tag) => setFilters({ nodes: toggled(nodeFilter, tag) })}
-              onClear={() => setFilters({ nodes: none })}
-            />
-            {/* The line above the marks' bar is the nodes' (the bar's own would double the toolbar's, stuck under it). */}
-            {open.node && (
-              <div className="border-b p-2">
-                {nodes.map((type) => (
-                  <NodeCard
-                    key={type.name}
-                    type={type}
-                    selected={selectedCard == `node-${type.name}`}
-                    onGo={go}
-                  />
-                ))}
-                {schema && !nodes.length && (
-                  <p className="font-sans text-muted-foreground">No node types match.</p>
-                )}
-              </div>
-            )}
-          </section>
-          <section data-list aria-label="Marks">
-            <Heading
-              title="Marks"
-              guide={SCHEMA_MARKS}
-              count={count(marks.length, allMarks.length)}
-              open={open.mark}
-              onToggleOpen={() => toggleOpen("mark")}
-              tags={markTagList}
-              pressed={markFilter}
-              onToggle={(tag) => setFilters({ marks: toggled(markFilter, tag) })}
-              onClear={() => setFilters({ marks: none })}
-            >
-              <span className="text-muted-foreground">order</span>
-              <Toggle pressed={!byRank} onClick={() => setByRank(false)}>
-                schema
-              </Toggle>
-              <Toggle pressed={byRank} onClick={() => setByRank(true)}>
-                rank
-              </Toggle>
-            </Heading>
-            {open.mark && (
-              <div className="border-b p-2">
-                {marks.map((type) => (
-                  <MarkCard
-                    key={type.name}
-                    type={type}
-                    selected={selectedCard == `mark-${type.name}`}
-                    onGo={go}
-                  />
-                ))}
-                {schema && !marks.length && (
-                  <p className="font-sans text-muted-foreground">No mark types match.</p>
-                )}
-              </div>
-            )}
-          </section>
-          <section data-list aria-label="Node groups">
-            <Heading
-              title="Node groups"
-              guide={SCHEMA_GROUPS}
-              count={count(groups.length, allGroups.length)}
-              open={open.group}
-              onToggleOpen={() => toggleOpen("group")}
-              tags={groupTagList}
-              pressed={groupFilter}
-              onToggle={(tag) => setFilters({ groups: toggled(groupFilter, tag) })}
-              onClear={() => setFilters({ groups: none })}
-            />
-            {open.group && (
-              <div className="p-2">
-                {groups.map((group) => (
-                  <GroupCard
-                    key={group.name}
-                    group={group}
-                    selected={selectedCard == `group-${group.name}`}
-                    onGo={go}
-                  />
-                ))}
-                {schema && !groups.length && (
-                  <p className="font-sans text-muted-foreground">No groups match.</p>
-                )}
-              </div>
-            )}
-          </section>
+          <SchemaSection
+            title="Nodes"
+            guide={SCHEMA_NODES}
+            count={count(nodes.length, allNodes.length)}
+            open={open.node}
+            onToggleOpen={() => toggleOpen("node")}
+            tags={nodeTagList}
+            pressed={nodeFilter}
+            onToggle={(tag) => setFilters({ nodes: toggled(nodeFilter, tag) })}
+            onClear={() => setFilters({ nodes: none })}
+            empty={schema && !nodes.length ? "No node types match." : null}
+          >
+            {nodes.map((type) => (
+              <NodeCard
+                key={type.name}
+                type={type}
+                selected={selectedCard == `node-${type.name}`}
+                onGo={go}
+              />
+            ))}
+          </SchemaSection>
+          <SchemaSection
+            title="Marks"
+            guide={SCHEMA_MARKS}
+            count={count(marks.length, allMarks.length)}
+            open={open.mark}
+            onToggleOpen={() => toggleOpen("mark")}
+            tags={markTagList}
+            pressed={markFilter}
+            onToggle={(tag) => setFilters({ marks: toggled(markFilter, tag) })}
+            onClear={() => setFilters({ marks: none })}
+            empty={schema && !marks.length ? "No mark types match." : null}
+            actions={
+              <>
+                <span className="text-muted-foreground">order</span>
+                <Toggle pressed={!byRank} onClick={() => setByRank(false)}>
+                  schema
+                </Toggle>
+                <Toggle pressed={byRank} onClick={() => setByRank(true)}>
+                  rank
+                </Toggle>
+              </>
+            }
+          >
+            {marks.map((type) => (
+              <MarkCard
+                key={type.name}
+                type={type}
+                selected={selectedCard == `mark-${type.name}`}
+                onGo={go}
+              />
+            ))}
+          </SchemaSection>
+          <SchemaSection
+            title="Node groups"
+            guide={SCHEMA_GROUPS}
+            count={count(groups.length, allGroups.length)}
+            open={open.group}
+            onToggleOpen={() => toggleOpen("group")}
+            tags={groupTagList}
+            pressed={groupFilter}
+            onToggle={(tag) => setFilters({ groups: toggled(groupFilter, tag) })}
+            onClear={() => setFilters({ groups: none })}
+            empty={schema && !groups.length ? "No groups match." : null}
+            last
+          >
+            {groups.map((group) => (
+              <GroupCard
+                key={group.name}
+                group={group}
+                selected={selectedCard == `group-${group.name}`}
+                onGo={go}
+              />
+            ))}
+          </SchemaSection>
         </div>
       </SplitPane>
       <SchemaMenu

@@ -26,14 +26,12 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuGroup,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
 } from "#components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#components/ui/tooltip";
 import { Panel } from "./panel.tsx";
 import { IconButton } from "#components/icon-button";
-import { ChoiceMenu, type Choice } from "#components/choice-menu";
+import { ChoiceGroup, ChoiceMenu, type Choice } from "#components/choice-menu";
 import type { PanelStore } from "#stores/panel-store.ts";
 import type { ThemeStore } from "#stores/theme.ts";
 import {
@@ -75,28 +73,12 @@ const ReopenSettings = ({
   onMinimized: (minimized: boolean) => void;
 }) => (
   <>
-    <DropdownMenuGroup>
-      <DropdownMenuLabel>Reopen button, while closed</DropdownMenuLabel>
-      <DropdownMenuRadioGroup
-        value={corner}
-        onValueChange={(value) => {
-          const found = corners.find((choice) => choice.value == value);
-          if (found) onCorner(found.value);
-        }}
-      >
-        {corners.map((choice) => (
-          <DropdownMenuRadioItem
-            key={choice.value}
-            value={choice.value}
-            closeOnClick
-            className="text-xs"
-          >
-            {choice.icon}
-            {choice.label}
-          </DropdownMenuRadioItem>
-        ))}
-      </DropdownMenuRadioGroup>
-    </DropdownMenuGroup>
+    <ChoiceGroup
+      label="Reopen button, while closed"
+      value={corner}
+      choices={corners}
+      onChange={onCorner}
+    />
     <DropdownMenuSeparator />
     <DropdownMenuGroup>
       <DropdownMenuLabel>DevTools floating button</DropdownMenuLabel>

@@ -57,23 +57,22 @@ export const StateMenu = ({
         <CopySelection text={target?.selection} />
         {path && (
           <>
-            <ContextMenuItem className="text-xs" onClick={() => onHighlight(path)}>
+            <ContextMenuItem onClick={() => onHighlight(path)}>
               <ViewfinderCircleIcon /> Highlight in the editor
             </ContextMenuItem>
-            <ContextMenuItem className="text-xs" onClick={() => store.showNode(editorId, path)}>
+            <ContextMenuItem onClick={() => store.showNode(editorId, path)}>
               <RectangleGroupIcon /> Show in Structure
             </ContextMenuItem>
           </>
         )}
-        <ContextMenuItem className="text-xs" onClick={() => void log(false)}>
+        <ContextMenuItem onClick={() => void log(false)}>
           <CommandLineIcon /> Log to console
         </ContextMenuItem>
-        <ContextMenuItem className="text-xs" onClick={() => void log(true)}>
+        <ContextMenuItem onClick={() => void log(true)}>
           <CodeBracketIcon /> Log as JSON
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
-          className="text-xs"
           onClick={() =>
             void copy(JSON.stringify(keys.reduce<unknown>(childOf, json), null, 2) ?? "undefined")
           }
@@ -81,7 +80,6 @@ export const StateMenu = ({
           <ClipboardDocumentIcon /> Copy JSON
         </ContextMenuItem>
         <ContextMenuItem
-          className="text-xs"
           disabled={!keys.length}
           onClick={() => void copy(accessor(keys).replace(/^\./, ""))}
         >

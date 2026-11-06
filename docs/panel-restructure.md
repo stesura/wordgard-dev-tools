@@ -1,6 +1,6 @@
 # Panel restructure — plan
 
-Status: PARTIALLY EXECUTED. Phases 0 to 5 done on 2026-11-06, see
+Status: PARTIALLY EXECUTED. Phases 0 to 6 done on 2026-11-06, see
 [Implementation notes](#implementation-notes). Drafted 2026-11-06 from an audit of
 `packages/panel`, scope agreed with the user the same day; revised after a Fable review the same
 day, see [Review](#review-2026-11-06).
@@ -362,7 +362,7 @@ What changes:
 
 Don't convert what's local UI state (`useState` for a collapsed set, a focused row) into atoms.
 
-## Phase 6: deduplicate
+## Phase 6: deduplicate (executed 2026-11-06)
 
 In order of payoff. Each one is done only if the result reads at least as well as before (decision
 6). Note each skip, and why, in the implementation notes.
@@ -654,3 +654,53 @@ Found while applying them: the tab-to-tab rule's `pathNot` must also let a tab i
   120, demo 126: `useStore(atom)` caches fewer values than `useSyncExternalStore(x.subscribe,
 x.get)`; every component still compiles), `format:check`, `readme:check`, `dependency-check`,
   e2e (11): all pass.
+
+### Phase 6 (2026-11-06)
+
+Item by item (the plan's numbering). About 500 lines fewer across 43 files.
+
+1. **Done.** `IconButton` takes any `Button` prop and renders through `Tip`; 17 Tip-and-Button
+   pairs converted by a script, only where the tooltip and the accessible name were the same
+   string. The 23 `Tip`s left wrap text or badges, or name a shortcut in the tooltip only
+   ("Previous match (Shift+Enter)").
+2. **Done, six of seven.** `stores/while-shown.ts`: `whileShown(store, {tab, editorId, on, load,
+onHide?, onReveal?, reconnect?})`, a plain function returning the cleanup, used by Structure,
+   State, DOM, Schema, Selection and Log. Fields keeps its own: it starts and stops watching the
+   page's fields as it's shown and hidden, and resets that on a reconnect; a helper covering it
+   would need three more hooks.
+3. **Done.** `components/load-error.tsx`, in all seven tabs.
+4. **Done, six loaders.** `stores/resource.ts`: `createResource(fetch)` gives `{state: {value,
+error, version}, load, ready}`. Structure, Schema, State, DOM, the selection's detail and the
+   Fields list are built on it; the sources are now 8 to 56 lines. The Log source stays as it is
+   (incremental rows, record settings). Consumers rename on destructuring
+   (`const {value: doc, error}`); State's `loaded` is `json != null`. `DetailSource` reads the
+   version from `state`. The selection's typed position is its own atom, `probed`.
+5. **Done.** `lib/promise-cache.ts`, in the four caches.
+6. **Done: the events.** `store.on(change, listener)` with `Change = "doc" | "state" | "config" |
+"log"` replaces the four `onXChanged` and their listener sets. **Skipped: the reveals**, as
+   planned (four named pairs read better than one generic slot).
+7. **Done.** `fire(transport, request)` in `transport.ts`, at 24 call sites (store, tabs,
+   sources). The `.catch(() => {})`s left are on copies and on the theme's async storage.
+8. **Done.** `lib/outline.ts` (`createOutline`: `show`, and `hide` only if it drew one), in
+   Structure and State. DOM keeps its source's `hideOutline`: its outline is drawn by an element
+   action, not a node path.
+9. **Done.** `components/expand-collapse.tsx`, in Structure, State and DOM.
+10. **Skipped.** Even the five fixed tab toolbars differ (`gap-1` or `gap-2`).
+11. **Done.** `SchemaSection` (in `schema-heading.tsx`, beside `Heading`): the section, its bar,
+    its open body and its "no match" line. The three call sites stay explicit (their cards,
+    filters and the Marks' order switch differ); a config array would have hidden that.
+12. **Skipped.** The Log's and the Selection's sections differ in layout (a heading, or a bordered
+    card with code and a fixed height) and in their menus ("Copy as JSON" or "Copy JSON", Clear):
+    merging needs more props than it saves.
+13. **Done.** `ChoiceGroup` (the labelled radio group) out of `ChoiceMenu`, used by the dock's
+    reopen settings too.
+14. **Done.** `lib/sets.ts` (`toggled`, generic); the Schema's `matches` is `includes`;
+    `lib/paths.ts` gains `parsePath` and `dataPath`, which replace the DOM tab's `pathOf`,
+    node-menu's and the Structure's `pathOfItem`.
+15. **Done.** `text-xs` is the context menu item's default (`components/ui/context-menu.tsx`, with
+    a comment); dropped at all 42 call sites.
+16. **Skipped.** State's and DOM's keyboard handling differ (DOM has no closing lines; State's
+    ArrowLeft goes to the parent): a shared hook would need a parameter per difference.
+
+Checks: typecheck, lint, tests (87 + 155 + 12), build, `compiler:check` (panel 122, extension
+119, demo 123), `format:check`, `readme:check`, `dependency-check`, e2e (11): all pass.

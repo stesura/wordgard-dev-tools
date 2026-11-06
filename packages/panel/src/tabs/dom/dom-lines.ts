@@ -4,8 +4,6 @@ import { includes } from "#lib/text.ts";
 /** One DOM node: its id is its child indices from the content element (`""` for it), dot-separated. */
 export type Line = { id: string; depth: number; node: ViewNode; collapsed: boolean };
 
-export const pathOf = (id: string) => (id ? id.split(".").map(Number) : []);
-
 export const flatten = (root: ViewNode, collapsed: ReadonlySet<string>) => {
   const lines: Line[] = [];
   const walk = (node: ViewNode, id: string, depth: number) => {

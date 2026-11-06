@@ -110,11 +110,10 @@ export const Section = ({
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
         <CopySelection text={selection} />
-        <ContextMenuItem className="text-xs" onClick={menu.onLog}>
+        <ContextMenuItem onClick={menu.onLog}>
           <CommandLineIcon /> Log to console
         </ContextMenuItem>
         <ContextMenuItem
-          className="text-xs"
           disabled={menu.copied == null}
           onClick={() => menu.copied && void copy(menu.copied())}
         >
@@ -123,7 +122,7 @@ export const Section = ({
         {menu.onClear && (
           <>
             <ContextMenuSeparator />
-            <ContextMenuItem className="text-xs" onClick={menu.onClear}>
+            <ContextMenuItem onClick={menu.onClear}>
               <XMarkIcon /> Clear
             </ContextMenuItem>
           </>

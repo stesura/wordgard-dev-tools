@@ -1,16 +1,18 @@
+import { createOutline } from "#lib/outline.ts";
+import { whileShown } from "#stores/while-shown.ts";
+import { ExpandCollapse } from "#components/expand-collapse";
+import { LoadError } from "#components/load-error";
+import { fire } from "../../transport.ts";
 import { useStore } from "@nanostores/react";
-import { ChevronDownUpIcon, ChevronUpDownIcon } from "#icons";
 import { useCallback, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import type { Path, StructureNode } from "@stesura/wordgard-dev-tools";
-import { Button } from "#components/ui/button";
-import { ROOT, itemId, pathOf } from "#lib/paths.ts";
+import { ROOT, dataPath, itemId, pathOf } from "#lib/paths.ts";
 import { NodeMenu, createNodeMenuAnchor } from "#components/node-menu";
 import { NodePane } from "#components/node-pane";
 import { isPrefix } from "#lib/paths.ts";
 import { SearchBox, useSearch } from "#components/search-box";
 import { SplitPane } from "#components/split-pane";
 import type { PanelStore } from "#stores/panel-store.ts";
-import { Tip } from "#components/tip";
 import { createStructureSource } from "./structure-source.ts";
 import { scrollInto } from "#lib/dom.ts";
 import { Box } from "./boxes.tsx";
@@ -39,29 +41,16 @@ const folders = (node: StructureNode, out: string[] = []) => {
 const itemOf = (target: EventTarget) =>
   target instanceof Element ? target.closest("[data-path]") : null;
 
-const pathOfItem = (element: Element | null) => {
-  const path = element?.getAttribute("data-path");
-  return path == null ? null : path ? path.split(".").map(Number) : [];
-};
-
 /** The whole document as nested boxes, with positions. Mounted per editor. */
 export const Structure = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createStructureSource(store.transport, editorId));
-  const { doc, error } = useStore(source.state);
+  const { value: doc, error } = useStore(source.state);
   const { selection } = useStore(store.state);
   const info = selection?.id == editorId ? selection.info : null;
   const [focused, setFocused] = useState<string>(ROOT);
   const scroller = useRef<HTMLDivElement | null>(null);
   // A clicked box's node is outlined in the page until another is clicked, or the tab or editor changes.
-  const outlined = useRef(false);
-  const highlight = useCallback(
-    (path: Path | null) => {
-      if (!path && !outlined.current) return;
-      outlined.current = path != null;
-      store.transport.send({ type: "highlight", id: editorId, path }).catch(() => {});
-    },
-    [store, editorId]
-  );
+  const [outline] = useState(() => createOutline(store.transport, editorId));
 
   // Focuses a node and scrolls to it, once the structure holding it has loaded and rendered.
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
@@ -93,42 +82,28 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
     (element: HTMLDivElement | null) => {
       scroller.current = element;
       if (!element) return;
-      const shown = () => store.state.get().tab == "structure";
-      let stale = true;
-      const load = () => {
-        stale = false;
-        void source.load();
-      };
-      const takeReveal = () => {
-        if (!shown()) return;
-        const path = store.takeReveal(editorId);
-        if (path) void reveal(path);
-      };
-      const stopDoc = store.onDocChanged((id) => {
-        if (id != editorId) return;
-        if (shown()) load();
-        else stale = true;
+      const stop = whileShown(store, {
+        tab: "structure",
+        editorId,
+        on: "doc",
+        load: () => void source.load(),
+        onHide: outline.hide,
+        onReveal: () => {
+          const path = store.takeReveal(editorId);
+          if (path) void reveal(path);
+        },
       });
-      const stopStore = store.state.listen(() => {
-        if (!shown()) highlight(null);
-        else if (stale) load();
-      });
-      const stopReveal = store.onReveal(takeReveal);
-      if (shown()) load();
-      takeReveal();
       return () => {
-        highlight(null);
-        stopDoc();
-        stopStore();
-        stopReveal();
+        outline.hide();
+        stop();
         scroller.current = null;
       };
     },
-    [store, editorId, source, reveal, highlight]
+    [store, editorId, source, reveal, outline]
   );
 
   const focusItem = (element: Element | null) => {
-    const path = pathOfItem(element);
+    const path = dataPath(element);
     if (!element || !path || !(element instanceof HTMLElement)) return;
     setFocused(itemId(path));
     element.focus({ preventScroll: true });
@@ -158,9 +133,7 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
     menu.onKeyDown(event);
     if (event.defaultPrevented) return;
     const items = [...(scroller.current?.querySelectorAll("[role='treeitem']") ?? [])];
-    const index = items.findIndex(
-      (item) => pathOfItem(item)?.join(".") == pathOf(focused).join(".")
-    );
+    const index = items.findIndex((item) => dataPath(item)?.join(".") == pathOf(focused).join("."));
     // As in a tree: Right opens a closed box, Left closes an open one; otherwise they walk.
     const item = items[index];
     if (item?.getAttribute("aria-expanded") == (event.key == "ArrowRight" ? "false" : "true")) {
@@ -203,41 +176,18 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
-      {error != null && (
-        <p role="alert" className="flex items-center gap-2 border-b px-2 py-1 text-destructive">
-          Couldn't load the structure: {error}
-          <Button variant="outline" size="xs" onClick={() => void source.load()}>
-            Retry
-          </Button>
-        </p>
-      )}
+      <LoadError what="the structure" error={error} onRetry={() => void source.load()} />
       <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
         <SearchBox
           search={searching}
           label="Search the structure"
           placeholder="Search text, node names, params"
         />
-        <Tip label="Expand all">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Expand all"
-            onClick={() => setCollapsed(new Set())}
-          >
-            <ChevronUpDownIcon />
-          </Button>
-        </Tip>
-        <Tip label="Collapse all">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Collapse all"
-            // The document stays open: its blocks show.
-            onClick={() => doc && setCollapsed(new Set(folders(doc).filter((id) => id != ROOT)))}
-          >
-            <ChevronDownUpIcon />
-          </Button>
-        </Tip>
+        <ExpandCollapse
+          onExpand={() => setCollapsed(new Set())}
+          // The document stays open: its blocks show.
+          onCollapse={() => doc && setCollapsed(new Set(folders(doc).filter((id) => id != ROOT)))}
+        />
       </div>
       <SplitPane
         pane={
@@ -246,13 +196,12 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
             focused={focused == ROOT ? null : focused}
             onShowType={(kind, name) => store.showType(editorId, name, kind)}
             onLog={(path, part) =>
-              store.transport
-                .send(
-                  part == "json"
-                    ? { type: "logNode", id: editorId, path, json: true }
-                    : { type: "logNode", id: editorId, path, part }
-                )
-                .catch(() => {})
+              fire(
+                store.transport,
+                part == "json"
+                  ? { type: "logNode", id: editorId, path, json: true }
+                  : { type: "logNode", id: editorId, path, part }
+              )
             }
           />
         }
@@ -265,14 +214,13 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
           onClick={(event: MouseEvent) => {
             const item = itemOf(event.target);
             focusItem(item);
-            const path = pathOfItem(item);
-            if (path) highlight(path);
+            const path = dataPath(item);
+            if (path) outline.show(path);
           }}
           // Scrolls the node into view in the editor.
           onDoubleClick={(event: MouseEvent) => {
-            const path = pathOfItem(itemOf(event.target));
-            if (path)
-              store.transport.send({ type: "scrollIntoView", id: editorId, path }).catch(() => {});
+            const path = dataPath(itemOf(event.target));
+            if (path) fire(store.transport, { type: "scrollIntoView", id: editorId, path });
           }}
           onKeyDown={onKeyDown}
           onContextMenu={menu.onContextMenu}

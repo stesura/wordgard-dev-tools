@@ -1,3 +1,4 @@
+import { fire } from "../transport.ts";
 import { useStore } from "@nanostores/react";
 import { CommandLineIcon, RecordIcon } from "#icons";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#components/ui/tabs";
@@ -54,9 +55,7 @@ export const Body = ({ store }: { store: PanelStore }) => {
           <GuideButton guide={GUIDES[tab]} />
           <IconButton
             label="Log the editor to the page's console"
-            onClick={() =>
-              void store.transport.send({ type: "logEditor", id: selected }).catch(() => {})
-            }
+            onClick={() => fire(store.transport, { type: "logEditor", id: selected })}
           >
             <CommandLineIcon />
           </IconButton>

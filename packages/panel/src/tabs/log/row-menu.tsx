@@ -60,13 +60,13 @@ export const RowMenu = ({
         }}
       >
         <CopySelection text={target?.selection} />
-        <ContextMenuItem className="text-xs" onClick={() => row && source.logEntry(row.index)}>
+        <ContextMenuItem onClick={() => row && source.logEntry(row.index)}>
           <CommandLineIcon /> Log to console
         </ContextMenuItem>
-        <ContextMenuItem className="text-xs" onClick={() => row && void copyJSON(row)}>
+        <ContextMenuItem onClick={() => row && void copyJSON(row)}>
           <CodeBracketIcon /> Copy as JSON
         </ContextMenuItem>
-        <ContextMenuItem className="text-xs" onClick={() => row && void copy(rowText(row))}>
+        <ContextMenuItem onClick={() => row && void copy(rowText(row))}>
           <ClipboardDocumentIcon /> Copy as text
         </ContextMenuItem>
       </ContextMenuContent>

@@ -40,3 +40,8 @@ export const inPageTransport = (): Transport => {
     onPush: (listener) => agent().onPush(listener),
   };
 };
+
+/** Sends a request whose reply doesn't matter: a log, an outline, a scroll. A failure is dropped. */
+export const fire = <K extends RequestType>(transport: Transport, request: Request<K>) => {
+  transport.send(request).catch(() => {});
+};

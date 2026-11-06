@@ -1,6 +1,8 @@
+import { whileShown } from "#stores/while-shown.ts";
+import { LoadError } from "#components/load-error";
+import { fire } from "../../transport.ts";
 import { useStore } from "@nanostores/react";
 import { useCallback, useState } from "react";
-import { Button } from "#components/ui/button";
 import { GuidePopover } from "#components/guide-popover";
 import { RESOLVED_POSITIONS, SELECTION } from "../../guides/guides.ts";
 import { Field } from "#components/node-pane";
@@ -14,7 +16,8 @@ import { type Links, Marks, Position, Section, SliceCard, pathLink } from "./sel
 /** The selected editor's selection, resolved, and any position typed in. Mounted per editor. */
 export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createSelectionSource(store.transport, editorId));
-  const { detail, error, probe } = useStore(source.state);
+  const { value: detail, error } = useStore(source.state);
+  const probe = useStore(source.probed);
   const { selection } = useStore(store.state);
   const info = selection?.id == editorId ? selection.info : null;
   const [typed, setTyped] = useState("");
@@ -22,36 +25,20 @@ export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId:
     onNode: (path) => store.showNode(editorId, path),
     onType: (kind, name) => store.showType(editorId, name, kind),
   };
-  const logPos = (pos: number) =>
-    store.transport.send({ type: "logPos", id: editorId, pos }).catch(() => {});
+  const logPos = (pos: number) => fire(store.transport, { type: "logPos", id: editorId, pos });
   const logSelection = () =>
-    void store.transport
-      .send({ type: "logState", id: editorId, keys: ["selection"] })
-      .catch(() => {});
+    fire(store.transport, { type: "logState", id: editorId, keys: ["selection"] });
 
   // Loads while its tab is shown: on showing (when the state changed meanwhile) and on each change.
   const container = useCallback(
     (element: HTMLDivElement | null) => {
       if (!element) return;
-      const shown = () => store.state.get().tab == "selection";
-      let stale = true;
-      const load = () => {
-        stale = false;
-        void source.load();
-      };
-      const stopState = store.onStateChanged((id) => {
-        if (id != editorId) return;
-        if (shown()) load();
-        else stale = true;
+      return whileShown(store, {
+        tab: "selection",
+        editorId,
+        on: "state",
+        load: () => void source.load(),
       });
-      const stopStore = store.state.listen(() => {
-        if (shown() && stale) load();
-      });
-      if (shown()) load();
-      return () => {
-        stopState();
-        stopStore();
-      };
     },
     [store, editorId, source]
   );
@@ -67,14 +54,7 @@ export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId:
   return (
     // A container: cards side by side when there's room.
     <div className="@container flex min-h-0 flex-1 flex-col">
-      {error != null && (
-        <p role="alert" className="flex items-center gap-2 border-b px-2 py-1 text-destructive">
-          Couldn't load the selection: {error}
-          <Button variant="outline" size="xs" onClick={() => void source.load()}>
-            Retry
-          </Button>
-        </p>
-      )}
+      <LoadError what="the selection" error={error} onRetry={() => void source.load()} />
       <div ref={container} className="min-h-0 flex-1 overflow-auto font-mono text-xs">
         <div className="flex min-h-8 items-center gap-1 border-b bg-strip px-2 py-1 font-sans">
           <h3 className="font-semibold">Selection</h3>
@@ -134,9 +114,7 @@ export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId:
             <SliceCard
               slice={detail.slice}
               links={links}
-              onLog={() =>
-                void store.transport.send({ type: "logSlice", id: editorId }).catch(() => {})
-              }
+              onLog={() => fire(store.transport, { type: "logSlice", id: editorId })}
             />
           </div>
         )}

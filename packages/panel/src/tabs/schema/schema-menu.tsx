@@ -42,36 +42,23 @@ export const SchemaMenu = ({
         <CopySelection text={target?.selection} />
         {/* With the pane open, the menu's card is already in it (opening the menu selects it). */}
         {!paneOpen && (
-          <ContextMenuItem
-            className="text-xs"
-            disabled={!card}
-            onClick={() => target && onShow(target.card)}
-          >
+          <ContextMenuItem disabled={!card} onClick={() => target && onShow(target.card)}>
             <EyeIcon /> Show JSON
           </ContextMenuItem>
         )}
         {card?.kind != "group" && (
           <ContextMenuItem
-            className="text-xs"
             disabled={!card}
             onClick={() => card && onLog(card.kind, card.name, false)}
           >
             <CommandLineIcon /> Log to console
           </ContextMenuItem>
         )}
-        <ContextMenuItem
-          className="text-xs"
-          disabled={!card}
-          onClick={() => card && onLog(card.kind, card.name, true)}
-        >
+        <ContextMenuItem disabled={!card} onClick={() => card && onLog(card.kind, card.name, true)}>
           <CodeBracketIcon /> Log JSON
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem
-          className="text-xs"
-          disabled={!card}
-          onClick={() => card && void copy(json(card.value))}
-        >
+        <ContextMenuItem disabled={!card} onClick={() => card && void copy(json(card.value))}>
           <ClipboardDocumentIcon /> Copy JSON
         </ContextMenuItem>
       </ContextMenuContent>

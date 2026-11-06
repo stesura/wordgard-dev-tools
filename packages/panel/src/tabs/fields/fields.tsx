@@ -1,3 +1,5 @@
+import { LoadError } from "#components/load-error";
+import { fire } from "../../transport.ts";
 import { useStore } from "@nanostores/react";
 import { persistent } from "#stores/persistent.ts";
 import { cn } from "cn";
@@ -31,14 +33,14 @@ const lastField = () =>
 /** The editor's state fields: values, last change, history linked to the log. Mounted per editor. */
 export const Fields = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createFieldsSource(store.transport, editorId));
-  const { fields: info, error, version: loaded } = useStore(source.state);
+  const { value: info, error, version: loaded } = useStore(source.state);
   const version = useDeferredValue(loaded);
   const [picked, setPicked] = useState<number | null>(null);
   const [savedField] = useState(lastField);
   const saved = useStore(savedField);
   const setSelected = (index: number) => {
     setPicked(index);
-    const name = source.state.get().fields?.fields.find((f) => f.index == index)?.name;
+    const name = source.state.get().value?.fields.find((f) => f.index == index)?.name;
     if (name != null) savedField.set(name);
   };
   // Until one is picked, the saved one, if the editor has it.
@@ -67,7 +69,7 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
       const watch = (on: boolean) => {
         if (on == watching) return;
         watching = on;
-        store.transport.send({ type: "watchFields", id: editorId, on }).catch(() => {});
+        fire(store.transport, { type: "watchFields", id: editorId, on });
       };
       const load = () => {
         stale = false;
@@ -77,7 +79,7 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
         watch(shown());
         if (shown() && stale) load();
       };
-      const stopState = store.onStateChanged((id) => {
+      const stopState = store.on("state", (id) => {
         if (id != editorId) return;
         if (shown()) load();
         else stale = true;
@@ -144,14 +146,7 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
-      {error != null && (
-        <p role="alert" className="flex items-center gap-2 border-b px-2 py-1 text-destructive">
-          Couldn't load the fields: {error}
-          <Button variant="outline" size="xs" onClick={() => void source.load()}>
-            Retry
-          </Button>
-        </p>
-      )}
+      <LoadError what="the fields" error={error} onRetry={() => void source.load()} />
       <div className="flex h-7 shrink-0 items-center gap-2 border-b bg-strip px-2 text-xs">
         <Button
           variant="ghost"

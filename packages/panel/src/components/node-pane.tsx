@@ -1,8 +1,8 @@
+import { IconButton } from "#components/icon-button";
 import { useStore } from "@nanostores/react";
 import { ClipboardDocumentIcon, CommandLineIcon } from "#icons";
 import { Suspense, use, useDeferredValue, useState, type ReactNode } from "react";
 import type { NodePart, Path } from "@stesura/wordgard-dev-tools";
-import { Button } from "./ui/button.tsx";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -16,7 +16,6 @@ import type { DetailSource } from "#lib/detail-cache.ts";
 import { pathOf } from "#lib/paths.ts";
 import type { ColourKind } from "#lib/colours.ts";
 import { CopyButton } from "./copy-button.tsx";
-import { Tip } from "./tip.tsx";
 import { TypeLink } from "./type-link.tsx";
 import { json } from "#lib/json.ts";
 
@@ -69,14 +68,10 @@ const PaneMenu = ({
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52">
         <CopySelection text={target?.selection} />
-        <ContextMenuItem
-          className="text-xs"
-          disabled={part == null}
-          onClick={() => part != null && onLog(part)}
-        >
+        <ContextMenuItem disabled={part == null} onClick={() => part != null && onLog(part)}>
           <CommandLineIcon /> Log to console
         </ContextMenuItem>
-        <ContextMenuItem className="text-xs" onClick={() => target && void copy(target.text)}>
+        <ContextMenuItem onClick={() => target && void copy(target.text)}>
           <ClipboardDocumentIcon /> {part == "json" ? "Copy JSON" : "Copy value"}
         </ContextMenuItem>
       </ContextMenuContent>
@@ -137,16 +132,12 @@ const NodeDetailView = ({
         <h3 className="text-muted-foreground">JSON</h3>
         <span className="ml-auto flex items-center gap-1">
           {/* Logs even a node too large to show: the page has it. */}
-          <Tip label="Log the node's JSON to the page's console">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Log the node's JSON to the page's console"
-              onClick={() => onLog(node.path, "json")}
-            >
-              <CommandLineIcon />
-            </Button>
-          </Tip>
+          <IconButton
+            label="Log the node's JSON to the page's console"
+            onClick={() => onLog(node.path, "json")}
+          >
+            <CommandLineIcon />
+          </IconButton>
           {node.json != null && (
             <CopyButton label="Copy the node's JSON" text={() => json(node.json)} />
           )}
@@ -177,7 +168,7 @@ export const NodePane = ({
   onLog: (path: Path, part: PaneLog) => void;
 }) => {
   // Deferred: the previous detail stays up while the next one loads, instead of a fallback.
-  const version = useDeferredValue(useStore(source.version));
+  const version = useDeferredValue(useStore(source.state).version);
   const id = useDeferredValue(focused);
   const [menu] = useState(() =>
     createMenuAnchor<PaneTarget>(

@@ -1,3 +1,4 @@
+import { toggled } from "#lib/sets.ts";
 import { cn } from "cn";
 import { ChevronDownIcon } from "#icons";
 import type { ComponentProps } from "react";
@@ -150,12 +151,6 @@ const UserEventFilter = ({
 /** Every annotation in the rows but the time stamp, which all have. */
 const annotationTypes = (rows: LogRow[]) =>
   [...new Set(rows.flatMap((row) => row.annotations))].filter((name) => name != "time").sort();
-
-const toggled = <T,>(set: ReadonlySet<T>, value: T) => {
-  const next = new Set(set);
-  if (!next.delete(value)) next.add(value);
-  return next;
-};
 
 /** A filter toggle. Passes other props on: a tooltip's trigger adds its own. */
 const FilterToggle = ({

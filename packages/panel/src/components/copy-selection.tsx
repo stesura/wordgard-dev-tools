@@ -8,7 +8,7 @@ import { selectedText } from "#lib/selected-text.ts";
 export const CopySelection = ({ text }: { text: string | null | undefined }) =>
   text ? (
     <>
-      <ContextMenuItem className="text-xs" onClick={() => void copy(text)}>
+      <ContextMenuItem onClick={() => void copy(text)}>
         <ClipboardDocumentIcon /> Copy
       </ContextMenuItem>
       <ContextMenuSeparator />

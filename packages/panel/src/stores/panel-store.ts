@@ -7,7 +7,7 @@ import type {
   SelectionInfo,
 } from "@stesura/wordgard-dev-tools";
 import type { ColourKind } from "#lib/colours.ts";
-import type { Transport } from "../transport.ts";
+import { fire, type Transport } from "../transport.ts";
 import { atom, type ReadableAtom } from "nanostores";
 import { errorMessage, isRecord } from "#lib/json.ts";
 import { isTab, type Tab } from "../tabs/tabs.ts";
@@ -47,17 +47,16 @@ export type PanelState = {
   recording: boolean;
 };
 
+/** In the selected editor: its document, its state (any update), its configuration, its log. */
+export type Change = "doc" | "state" | "config" | "log";
+// The order listeners hear them in, within a frame.
+const CHANGES: readonly Change[] = ["doc", "log", "config", "state"];
+
 export type PanelStore = {
   state: ReadableAtom<PanelState>;
   select: (id: number | null) => Promise<void>;
-  /** The selected editor's document changed (coalesced per frame). */
-  onDocChanged: (listener: (id: number) => void) => () => void;
-  /** The selected editor's state changed: any update (coalesced per frame). */
-  onStateChanged: (listener: (id: number) => void) => () => void;
-  /** The selected editor's configuration changed (coalesced per frame). */
-  onConfigChanged: (listener: (id: number) => void) => () => void;
-  /** The selected editor's transaction log changed (coalesced per frame). */
-  onLogChanged: (listener: (id: number) => void) => () => void;
+  /** Something in the selected editor changed (coalesced per frame). */
+  on: (change: Change, listener: (id: number) => void) => () => void;
   pick: (on: boolean) => void;
   setTab: (tab: Tab) => void;
   /** From the Log tab: its editor's log records or not. */
@@ -100,10 +99,12 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     recording: false,
   };
   const published = atom(state);
-  const docListeners = new Set<(id: number) => void>();
-  const logListeners = new Set<(id: number) => void>();
-  const configListeners = new Set<(id: number) => void>();
-  const stateListeners = new Set<(id: number) => void>();
+  const changeListeners: Record<Change, Set<(id: number) => void>> = {
+    doc: new Set(),
+    log: new Set(),
+    config: new Set(),
+    state: new Set(),
+  };
   const revealListeners = new Set<() => void>();
   let reveal: { id: number; path: Path } | null = null;
   let logReveal: { id: number; index: number } | null = null;
@@ -193,20 +194,17 @@ export const createPanelStore = (transport: Transport): PanelStore => {
 
   // Coalesced per frame: a burst of updates refetches once.
   let frame: number | null = null;
-  let docChanged = false;
-  let stateChanged = false;
-  let logChanged = false;
-  let configChanged = false;
+  const changed = new Set<Change>();
   const schedule = () => {
     frame ??= requestAnimationFrame(() => {
       frame = null;
       const id = state.selected;
-      if (id != null && docChanged) for (const listener of docListeners) listener(id);
-      if (id != null && logChanged) for (const listener of logListeners) listener(id);
-      if (id != null && configChanged) for (const listener of configListeners) listener(id);
-      if (id != null && stateChanged) for (const listener of stateListeners) listener(id);
-      if (stateChanged) loadSelection().catch(fail);
-      docChanged = stateChanged = logChanged = configChanged = false;
+      for (const change of CHANGES) {
+        if (id == null || !changed.has(change)) continue;
+        for (const listener of changeListeners[change]) listener(id);
+      }
+      if (changed.has("state")) loadSelection().catch(fail);
+      changed.clear();
     });
   };
   const onPush = (push: Push) => {
@@ -224,12 +222,12 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       void select(push.id);
       for (const listener of revealListeners) listener();
     } else if (push.type == "stateChanged" && push.id == state.selected) {
-      docChanged ||= push.docChanged;
-      configChanged ||= push.reconfigured;
-      stateChanged = true;
+      if (push.docChanged) changed.add("doc");
+      if (push.reconfigured) changed.add("config");
+      changed.add("state");
       schedule();
     } else if (push.type == "logChanged" && push.id == state.selected) {
-      logChanged = true;
+      changed.add("log");
       schedule();
     }
   };
@@ -250,7 +248,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     }
     void refreshEditors().then(() => {
       if (!resumed || !current(at)) return;
-      docChanged = stateChanged = logChanged = configChanged = true;
+      for (const change of CHANGES) changed.add(change);
       schedule();
     });
     return () => {
@@ -259,14 +257,14 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       stopPushes();
       if (frame != null) cancelAnimationFrame(frame);
       frame = null;
-      docChanged = stateChanged = logChanged = configChanged = false;
+      changed.clear();
       if (state.picking) set({ picking: false });
       for (const request of [
         { type: "pick", on: false },
         { type: "highlight", id: 0, path: null },
         { type: "select", id: null },
       ] satisfies Request[]) {
-        transport.send(request).catch(() => {});
+        fire(transport, request);
       }
     };
   };
@@ -274,28 +272,10 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   return {
     state: published,
     select,
-    onDocChanged: (listener) => {
-      docListeners.add(listener);
+    on: (change, listener) => {
+      changeListeners[change].add(listener);
       return () => {
-        docListeners.delete(listener);
-      };
-    },
-    onStateChanged: (listener) => {
-      stateListeners.add(listener);
-      return () => {
-        stateListeners.delete(listener);
-      };
-    },
-    onConfigChanged: (listener) => {
-      configListeners.add(listener);
-      return () => {
-        configListeners.delete(listener);
-      };
-    },
-    onLogChanged: (listener) => {
-      logListeners.add(listener);
-      return () => {
-        logListeners.delete(listener);
+        changeListeners[change].delete(listener);
       };
     },
     pick,

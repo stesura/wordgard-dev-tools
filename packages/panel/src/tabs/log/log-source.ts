@@ -1,8 +1,9 @@
+import { createPromiseCache } from "#lib/promise-cache.ts";
 import type { EntryPart, LogEntryDetail, LogRow } from "@stesura/wordgard-dev-tools";
 import { atom, type ReadableAtom } from "nanostores";
 import { errorMessage } from "#lib/json.ts";
 import { persistent } from "#stores/persistent.ts";
-import type { Transport } from "../../transport.ts";
+import { fire, type Transport } from "../../transport.ts";
 
 export type LogView = {
   rows: LogRow[];
@@ -51,8 +52,6 @@ const SETTING_KEYS: Record<RecordSetting, string> = {
 const recordSetting = (setting: RecordSetting) =>
   persistent(SETTING_KEYS[setting], true, { decode: (text) => text != "false", encode: String });
 
-const KEPT = 32;
-
 export const createLogSource = (transport: Transport, id: number): LogSource => {
   const settings = {
     selectPointer: recordSetting("selectPointer"),
@@ -79,7 +78,7 @@ export const createLogSource = (transport: Transport, id: number): LogSource => 
     state.set(view);
   };
 
-  const details = new Map<string, Promise<EntryDetail>>();
+  const details = createPromiseCache<EntryDetail>();
 
   const load = async (): Promise<void> => {
     const at = ++version;
@@ -142,26 +141,17 @@ export const createLogSource = (transport: Transport, id: number): LogSource => 
     },
     clear: () => act(() => transport.send({ type: "clear", id })),
     logEntry: (index, part) => {
-      transport.send({ type: "logEntry", id, index, part }).catch(() => {});
+      fire(transport, { type: "logEntry", id, index, part });
     },
     forget: (index, flush) => {
       details.delete(`${index}|${flush}`);
     },
-    detail: (index, flush) => {
-      const key = `${index}|${flush}`;
-      let found = details.get(key);
-      if (!found) {
-        found = transport.send({ type: "entry", id, index }).then(
+    detail: (index, flush) =>
+      details.get(`${index}|${flush}`, () =>
+        transport.send({ type: "entry", id, index }).then(
           (entry): EntryDetail => ({ entry }),
           (e): EntryDetail => ({ error: errorMessage(e) })
-        );
-        details.set(key, found);
-        for (const old of details.keys()) {
-          if (details.size <= KEPT) break;
-          details.delete(old);
-        }
-      }
-      return found;
-    },
+        )
+      ),
   };
 };

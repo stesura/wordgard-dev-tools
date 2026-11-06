@@ -1,7 +1,7 @@
+import { IconButton } from "#components/icon-button";
 import { useStore } from "@nanostores/react";
 import { ClipboardDocumentIcon, CommandLineIcon, NoSymbolIcon } from "#icons";
 import { use, useState, type ReactNode } from "react";
-import { Button } from "#components/ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -16,7 +16,6 @@ import { createMenuAnchor, type MenuAnchor } from "#lib/menu-anchor.ts";
 import { Field as Line } from "#components/node-pane";
 import { json } from "#lib/json.ts";
 import { SplitPane, type Orientation, type SplitKind } from "#components/split-pane";
-import { Tip } from "#components/tip";
 import { HistoryItem, HistoryMenu, type HistoryTarget } from "./field-history.tsx";
 
 // Value | history, inside the field pane: laid out as the tab is (`wide` unused).
@@ -46,10 +45,10 @@ const ValueMenu = ({
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52">
         <CopySelection text={target?.selection} />
-        <ContextMenuItem className="text-xs" onClick={onLog}>
+        <ContextMenuItem onClick={onLog}>
           <CommandLineIcon /> Log to console
         </ContextMenuItem>
-        <ContextMenuItem className="text-xs" onClick={() => void copy(text())}>
+        <ContextMenuItem onClick={() => void copy(text())}>
           <ClipboardDocumentIcon /> Copy value
         </ContextMenuItem>
       </ContextMenuContent>
@@ -127,33 +126,25 @@ export const FieldView = ({
       title="History, newest first"
       actions={
         <>
-          <Tip label="Log the history to the page's console">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Log the history to the page's console"
-              disabled={!field.history.length}
-              onClick={() => source.logHistory(field.index)}
-            >
-              <CommandLineIcon />
-            </Button>
-          </Tip>
+          <IconButton
+            label="Log the history to the page's console"
+            disabled={!field.history.length}
+            onClick={() => source.logHistory(field.index)}
+          >
+            <CommandLineIcon />
+          </IconButton>
           <CopyButton
             label="Copy the history"
             disabled={!field.history.length}
             text={copyHistory}
           />
-          <Tip label="Clear this field's history">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Clear this field's history"
-              disabled={!field.history.length}
-              onClick={() => onClearHistory(field.index)}
-            >
-              <NoSymbolIcon />
-            </Button>
-          </Tip>
+          <IconButton
+            label="Clear this field's history"
+            disabled={!field.history.length}
+            onClick={() => onClearHistory(field.index)}
+          >
+            <NoSymbolIcon />
+          </IconButton>
         </>
       }
     >
