@@ -6,7 +6,10 @@ import {defaultClientConditions, searchForWorkspaceRoot} from "vite"
 import {defineConfig} from "vitest/config"
 import {cssAndCopiedCode, thirdPartyLicenses} from "../../scripts/third-party-licenses.ts"
 
-export default defineConfig({
+export default defineConfig(({command}) => ({
+  // The build ships production React only. The page's own `isProduction()` stays unreplaced,
+  // as @stesura/wordgard-dev-tools is external. Tests and the extension build from source.
+  define: command === "build" ? {"process.env.NODE_ENV": JSON.stringify("production")} : {},
   plugins: [react(), tailwindcss(), thirdPartyLicenses({extra: cssAndCopiedCode}).plugin],
   resolve: {
     conditions: ["source", ...defaultClientConditions],
@@ -42,9 +45,9 @@ export default defineConfig({
   },
   build: {
     target: "es2022",
-    lib: {entry: {index: "src/index.ts", ui: "src/ui.ts", transport: "src/transport.ts", styles: "src/styles-entry.ts"}, formats: ["es"], cssFileName: "styles"},
-    // React is bundled (plan, open question 5); the page side is the page's own copy.
-    rolldownOptions: {external: [/^wordgard(-devtools)?(\/|$)/]},
+    lib: {entry: {index: "src/index.ts", transport: "src/transport.ts", styles: "src/styles-entry.ts"}, formats: ["es"], cssFileName: "styles"},
+    // React and the UI libraries are bundled (plan, open question 5), so they're devDependencies.
+    rolldownOptions: {external: [/^(wordgard|@stesura\/wordgard-dev-tools)(\/|$)/]},
   },
   test: {
     include: ["test/**/*.test.{ts,tsx}"],
@@ -55,4 +58,4 @@ export default defineConfig({
       instances: [{browser: "chromium"}],
     },
   },
-})
+}))

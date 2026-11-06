@@ -1,9 +1,16 @@
-import {cn} from "cn"
-import {MonitorIcon, MoonIcon, MousePointerClickIcon, PauseIcon, PlayIcon, SunIcon} from "lucide-react"
-import {useState, useSyncExternalStore, type ReactNode} from "react"
-import type {EditorInfo} from "@stesura/wordgard-dev-tools"
-import {PortalContainer} from "#components/portal"
-import {Button} from "#components/ui/button"
+import { cn } from "cn";
+import {
+  MonitorIcon,
+  MoonIcon,
+  MousePointerClickIcon,
+  PauseIcon,
+  PlayIcon,
+  SunIcon,
+} from "lucide-react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
+import type { EditorInfo } from "@stesura/wordgard-dev-tools";
+import { PortalContainer } from "#components/portal";
+import { Button } from "#components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,25 +19,31 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "#components/ui/dropdown-menu"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "#components/ui/select"
-import {Tooltip, TooltipContent, TooltipTrigger} from "#components/ui/tooltip"
-import {Tabs, TabsContent, TabsList, TabsTrigger} from "#components/ui/tabs"
-import {Log} from "./Log.tsx"
-import {Fields} from "./Fields.tsx"
-import {Schema} from "./Schema.tsx"
-import {State} from "./State.tsx"
-import {View as ViewTab} from "./View.tsx"
-import type {PanelStore, View} from "./store.ts"
-import {Structure} from "./Structure.tsx"
-import type {ThemeChoice, ThemeStore} from "./theme.ts"
+} from "#components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "#components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "#components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "#components/ui/tabs";
+import { Log } from "./Log.tsx";
+import { Fields } from "./Fields.tsx";
+import { Schema } from "./Schema.tsx";
+import { State } from "./State.tsx";
+import { View as ViewTab } from "./View.tsx";
+import type { PanelStore, View } from "./store.ts";
+import { Structure } from "./Structure.tsx";
+import type { ThemeChoice, ThemeStore } from "./theme.ts";
 
 const editorLabel = (editor: EditorInfo) =>
-  `${editor.name} · #${editor.id}` + (editor.frame ? ` · ${editor.frame}` : "")
+  `${editor.name} · #${editor.id}` + (editor.frame ? ` · ${editor.frame}` : "");
 
-const EditorPicker = ({store}: {store: PanelStore}) => {
-  const {editors, selected, paused} = useSyncExternalStore(store.subscribe, store.get)
-  const items = editors.map(editor => ({value: editor.id, label: editorLabel(editor)}))
+const EditorPicker = ({ store }: { store: PanelStore }) => {
+  const { editors, selected, paused } = useSyncExternalStore(store.subscribe, store.get);
+  const items = editors.map((editor) => ({ value: editor.id, label: editorLabel(editor) }));
   return (
     <Select
       items={items}
@@ -38,7 +51,7 @@ const EditorPicker = ({store}: {store: PanelStore}) => {
       // Base UI also reports changes it makes itself ("none": the selected editor left the list,
       // or the value prop moved): only the user's picks count.
       onValueChange={(id, details) => {
-        if (id != null && details.reason != "none") void store.select(id)
+        if (id != null && details.reason != "none") void store.select(id);
       }}
       disabled={!editors.length || paused}
     >
@@ -46,29 +59,33 @@ const EditorPicker = ({store}: {store: PanelStore}) => {
         <SelectValue placeholder="No editors" />
       </SelectTrigger>
       <SelectContent alignItemWithTrigger={false} align="start">
-        {items.map(item => (
+        {items.map((item) => (
           <SelectItem key={item.value} value={item.value}>
             {item.label}
           </SelectItem>
         ))}
       </SelectContent>
     </Select>
-  )
-}
+  );
+};
 
-const PauseButton = ({store}: {store: PanelStore}) => {
-  const {paused} = useSyncExternalStore(store.subscribe, store.get)
+const PauseButton = ({ store }: { store: PanelStore }) => {
+  const { paused } = useSyncExternalStore(store.subscribe, store.get);
   return (
-    <IconButton label={paused ? "Resume the devtool" : "Pause the devtool"} pressed={paused} onClick={() => store.pause(!paused)}>
+    <IconButton
+      label={paused ? "Resume the devtool" : "Pause the devtool"}
+      pressed={paused}
+      onClick={() => store.pause(!paused)}
+    >
       {paused ? <PlayIcon /> : <PauseIcon className="fill-current" />}
     </IconButton>
-  )
-}
+  );
+};
 
 /** Over the panel while paused: nothing it shows is live. */
-const PausedOverlay = ({store}: {store: PanelStore}) => {
-  const {paused} = useSyncExternalStore(store.subscribe, store.get)
-  if (!paused) return null
+const PausedOverlay = ({ store }: { store: PanelStore }) => {
+  const { paused } = useSyncExternalStore(store.subscribe, store.get);
+  if (!paused) return null;
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-[1px]">
       <Button variant="outline" onClick={() => store.pause(false)}>
@@ -76,20 +93,24 @@ const PausedOverlay = ({store}: {store: PanelStore}) => {
         The devtool is paused
       </Button>
     </div>
-  )
-}
+  );
+};
 
-const PickButton = ({store}: {store: PanelStore}) => {
-  const {picking, editors, paused} = useSyncExternalStore(store.subscribe, store.get)
-  if (!editors.length || paused) return null
+const PickButton = ({ store }: { store: PanelStore }) => {
+  const { picking, editors, paused } = useSyncExternalStore(store.subscribe, store.get);
+  if (!editors.length || paused) return null;
   return (
-    <IconButton label="Pick a node in the page" pressed={picking} onClick={() => store.pick(!picking)}>
+    <IconButton
+      label="Pick a node in the page"
+      pressed={picking}
+      onClick={() => store.pick(!picking)}
+    >
       <MousePointerClickIcon className={cn(picking && "text-primary")} />
     </IconButton>
-  )
-}
+  );
+};
 
-export type Choice<T> = {value: T; label: string; icon: ReactNode}
+export type Choice<T> = { value: T; label: string; icon: ReactNode };
 
 /** An icon button opening a menu of choices, the current one checked. */
 export const ChoiceMenu = <T extends string>({
@@ -98,19 +119,25 @@ export const ChoiceMenu = <T extends string>({
   choices,
   onChange,
 }: {
-  label: string
-  value: T
-  choices: Choice<T>[]
-  onChange: (value: T) => void
+  label: string;
+  value: T;
+  choices: Choice<T>[];
+  onChange: (value: T) => void;
 }) => {
-  const current = choices.find(choice => choice.value == value)
+  const current = choices.find((choice) => choice.value == value);
   return (
     <DropdownMenu>
       <Tooltip>
         <TooltipTrigger
           render={
             <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon-xs" aria-label={`${label}: ${current?.label ?? value}`} />}
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={`${label}: ${current?.label ?? value}`}
+                />
+              }
             />
           }
         >
@@ -123,13 +150,18 @@ export const ChoiceMenu = <T extends string>({
           <DropdownMenuLabel>{label}</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={value}
-            onValueChange={next => {
-              const found = choices.find(choice => choice.value == next)
-              if (found) onChange(found.value)
+            onValueChange={(next) => {
+              const found = choices.find((choice) => choice.value == next);
+              if (found) onChange(found.value);
             }}
           >
-            {choices.map(choice => (
-              <DropdownMenuRadioItem key={choice.value} value={choice.value} closeOnClick className="text-xs">
+            {choices.map((choice) => (
+              <DropdownMenuRadioItem
+                key={choice.value}
+                value={choice.value}
+                closeOnClick
+                className="text-xs"
+              >
                 {choice.icon}
                 {choice.label}
               </DropdownMenuRadioItem>
@@ -138,19 +170,19 @@ export const ChoiceMenu = <T extends string>({
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-}
+  );
+};
 
 const themes: Choice<ThemeChoice>[] = [
-  {value: "system", label: "System", icon: <MonitorIcon />},
-  {value: "light", label: "Light", icon: <SunIcon />},
-  {value: "dark", label: "Dark", icon: <MoonIcon />},
-]
+  { value: "system", label: "System", icon: <MonitorIcon /> },
+  { value: "light", label: "Light", icon: <SunIcon /> },
+  { value: "dark", label: "Dark", icon: <MoonIcon /> },
+];
 
-const ThemeMenu = ({theme}: {theme: ThemeStore}) => {
-  const {choice} = useSyncExternalStore(theme.subscribe, theme.get)
-  return <ChoiceMenu label="Theme" value={choice} choices={themes} onChange={theme.set} />
-}
+const ThemeMenu = ({ theme }: { theme: ThemeStore }) => {
+  const { choice } = useSyncExternalStore(theme.subscribe, theme.get);
+  return <ChoiceMenu label="Theme" value={choice} choices={themes} onChange={theme.set} />;
+};
 
 export const IconButton = ({
   label,
@@ -158,11 +190,11 @@ export const IconButton = ({
   pressed,
   children,
 }: {
-  label: string
-  onClick: () => void
+  label: string;
+  onClick: () => void;
   /** A toggle's state. */
-  pressed?: boolean
-  children: ReactNode
+  pressed?: boolean;
+  children: ReactNode;
 }) => (
   <Tooltip>
     <TooltipTrigger
@@ -180,10 +212,10 @@ export const IconButton = ({
     </TooltipTrigger>
     <TooltipContent side="top">{label}</TooltipContent>
   </Tooltip>
-)
+);
 
-const Notices = ({store}: {store: PanelStore}) => {
-  const {error, notices} = useSyncExternalStore(store.subscribe, store.get)
+const Notices = ({ store }: { store: PanelStore }) => {
+  const { error, notices } = useSyncExternalStore(store.subscribe, store.get);
   return [error, ...notices].map(
     (text, index) =>
       text && (
@@ -191,37 +223,42 @@ const Notices = ({store}: {store: PanelStore}) => {
           {text}
         </p>
       ),
-  )
-}
+  );
+};
 
 const tabClass =
-  "h-6 flex-none px-2.5 text-xs text-muted-foreground hover:text-foreground data-active:border-border data-active:bg-background data-active:text-foreground"
+  "h-6 flex-none px-2.5 text-xs text-muted-foreground hover:text-foreground data-active:border-border data-active:bg-background data-active:text-foreground";
 
-const isView = (value: unknown): value is View => value == "structure" || value == "state" || value == "view" || value == "schema" || value == "fields" || value == "log"
+const isView = (value: unknown): value is View =>
+  value == "structure" ||
+  value == "state" ||
+  value == "view" ||
+  value == "schema" ||
+  value == "fields" ||
+  value == "log";
 
-const Body = ({store}: {store: PanelStore}) => {
-  const {editors, selected, view} = useSyncExternalStore(store.subscribe, store.get)
+const Body = ({ store }: { store: PanelStore }) => {
+  const { editors, selected, view } = useSyncExternalStore(store.subscribe, store.get);
   if (!editors.length) {
     return (
       <p className="p-2 text-muted-foreground">
-        No editors. Add <code className="font-mono">wordgardDevtools()</code> to an editor's configuration.
+        No editors. Add <code className="font-mono">wordgardDevtools()</code> to an editor's
+        configuration.
       </p>
-    )
+    );
   }
-  if (selected == null) return null
+  if (selected == null) return null;
   // The tabs stay mounted (each keeps what is collapsed and focused); per editor, so switching starts afresh.
   return (
     <Tabs
       value={view}
-      onValueChange={value => {
-        if (isView(value)) store.setView(value)
+      onValueChange={(value) => {
+        if (isView(value)) store.setView(value);
       }}
       className="min-h-0 flex-1 gap-0"
     >
       {/* Filled tabs on the bar's grey; the active one on the content's background. Wraps rather than hiding tabs. */}
-      <TabsList
-        className="h-auto min-h-8 w-full shrink-0 flex-wrap justify-start gap-0.5 rounded-none border-b bg-muted px-1 py-1 group-data-horizontal/tabs:h-auto"
-      >
+      <TabsList className="h-auto min-h-8 w-full shrink-0 flex-wrap justify-start gap-0.5 rounded-none border-b bg-muted px-1 py-1 group-data-horizontal/tabs:h-auto">
         <TabsTrigger value="structure" className={tabClass}>
           Structure
         </TabsTrigger>
@@ -241,7 +278,11 @@ const Body = ({store}: {store: PanelStore}) => {
           Log
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="structure" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
+      <TabsContent
+        value="structure"
+        keepMounted
+        className="flex min-h-0 flex-col data-hidden:hidden"
+      >
         <Structure key={selected} store={store} editorId={selected} />
       </TabsContent>
       <TabsContent value="state" keepMounted className="flex min-h-0 flex-col data-hidden:hidden">
@@ -260,25 +301,25 @@ const Body = ({store}: {store: PanelStore}) => {
         <Log key={selected} store={store} editorId={selected} />
       </TabsContent>
     </Tabs>
-  )
-}
+  );
+};
 
 export type PanelProps = {
-  store: PanelStore
-  theme: ThemeStore
+  store: PanelStore;
+  theme: ThemeStore;
   /** Extra toolbar buttons, at its end (the dock's collapse button). */
-  actions?: ReactNode
+  actions?: ReactNode;
   /** The title on a row of its own (the dock on the left or right, where the toolbar is narrow). */
-  titleRow?: boolean
-  className?: string
-}
+  titleRow?: boolean;
+  className?: string;
+};
 
-const TITLE = "Wordgard DevTools"
+const TITLE = "Wordgard DevTools";
 
-export const Panel = ({store, theme, actions, titleRow, className}: PanelProps) => {
-  const {dark} = useSyncExternalStore(theme.subscribe, theme.get)
-  const {editors, paused} = useSyncExternalStore(store.subscribe, store.get)
-  const [root, setRoot] = useState<HTMLDivElement | null>(null)
+export const Panel = ({ store, theme, actions, titleRow, className }: PanelProps) => {
+  const { dark } = useSyncExternalStore(theme.subscribe, theme.get);
+  const { editors, paused } = useSyncExternalStore(store.subscribe, store.get);
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
   return (
     <PortalContainer value={root}>
       <div
@@ -289,7 +330,9 @@ export const Panel = ({store, theme, actions, titleRow, className}: PanelProps) 
           className,
         )}
       >
-        {titleRow && <div className="shrink-0 border-b bg-muted px-2 py-1 font-semibold">{TITLE}</div>}
+        {titleRow && (
+          <div className="shrink-0 border-b bg-muted px-2 py-1 font-semibold">{TITLE}</div>
+        )}
         <header className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-2 border-b bg-muted px-2">
           {!titleRow && <span className="font-semibold">{TITLE}</span>}
           <EditorPicker store={store} />
@@ -313,5 +356,5 @@ export const Panel = ({store, theme, actions, titleRow, className}: PanelProps) 
         </main>
       </div>
     </PortalContainer>
-  )
-}
+  );
+};

@@ -180,7 +180,7 @@ const config = [basicSchema(), ...(import.meta.env.DEV ? [wordgardDevtools()] : 
 | Package | What it is |
 | --- | --- |
 | [`@stesura/wordgard-dev-tools`](packages/devtools) | Page side, framework-free. The plugin, the editor registry and the agent that answers the panel. |
-| [`@stesura/wordgard-dev-tools-panel`](packages/panel) | The React panel and `mountDevtools()`. It uses a `Transport`, so it doesn't depend on where it runs. `@stesura/wordgard-dev-tools-panel/ui` exports the bare `<Panel>`. |
+| [`@stesura/wordgard-dev-tools-panel`](packages/panel) | The React panel and `mountDevtools()`. It uses a `Transport`, so it doesn't depend on where it runs. React is bundled, so pages need neither React nor a particular version. |
 | [`packages/extension`](packages/extension) | The WXT extension shell around the panel. |
 | [`demo`](demo) | A Vite page with several editors and the in-page panel docked. |
 
