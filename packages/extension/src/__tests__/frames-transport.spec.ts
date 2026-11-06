@@ -6,8 +6,8 @@ import {
   type Push,
   type Request,
 } from "@stesura/wordgard-dev-tools";
-import { createFramesTransport } from "../src/frames-transport.ts";
-import type { ToBridge } from "../src/messages.ts";
+import { createFramesTransport } from "../frames-transport.ts";
+import type { ToBridge } from "../messages.ts";
 
 type FakeFrame = {
   url: string;

@@ -48,7 +48,7 @@ module.exports = {
       name: "devtools-framework-free",
       comment: "The page side runs in the app: Wordgard only, no React, no panel, no extension.",
       severity: "error",
-      from: { path: "^packages/devtools/src/" },
+      from: { path: "^packages/devtools/src/", pathNot: "/__tests__/" },
       to: { pathNot: ["^packages/devtools/src/", "(^|/)wordgard/"] },
     },
     {

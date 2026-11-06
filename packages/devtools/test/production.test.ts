@@ -1,7 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { Wordgard } from "wordgard/editor";
 import { wordgardDevtools } from "../src/index.ts";
-import type * as Production from "../src/production.ts";
 import { editor } from "./helpers.ts";
 
 const env = vi.hoisted(() => ({ production: false }));
@@ -40,9 +39,4 @@ it("registers outside production", () => {
 it("does nothing when disabled", () => {
   expect(wordgardDevtools({ enabled: false })).toEqual([]);
   expect(registered(open(wordgardDevtools({ enabled: false })))).toBe(false);
-});
-
-it("reads the bundler's NODE_ENV", async () => {
-  const actual = await vi.importActual<typeof Production>("../src/production.ts");
-  expect(actual.isProduction()).toBe(false);
 });

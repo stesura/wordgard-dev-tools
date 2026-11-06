@@ -17,9 +17,10 @@ Wordgard DevTools: a DevTools panel for Wordgard editors. MIT. The plan is `docs
   `npm run dev`.
 - Panel layout (`packages/panel/src`): `tabs/<tab>/`, `panel/`, `components/` (shadcn in
   `components/ui/`), `hooks/`, `stores/` (nanostores), `lib/` (no React), `guides/*.md` (the
-  guides, in markdown). Unit tests beside their module in `__tests__/*.spec.ts`; integration
-  tests (a mounted panel) in `packages/panel/test/*.test.ts`. Layers, tests and the `shadcn add`
-  steps are in CONTRIBUTING.md.
+  guides, in markdown). Layers, tests and the `shadcn add` steps are in CONTRIBUTING.md.
+- Tests, in every package: unit tests beside their module in `__tests__/<module>.spec.ts`;
+  integration tests (editors on a page) in `test/*.test.ts`; the extension's end to end in
+  `e2e/*.test.ts`.
 - End to end: `npm run e2e -w wordgard-devtools-extension` builds the extension and the demo, then
   drives the extension's panel page (opened with `?tabId=`) against the demo in Chromium.
 - Extension: background routes between the panel and one bridge per frame; the bridge (isolated

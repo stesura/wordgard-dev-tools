@@ -26,7 +26,9 @@ it("shares one registry, and only its creator runs the agent", async () => {
     "from first",
   ]);
 
-  // One agent answers.
+  // One agent answers. Warmed first: its first request imports its handlers, which can outlast
+  // post's window under load.
+  await created?.request({ type: "listEditors" });
   const replies = await post({ type: "listEditors" });
   expect(replies).toHaveLength(1);
 

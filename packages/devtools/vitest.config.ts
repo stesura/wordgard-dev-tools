@@ -43,7 +43,8 @@ export default defineConfig({
     ],
   },
   test: {
-    include: ["test/**/*.test.ts"],
+    // Integration tests (editors on a page) in test/; unit tests beside their module, in __tests__.
+    include: ["test/**/*.test.ts", "src/**/__tests__/*.spec.ts"],
     browser: {
       enabled: true,
       provider: playwright(),
