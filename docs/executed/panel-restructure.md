@@ -760,6 +760,18 @@ Its four findings, all low:
 4. **Accepted, fixed.** Two comments still said the filters are "shared by every editor": each
    mount has its own atom; they read the same through storage.
 
+## Afterwards (2026-11-06)
+
+At the user's request: the panel's unit tests moved beside their modules, in `__tests__`, named
+`.spec.ts`; the integration tests stay in `packages/panel/test/` as `.test.ts`. `pure.test.ts` was
+split per module (`lib/__tests__/{paths,time,text,sets}.spec.ts`,
+`tabs/state/__tests__/json-lines.spec.ts`, `tabs/log/__tests__/log-format.spec.ts`,
+`tabs/schema/__tests__/schema-filters.spec.ts`, `tabs/__tests__/tabs.spec.ts`,
+`guides/__tests__/{guides,parse}.spec.ts`); `colours`, `rows` (now `use-rows`), `store` (now
+`panel-store`) and `theme` moved as they were. Vitest includes both; `tsconfig.build.json` leaves
+`__tests__` out of the published types; dependency-cruiser treats `__tests__` as tests (not
+orphans, not to be imported by source).
+
 ## Open points
 
 - None.

@@ -41,7 +41,12 @@ A component the compiler can't compile fails the build: a broken Rule of React (
 says which), a construct the compiler doesn't support yet, or an `eslint-disable` of a
 `react-hooks` rule inside it. Rewrite it; opt it out with `"use no memo"` only as a last resort.
 
-Add or update tests for what you change.
+Add or update tests for what you change. In the panel:
+
+- unit tests, which call a module directly, sit beside it in a `__tests__` folder and are named
+  `<module>.spec.ts` (`src/lib/__tests__/paths.spec.ts` tests `src/lib/paths.ts`);
+- integration tests, which mount the panel on a page with editors, are in `packages/panel/test/`
+  and named `<what>.test.ts`.
 
 ## Code style
 

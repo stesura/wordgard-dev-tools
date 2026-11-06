@@ -74,7 +74,8 @@ export default defineConfig(({ command }) => ({
     rolldownOptions: { external: [/^(wordgard|@stesura\/wordgard-dev-tools)(\/|$)/] },
   },
   test: {
-    include: ["test/**/*.test.{ts,tsx}"],
+    // Integration tests (a mounted panel) in test/; unit tests beside their module, in __tests__.
+    include: ["test/**/*.test.{ts,tsx}", "src/**/__tests__/*.spec.{ts,tsx}"],
     browser: {
       enabled: true,
       provider: playwright(),

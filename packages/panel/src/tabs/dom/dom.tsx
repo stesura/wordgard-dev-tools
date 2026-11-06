@@ -169,15 +169,7 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
           label="Search the DOM"
           placeholder="Search text, tags, attributes, node names"
         />
-        <Tip label="The content's DOM, each element with the node it draws">
-          <button
-            type="button"
-            aria-label="About the DOM"
-            className="flex text-muted-foreground hover:text-foreground [&_svg]:size-3.5"
-          >
-            <InformationCircleIcon />
-          </button>
-        </Tip>
+
         <span className="flex items-center gap-1">
           <Tip label="Clear the selection and its outline in the page">
             <Button

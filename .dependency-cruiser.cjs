@@ -26,7 +26,7 @@ module.exports = {
           "^scripts/",
           // WXT entrypoints are found by convention, not imported.
           "^packages/extension/entrypoints/",
-          "(^|/)(test|e2e)/",
+          "(^|/)(test|e2e|__tests__)/",
         ],
       },
       to: {},
@@ -42,7 +42,7 @@ module.exports = {
       name: "not-to-test",
       severity: "error",
       from: { path: "^(packages/[^/]+|demo)/(src|entrypoints)/" },
-      to: { path: "(^|/)(test|e2e)/" },
+      to: { path: "(^|/)(test|e2e|__tests__)/" },
     },
     {
       name: "devtools-framework-free",
