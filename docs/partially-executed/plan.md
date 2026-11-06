@@ -877,7 +877,7 @@ was asked; a fixed assignment would need every type known up front.
   element shows the node it draws (`nodeFromDOM` + `nodeDOM`, in the type's colour, with its
   positions); text shows its position (`posAtDOM`); uneditable elements drawing no node are flagged
   "chrome" (widgets, decorations, React chrome). A click outlines the element in the page (the
-  inspector outlines any DOM node now); a button logs it to the page's console. Requests `view` and
+  inspector outlines any DOM node now); a button logs it to the console. Requests `view` and
   `viewElement` (outline or log, by child indices). Not shown: plugins and decoration sets (Wordgard
   internals).
 - **Contrast**: `--muted-foreground` is darker in light (0.50, 5:1 or more on background, muted and

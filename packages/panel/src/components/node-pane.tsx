@@ -133,7 +133,7 @@ const NodeDetailView = ({
         <span className="ml-auto flex items-center gap-1">
           {/* Logs even a node too large to show: the page has it. */}
           <IconButton
-            label="Log the node's JSON to the page's console"
+            label="Log the node's JSON to the console"
             onClick={() => onLog(node.path, "json")}
           >
             <CommandLineIcon />

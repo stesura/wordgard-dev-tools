@@ -85,7 +85,7 @@ it("outlines a clicked element in the page, walks with the keys, and logs it", a
   await until(() => !overlay());
 });
 
-it("logs the editor to the page's console", async () => {
+it("logs the editor to the console", async () => {
   const editor = await setup();
   const logged: unknown[][] = [];
   vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
@@ -93,9 +93,7 @@ it("logs the editor to the page's console", async () => {
   });
   (
     await until(() =>
-      shadow().querySelector<HTMLButtonElement>(
-        '[aria-label="Log the editor to the page\'s console"]'
-      )
+      shadow().querySelector<HTMLButtonElement>('[aria-label="Log the editor to the console"]')
     )
   ).click();
   await until(() =>

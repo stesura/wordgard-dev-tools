@@ -25,8 +25,10 @@ export const GUIDES: Record<Tab, Guide> = {
   log: guide("log"),
 };
 
-/** The Selection tab's first part: the selection itself. */
+/** The Selection tab's cards: the selection, its JSON, its slice. */
 export const SELECTION = guide("selection-detail");
+export const SELECTION_JSON = guide("selection-json");
+export const SELECTION_SLICE = guide("selection-slice");
 /** The bar under every tab: the selection at a glance. */
 export const SELECTION_BAR = guide("selection-bar");
 export const RESOLVED_POSITIONS = guide("resolved-positions");

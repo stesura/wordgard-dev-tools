@@ -23,6 +23,8 @@ import { Field } from "#components/node-pane";
 import { json } from "#lib/json.ts";
 import { Tip } from "#components/tip";
 import { TypeLink } from "#components/type-link";
+import { GuidePopover } from "#components/guide-popover";
+import { SELECTION_SLICE, type Guide } from "../../guides/guides.ts";
 
 export type Links = {
   onNode: (path: Path) => void;
@@ -75,6 +77,7 @@ export const Section = ({
   name,
   title,
   code,
+  guide,
   menu,
   fixed,
   children,
@@ -82,6 +85,7 @@ export const Section = ({
   name: string;
   title: ReactNode;
   code?: string;
+  guide?: Guide;
   menu: CardMenu;
   fixed?: boolean;
   children: ReactNode;
@@ -105,6 +109,7 @@ export const Section = ({
         <div className="mb-1 flex min-h-6 shrink-0 flex-wrap items-center gap-x-2 font-sans">
           <h3 className="font-medium">{title}</h3>
           {code && <code className="font-mono text-muted-foreground">{code}</code>}
+          {guide && <GuidePopover guide={guide} align="start" />}
         </div>
         <div className={cn(fixed && "min-h-0 flex-1 overflow-auto")}>{children}</div>
       </ContextMenuTrigger>
@@ -237,7 +242,7 @@ export const SliceCard = ({
         </span>
       </>
     }
-    code="state.selection.toSlice(state.doc)"
+    guide={SELECTION_SLICE}
     menu={{ onLog, copied: slice.json == null ? null : () => json(slice.json) }}
   >
     {slice.length > 0 && (

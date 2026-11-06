@@ -4,14 +4,45 @@ import { fire } from "../../transport.ts";
 import { useStore } from "@nanostores/react";
 import { useCallback, useState } from "react";
 import { GuidePopover } from "#components/guide-popover";
-import { RESOLVED_POSITIONS, SELECTION } from "../../guides/guides.ts";
+import { RESOLVED_POSITIONS, SELECTION, SELECTION_JSON } from "../../guides/guides.ts";
 import { Field } from "#components/node-pane";
 import { json } from "#lib/json.ts";
 import { selectionType } from "./selection-bar.tsx";
 import { createSelectionSource } from "./selection-source.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
+import type { Path } from "@stesura/wordgard-dev-tools";
 import { Tip } from "#components/tip";
+import { Tag } from "#components/ui/badge";
 import { type Links, Marks, Position, Section, SliceCard, pathLink } from "./selection-cards.tsx";
+
+// Other types (an extension's own) keep the plain tag.
+const typeColours: Record<string, string> = {
+  text: "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
+  cell: "bg-pink-100 text-pink-800 dark:bg-pink-950 dark:text-pink-300",
+  node: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300",
+};
+
+const TypeTag = ({ type }: { type: string }) => (
+  <Tag data-selection-type={type} className={typeColours[type]}>
+    {type}
+  </Tag>
+);
+
+const PathLink = ({ path, links }: { path: Path; links: Links }) => (
+  <Tip label="Show it in the Structure">
+    <button type="button" className={pathLink} onClick={() => links.onNode(path)}>
+      [{path.join(", ")}]
+    </button>
+  </Tip>
+);
+
+/** A cell selection's anchor or head: the position in front of the cell, and the cell. */
+const CellLink = ({ pos, path, links }: { pos: number; path: Path; links: Links }) => (
+  <span className="inline-flex flex-wrap gap-x-2">
+    {pos}
+    <PathLink path={path} links={links} />
+  </span>
+);
 
 /** The selected editor's selection, resolved, and any position typed in. Mounted per editor. */
 export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
@@ -58,7 +89,6 @@ export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId:
       <div ref={container} className="min-h-0 flex-1 overflow-auto font-mono text-xs">
         <div className="flex min-h-8 items-center gap-1 border-b bg-strip px-2 py-1 font-sans">
           <h3 className="font-semibold">Selection</h3>
-          <GuidePopover guide={SELECTION} align="start" />
         </div>
         {!info || !detail ? (
           <p className="p-2 font-sans text-muted-foreground">
@@ -70,41 +100,60 @@ export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId:
               <Section
                 name="Selection"
                 title="Selection"
-                code="state.selection"
+                guide={SELECTION}
                 fixed
                 menu={{ onLog: logSelection, copied: () => json(info.json) }}
               >
-                <Field label="type">{selectionType(info.json)}</Field>
+                <Field label="type">
+                  <TypeTag type={selectionType(info.json)} />
+                </Field>
                 <Field label="from–to">
                   {info.from}–{info.to}
                   {info.empty && <span className="text-muted-foreground"> · empty</span>}
                 </Field>
                 {info.nodePath && (
                   <Field label="node">
-                    <Tip label="Show it in the Structure">
-                      <button
-                        type="button"
-                        className={pathLink}
-                        onClick={() => info.nodePath && links.onNode(info.nodePath)}
-                      >
-                        [{info.nodePath.join(", ")}]
-                      </button>
-                    </Tip>
+                    <PathLink path={info.nodePath} links={links} />
                   </Field>
+                )}
+                {info.cells && (
+                  <>
+                    <Field label="anchorCell">
+                      <CellLink
+                        pos={info.cells.anchorCell}
+                        path={info.cells.anchorCellPath}
+                        links={links}
+                      />
+                    </Field>
+                    <Field label="headCell">
+                      <CellLink
+                        pos={info.cells.headCell}
+                        path={info.cells.headCellPath}
+                        links={links}
+                      />
+                    </Field>
+                    <Field label="cells">
+                      <span className="inline-flex flex-wrap gap-x-2">
+                        {info.cells.paths.map((path) => (
+                          <PathLink key={path.join()} path={path} links={links} />
+                        ))}
+                      </span>
+                    </Field>
+                  </>
                 )}
                 {multiple && (
                   <Field label="ranges">
                     {detail.ranges.map((range) => `${range.from}–${range.to}`).join(", ")}
                   </Field>
                 )}
-                <Field label="typing">
+                <Field label="activeMarks">
                   <Marks marks={detail.activeMarks} links={links} />
                 </Field>
               </Section>
               <Section
                 name="JSON"
                 title="JSON"
-                code="state.selection.toJSON(state)"
+                guide={SELECTION_JSON}
                 fixed
                 menu={{ onLog: logSelection, copied: () => json(info.json) }}
               >

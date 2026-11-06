@@ -43,10 +43,20 @@ export const SelectionBar = ({ store, editorId }: { store: PanelStore; editorId:
           <span>
             <span className="text-muted-foreground">head:</span> {info.head}
           </span>
+          {info.cells && (
+            <>
+              <span>
+                <span className="text-muted-foreground">anchorCell:</span> {info.cells.anchorCell}
+              </span>
+              <span>
+                <span className="text-muted-foreground">headCell:</span> {info.cells.headCell}
+              </span>
+            </>
+          )}
           {info.empty && <span className="text-muted-foreground">empty</span>}
           {(info.activeMarks.length > 0 || info.storedMarks) && (
             <span className="inline-flex flex-wrap items-center gap-1" data-active-marks>
-              <span className="text-muted-foreground">marks:</span>
+              <span className="text-muted-foreground">activeMarks:</span>
               {info.activeMarks.length ? (
                 info.activeMarks.map((mark) => (
                   <TypeLink
@@ -70,13 +80,17 @@ export const SelectionBar = ({ store, editorId }: { store: PanelStore; editorId:
           )}
           <span className="ml-auto flex items-center gap-1">
             <IconButton
-              label="Show the node holding the selection's head in the Structure"
-              onClick={() => store.showNode(editorId, info.headPath)}
+              label={
+                info.cells
+                  ? "Show the head cell in the Structure"
+                  : "Show the node holding the selection's head in the Structure"
+              }
+              onClick={() => store.showNode(editorId, info.cells?.headCellPath ?? info.headPath)}
             >
               <EyeIcon />
             </IconButton>
             <IconButton
-              label="Log the selection to the page's console"
+              label="Log the selection to the console"
               onClick={() =>
                 fire(store.transport, { type: "logState", id: editorId, keys: ["selection"] })
               }

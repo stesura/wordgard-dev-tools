@@ -1,8 +1,9 @@
 import type { Node as DocNode, Plot, Pos, Slice, Token } from "wordgard/doc";
 import * as wordgardDoc from "wordgard/doc";
-import type { GardState } from "wordgard/state";
+import type { GardSelection, GardState } from "wordgard/state";
 import * as wordgardState from "wordgard/state";
 import type {
+  CellsInfo,
   EditorInfo,
   MarkPreview,
   NodeDetail,
@@ -236,6 +237,21 @@ export const pathAt = (doc: Plot.Doc, pos: number): Path => {
   return path;
 };
 
+// By shape, not `instanceof`: importing `wordgard/table` would bundle it into every page.
+const cellsOf = (doc: Plot.Doc, sel: GardSelection): CellsInfo | null => {
+  if (!("anchorCell" in sel) || !("headCell" in sel)) return null;
+  const { anchorCell, headCell } = sel;
+  if (typeof anchorCell != "number" || typeof headCell != "number") return null;
+  return {
+    anchorCell,
+    anchorCellPath: pathFrom(doc, anchorCell),
+    headCell,
+    headCellPath: pathFrom(doc, headCell),
+    // Each range is a cell's content: the cell starts just before it.
+    paths: sel.ranges.map(({ from }) => pathFrom(doc, from - 1)),
+  };
+};
+
 export const selection = (state: GardState): SelectionInfo => {
   const { anchor, head, from, to, empty } = state.selection;
   return {
@@ -251,6 +267,7 @@ export const selection = (state: GardState): SelectionInfo => {
       state.selection instanceof wordgardState.GardSelection.Node
         ? pathFrom(state.doc, from)
         : null,
+    cells: cellsOf(state.doc, state.selection),
     activeMarks: markPreviews(state.sel.activeMarks),
     storedMarks:
       state.selection instanceof wordgardState.GardSelection.Text && state.selection.marks != null,

@@ -54,7 +54,7 @@ export const Body = ({ store }: { store: PanelStore }) => {
         <span className="flex h-7 shrink-0 items-center gap-0.5 px-1">
           <GuideButton guide={GUIDES[tab]} />
           <IconButton
-            label="Log the editor to the page's console"
+            label="Log the editor to the console"
             onClick={() => fire(store.transport, { type: "logEditor", id: selected })}
           >
             <CommandLineIcon />
@@ -68,6 +68,8 @@ export const Body = ({ store }: { store: PanelStore }) => {
             key={id}
             value={id}
             keepMounted
+            // Not a tab stop of its own: every tab has controls, and it draws no focus ring.
+            tabIndex={-1}
             className="flex min-h-0 flex-col data-hidden:hidden"
           >
             <Content key={selected} store={store} editorId={selected} />

@@ -301,7 +301,7 @@ it("expands a change in the history to the value it set, and logs or copies it f
   (await until(() => item("Copy value"))).click();
   await until(() => copied.includes("3"));
   pane()
-    ?.querySelector<HTMLButtonElement>('[aria-label="Log the history to the page\'s console"]')
+    ?.querySelector<HTMLButtonElement>('[aria-label="Log the history to the console"]')
     ?.click();
   await until(() =>
     logged.some((args) => args[0] == "[wordgard-devtools] counter, history (newest first)")

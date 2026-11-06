@@ -37,6 +37,7 @@ export default defineConfig({
       "wordgard/schema",
       "wordgard/editor",
       "wordgard/state",
+      "wordgard/table",
       "wordgard/doc",
       "wordgard/types",
       "wordgard/history",

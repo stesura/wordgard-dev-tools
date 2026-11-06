@@ -53,10 +53,24 @@ export type SelectionInfo = {
   anchorPath: Path;
   /** A node selection's node; null for other selections. */
   nodePath: Path | null;
+  /** A cell selection's cells; null for other selections. */
+  cells: CellsInfo | null;
   /** What typed text gets: `state.sel.activeMarks`. */
   activeMarks: MarkPreview[];
   /** They're the cursor's own (`GardSelection.Text.marks`), not those around it. */
   storedMarks: boolean;
+};
+
+/** `CellSelection` (`wordgard/table`): the rectangle between two cells of a table. */
+export type CellsInfo = {
+  /** The position directly in front of the anchor cell, and that cell. */
+  anchorCell: number;
+  anchorCellPath: Path;
+  /** The position directly in front of the head cell, and that cell. */
+  headCell: number;
+  headCellPath: Path;
+  /** Every selected cell, in document order. */
+  paths: Path[];
 };
 
 export type MarkPreview = { name: string; preview: string | null };

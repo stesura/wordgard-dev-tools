@@ -57,6 +57,7 @@ export default defineConfig(({ command }) => ({
       "wordgard/history",
       "wordgard/schema",
       "wordgard/state",
+      "wordgard/table",
     ],
   },
   build: {

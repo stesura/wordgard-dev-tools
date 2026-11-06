@@ -170,7 +170,7 @@ export const SpecPane = ({
         <span className="ml-auto flex items-center gap-1">
           {shown && shown.kind != "group" && (
             <IconButton
-              label={`Log the ${shown.name} ${shown.kind} type to the page's console`}
+              label={`Log the ${shown.name} ${shown.kind} type to the console`}
               onClick={() => onLog(shown.kind, shown.name, false)}
             >
               <CommandLineIcon />

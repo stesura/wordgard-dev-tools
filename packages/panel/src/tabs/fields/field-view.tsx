@@ -127,7 +127,7 @@ export const FieldView = ({
       actions={
         <>
           <IconButton
-            label="Log the history to the page's console"
+            label="Log the history to the console"
             disabled={!field.history.length}
             onClick={() => source.logHistory(field.index)}
           >

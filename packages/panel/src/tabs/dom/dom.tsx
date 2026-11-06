@@ -3,7 +3,7 @@ import { ExpandCollapse } from "#components/expand-collapse";
 import { LoadError } from "#components/load-error";
 import { parsePath } from "#lib/paths.ts";
 import { useStore } from "@nanostores/react";
-import { CommandLineIcon, InformationCircleIcon, NoSymbolIcon } from "#icons";
+import { CommandLineIcon, NoSymbolIcon } from "#icons";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Path, ViewNode } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
@@ -185,7 +185,7 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
               <NoSymbolIcon />
             </Button>
           </Tip>
-          <Tip label="Log the selected element to the page's console">
+          <Tip label="Log the selected element to the console">
             <Button
               variant="ghost"
               size="icon-xs"

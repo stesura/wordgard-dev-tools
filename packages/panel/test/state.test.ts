@@ -161,6 +161,32 @@ it("selects a whole object or array from either of its brackets", async () => {
   expect(selected()).toEqual(["$/doc/content/0/type"]);
 });
 
+it("selects the whole tree with Ctrl+A, not the page, and copies what's selected", async () => {
+  await setup();
+  const copied: string[] = [];
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async (text) => {
+    copied.push(text);
+  });
+  await userEvent.click(await until(() => line("$/doc/type")));
+  await userEvent.keyboard("{Control>}a{/Control}");
+  await until(() => line("$")?.getAttribute("aria-selected") == "true");
+  expect(line("$/doc/type")?.getAttribute("aria-selected")).toBe("true");
+  expect(document.getSelection()?.toString()).toBe("");
+  await userEvent.keyboard("{Control>}c{/Control}");
+  await until(() => copied.length);
+  expect(JSON.parse(copied[0] ?? "")).toMatchObject({ doc: { type: "Doc" } });
+});
+
+it("tabs from the tab bar straight to the State's search, not the tab panel", async () => {
+  await setup();
+  const logEditor = shadow().querySelector<HTMLElement>(
+    "[aria-label='Log the editor to the console']"
+  );
+  logEditor?.focus();
+  await userEvent.keyboard("{Tab}");
+  expect(shadow().activeElement?.getAttribute("aria-label")).toBe("Search the state");
+});
+
 it("offers highlighting for nodes only, and logs and copies any value", async () => {
   const editor = await setup();
   const copied: string[] = [];
@@ -233,7 +259,7 @@ it("shows the selection under every tab, to reveal, log or copy", async () => {
   vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async (text) => {
     copied.push(text);
   });
-  (await until(() => barButton("Log the selection to the page's console"))).click();
+  (await until(() => barButton("Log the selection to the console"))).click();
   await until(() => logged.some((args) => args[1] == editor.state.selection));
   (await until(() => barButton("Copy the selection's JSON"))).click();
   await until(() => copied.some((text) => text.includes('"anchor": 1')));
@@ -249,11 +275,11 @@ it("logs the state, live or as JSON, from the toolbar", async () => {
   vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
     logged.push(args);
   });
-  (await until(() => button("Log the state to the page's console"))).click();
+  (await until(() => button("Log the state to the console"))).click();
   await until(() =>
     logged.some((args) => args[0] == "[wordgard-devtools] state" && args[1] == editor.state)
   );
-  (await until(() => button("Log the state's JSON to the page's console"))).click();
+  (await until(() => button("Log the state's JSON to the console"))).click();
   await until(() =>
     logged.some(
       (args) =>

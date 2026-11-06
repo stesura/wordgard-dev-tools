@@ -26,14 +26,14 @@ const Text = ({ text }: { text: string }) =>
           href={link[2]}
           target="_blank"
           rel="noreferrer"
-          className="text-foreground underline decoration-dotted underline-offset-2 hover:decoration-solid"
+          className="text-sky-600 underline decoration-dotted underline-offset-2 hover:decoration-solid dark:text-sky-400"
         >
           <Text text={link[1] ?? ""} />
         </a>
       );
     }
     return part.length > 1 && part.startsWith("`") && part.endsWith("`") ? (
-      <code key={i} className="rounded bg-muted px-1 font-mono text-xs">
+      <code key={i} className="rounded bg-muted px-1 font-mono text-sm">
         {part.slice(1, -1)}
       </code>
     ) : (
@@ -79,12 +79,12 @@ export const GuidePopover = ({
         {/* In a tab, 14px: the tab bar's 16px. */}
         <QuestionMarkCircleIcon className={cn(dim && "size-3.5")} />
       </PopoverTrigger>
-      <PopoverContent align={align} className="w-80 gap-2 text-xs">
-        <PopoverTitle className="text-sm">{guide.title}</PopoverTitle>
+      <PopoverContent align={align} className="w-80 gap-2 text-sm">
+        <PopoverTitle className="text-base">{guide.title}</PopoverTitle>
         <PopoverDescription className="text-popover-foreground">
           <Text text={guide.summary} />
         </PopoverDescription>
-        <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+        <ul className="list-disc space-y-1 pl-4 text-popover-foreground">
           {guide.tips.map((tip) => (
             <li key={tip}>
               <Text text={tip} />

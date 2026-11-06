@@ -77,7 +77,7 @@ it("guides the selection bar, its Selection button without a tooltip", async () 
     bar.querySelector<HTMLElement>("[aria-label='About the selection bar']")
   );
   guide.click();
-  await until(() => popup()?.textContent?.includes("always shown, whichever tab is open"));
+  await until(() => popup()?.textContent?.includes("at a glance, under every tab"));
   expect(shadow().textContent).not.toContain("Open the Selection tab");
 });
 

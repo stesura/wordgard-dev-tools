@@ -6,13 +6,7 @@ import { LoadError } from "#components/load-error";
 import { fire } from "../../transport.ts";
 import { useStore } from "@nanostores/react";
 import { cn } from "cn";
-import {
-  ArrowDownTrayIcon,
-  ArrowUpTrayIcon,
-  CodeBracketIcon,
-  CommandLineIcon,
-  InformationCircleIcon,
-} from "#icons";
+import { ArrowDownTrayIcon, ArrowUpTrayIcon, CodeBracketIcon, CommandLineIcon } from "#icons";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Path } from "@stesura/wordgard-dev-tools";
 import { CopyButton } from "#components/copy-button";
@@ -21,7 +15,6 @@ import { SearchBox, matchClass, useSearch } from "#components/search-box";
 import { centreRow } from "#lib/dom.ts";
 import { createStateSource } from "./state-source.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
-import { Tip } from "#components/tip";
 import { keepRowInView, useRows } from "#hooks/use-rows.ts";
 import {
   CLOSING_MS,
@@ -31,7 +24,9 @@ import {
   fileName,
   replaceFrom,
 } from "./state-file.ts";
-import { type Line, ROOT, containers, flatten, keysOf, search } from "./json-lines.ts";
+import { type Line, ROOT, childOf, containers, flatten, keysOf, search } from "./json-lines.ts";
+import { copy } from "#lib/clipboard.ts";
+import { selectedText } from "#lib/selected-text.ts";
 import { ROW, Row } from "./state-row.tsx";
 import { type MenuTarget, StateMenu } from "./state-menu.tsx";
 
@@ -138,6 +133,22 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
   const onKeyDown = (event: KeyboardEvent) => {
     menu.onKeyDown(event);
     if (event.defaultPrevented) return;
+    // Select all: the root, so the whole tree, not the page. Copy: what's selected, as JSON, unless
+    // text is selected in the tree (the browser copies that).
+    const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase();
+    if (shortcut == "a") {
+      event.preventDefault();
+      document.getSelection()?.removeAllRanges();
+      setFocused(ROOT);
+      return;
+    }
+    if (shortcut == "c" && focused != null && !selectedText(event.currentTarget)) {
+      event.preventDefault();
+      void copy(
+        JSON.stringify(keysOf(focused).reduce<unknown>(childOf, json), null, 2) ?? "undefined"
+      );
+      return;
+    }
     const position = lines.findIndex((line) => line.id == focused);
     const line = lines[position];
     const moves: Partial<Record<string, number>> = {
@@ -202,22 +213,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
           label="Search the state"
           placeholder="Search keys and values"
         />
-        <Tip
-          label={
-            <span className="block max-w-72">
-              <code className="font-mono">GardState.toJSON()</code>, with the named fields that
-              serialise
-            </span>
-          }
-        >
-          <button
-            type="button"
-            aria-label="About the state"
-            className="flex text-muted-foreground hover:text-foreground [&_svg]:size-3.5"
-          >
-            <InformationCircleIcon />
-          </button>
-        </Tip>
+
         <span className="flex items-center gap-1">
           <ExpandCollapse
             onExpand={() => setCollapsed(new Set())}
@@ -225,13 +221,13 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
             onCollapse={collapseAll}
           />
           <IconButton
-            label="Log the state to the page's console"
+            label="Log the state to the console"
             onClick={() => fire(store.transport, { type: "logState", id: editorId, keys: [] })}
           >
             <CommandLineIcon />
           </IconButton>
           <IconButton
-            label="Log the state's JSON to the page's console"
+            label="Log the state's JSON to the console"
             onClick={() =>
               fire(store.transport, { type: "logState", id: editorId, keys: [], json: true })
             }

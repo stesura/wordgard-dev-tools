@@ -357,9 +357,7 @@ it("links the node's type and marks to the Schema, and copies its JSON", async (
   });
   (
     await until(() =>
-      pane()?.querySelector<HTMLButtonElement>(
-        `[aria-label="Log the node's JSON to the page's console"]`
-      )
+      pane()?.querySelector<HTMLButtonElement>(`[aria-label="Log the node's JSON to the console"]`)
     )
   ).click();
   await until(() =>

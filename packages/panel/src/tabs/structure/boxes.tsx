@@ -34,6 +34,11 @@ const selectionMark = (path: Path, selection: SelectionInfo | null) => {
     if (exact(selection.nodePath)) return "innermost";
     return isPrefix(path, selection.nodePath) ? "holds" : undefined;
   }
+  if (selection.cells) {
+    const { paths } = selection.cells;
+    if (paths.some(exact)) return "innermost";
+    return paths.some((cell) => isPrefix(path, cell)) ? "holds" : undefined;
+  }
   if (exact(selection.headPath) || exact(selection.anchorPath)) return "innermost";
   return isPrefix(path, selection.headPath) || isPrefix(path, selection.anchorPath)
     ? "holds"
@@ -67,6 +72,25 @@ const SelectionEnd = ({
           className="flex text-primary [&_svg]:size-3"
         >
           <NodeSelectionIcon />
+        </span>
+      </Tip>
+    );
+  }
+  // A cell selection: the anchor and head cells, the first in the document at the start.
+  if (selection.cells) {
+    const { anchorCell, headCell, anchorCellPath, headCellPath } = selection.cells;
+    const anchorFirst = anchorCell <= headCell;
+    const isAnchor = (at == "start") == anchorFirst;
+    if ((isAnchor ? anchorCellPath : headCellPath).join(".") != node.path.join(".")) return null;
+    const label = isAnchor ? `Anchor cell - pos ${anchorCell}` : `Head cell - pos ${headCell}`;
+    return (
+      <Tip label={label}>
+        <span
+          data-selection-end={at}
+          aria-label={label}
+          className="flex text-primary [&_svg]:size-3"
+        >
+          {at == "start" ? <SelectionStartIcon /> : <SelectionEndIcon />}
         </span>
       </Tip>
     );

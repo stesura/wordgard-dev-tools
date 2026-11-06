@@ -6,6 +6,7 @@ import { Wordgard } from "wordgard/editor";
 import { history } from "wordgard/history";
 import { basicSchema } from "wordgard/schema";
 import { GardState } from "wordgard/state";
+import { tables } from "wordgard/table";
 import { wordgardDevtools } from "@stesura/wordgard-dev-tools";
 import { mountDevtools } from "@stesura/wordgard-dev-tools-panel";
 import { ReactEditor } from "./ReactEditor.tsx";
@@ -26,8 +27,11 @@ const wordCount = GardState.Field.define<number>({
 
 plain(
   "plain",
-  "<h2>Plain Wordgard</h2><p>Created with <code>Wordgard.create</code>, named <strong>plain</strong>.</p>",
-  [wordCount, wordgardDevtools({ name: "plain", fields: { wordCount }, enabled: true })]
+  "<h2>Plain Wordgard</h2><p>Created with <code>Wordgard.create</code>, named <strong>plain</strong>.</p>" +
+    "<table><tr><th>Tab</th><th>Shows</th></tr>" +
+    "<tr><td>State</td><td>The document tree</td></tr>" +
+    "<tr><td>Log</td><td>Transactions</td></tr></table>",
+  [tables(), wordCount, wordgardDevtools({ name: "plain", fields: { wordCount }, enabled: true })]
 );
 // Two plugins on one editor: still one entry, named by the one with a name.
 plain("left", "<p>Left editor.</p>", [

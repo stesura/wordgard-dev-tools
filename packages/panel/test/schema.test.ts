@@ -260,9 +260,7 @@ it("shows the selected type's spec as JSON beside the list", async () => {
     logged.push(args);
   });
   spec()
-    ?.querySelector<HTMLButtonElement>(
-      `[aria-label="Log the Strong mark type to the page's console"]`
-    )
+    ?.querySelector<HTMLButtonElement>(`[aria-label="Log the Strong mark type to the console"]`)
     ?.click();
   await until(() => logged.some((args) => args[0] == "[wordgard-devtools] the Strong mark type"));
   log.mockRestore();

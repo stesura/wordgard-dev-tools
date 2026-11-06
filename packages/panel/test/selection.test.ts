@@ -93,7 +93,7 @@ it("resolves the cursor, live", async () => {
   expect(cursor.textContent).toContain("1 into the text");
   expect(cursor.textContent).toContain('"b"');
   expect(cursor.textContent).toContain('"c"');
-  expect(card("Selection")?.textContent).toContain("typingStrong");
+  expect(card("Selection")?.textContent).toContain("activeMarksStrong");
 });
 
 it("shows the active marks in the bar, and whether the cursor stores them", async () => {
@@ -103,9 +103,9 @@ it("shows the active marks in the bar, and whether the cursor stores them", asyn
   await until(() => card("Cursor", 1));
   expect(marks()).toBeNull();
   editor.dispatch({ selection: { anchor: 3 } });
-  await until(() => marks()?.textContent == "marks:Strong");
+  await until(() => marks()?.textContent == "activeMarks:Strong");
   editor.dispatch({ selection: { anchor: 1, marks: [] } });
-  await until(() => marks()?.textContent == "marks:none(stored)");
+  await until(() => marks()?.textContent == "activeMarks:none(stored)");
 });
 
 it("resolves the anchor and head of a range, and any position", async () => {
@@ -214,12 +214,13 @@ it("explains resolved positions in a guide, linking to Wordgard's reference", as
   ).not.toBeNull();
 });
 
-it("heads the selection's part with a bar, its guide explaining selections", async () => {
+it("gives each card its guide, the Selection card's explaining selections", async () => {
   await setup();
   const guide = await until(() =>
-    shadow().querySelector<HTMLButtonElement>("[aria-label='About Selection']")
+    card("Selection")?.querySelector<HTMLButtonElement>("[aria-label='About Selection']")
   );
-  expect(guide.closest("div")?.textContent).toBe("Selection");
+  expect(card("JSON")?.querySelector("[aria-label='About JSON']")).not.toBeNull();
+  expect(card("Slice")?.querySelector("[aria-label='About Slice']")).not.toBeNull();
   // Dimmed until open, unlike the tab bar's guide.
   expect(guide.classList.contains("opacity-50")).toBe(true);
   expect(
@@ -231,7 +232,7 @@ it("heads the selection's part with a bar, its guide explaining selections", asy
   await until(() =>
     shadow()
       .querySelector("[data-slot='popover-content']")
-      ?.textContent?.includes("the side that doesn't move when you extend it")
+      ?.textContent?.includes("A node selection covers one node")
   );
   expect(guide.hasAttribute("data-popup-open")).toBe(true);
 });

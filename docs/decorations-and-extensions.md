@@ -3,8 +3,9 @@
 Status: NOT EXECUTED. Drafted 2026-11-06, revised the same day after a Fable review (see
 [Review](#review-2026-11-06)). Follows the main plan
 ([partially-executed/plan.md](partially-executed/plan.md)), whose scope listed "facet inspector"
-and "decorations view" as out of scope; the user asked for them (2026-11-06). Phases 10–12
-continue the main plan's numbering.
+and "decorations view" as out of scope; the user asked for them (2026-11-06). Phases 9b–12
+continue the main plan's numbering. Paths follow the current layout (CONTRIBUTING.md): the panel's
+`tabs/<tab>/`, `lib/`, `guides/*.md`; unit tests in `__tests__/`, integration tests in `test/`.
 
 ## Why
 
@@ -48,6 +49,9 @@ and schema: decorations, the extensions behind them, the key bindings. None of i
   context.
 
 - **Fields stays a tab** (its history). Extensions links to it.
+- **One set module** (`sets.ts`, phase 9b): walking, comparing and serialising `PointSet` /
+  `RangeSet`, shared by the Fields history (9b), the Structure (10) and the Log (10b). Sets are a
+  general data structure in Wordgard, not only decorations.
 - **On demand only**, as everything else: sources are called only while the Structure's
   decoration toggle is on or an Extensions source is expanded, once per state change (coalesced
   per frame by the store, as the selection is). That's the editor's own cost per update, once more.
@@ -68,16 +72,113 @@ and schema: decorations, the extensions behind them, the key bindings. None of i
   widget (it reads `attrs` on the widget). `renderElt` recurses over `children`: string, `0`
   (the hole, "…"), `Elt`, `Widget` ("⟨widget⟩"); guarded, "element" on failure.
 
+## Phase 9b: sets
+
+Wordgard's `wordgard/set` module (`PointSet`, `RangeSet`) holds decorations, but also "other
+data": Wordgard's own placeholder ([placeholder.ts:24](../../wordgard/src/editor/placeholder.ts#L24))
+and table cell selection ([cellselection.ts:9](../../wordgard/src/table/cellselection.ts#L9))
+fields, one field per `decoratePlots` call, and app fields (comments, search results, collab
+cursors, tracked changes). Today `toSafe` has no case for them: the Fields tab's values and
+previews and the Log's effect and annotation values show their internal chunk arrays. (The State
+tab only sees a set when a field's own `toJSON` returns one.) Cheap, and phases 10 and 10b build
+on it. Revised after a Fable review (see [Review of phase 9b](#review-of-phase-9b-2026-11-06)).
+
+### Page side: `sets.ts`
+
+One module for every set-aware feature, lazy with the serialisers (namespace import of
+`wordgard/set`, exported by the package through `"./*"`; `instanceof` is safe: `wordgard/editor`
+imports the same module instance). Add `"wordgard/set"` to `optimizeDeps.include` in
+`packages/devtools/vitest.config.ts` and `packages/panel/vite.config.ts`.
+
+- `isSet(value)`: `instanceof PointSet` / `RangeSet`.
+- `walkSet(set, cap)`: entries through `cursor()` until `value == null` (a `RangeSet`'s layers
+  come out merged), `{pos, side, value}` for points, `{from, to, value}` for ranges, and
+  `{more: number, exact: boolean}`: the rest counted up to a bound (10× the cap), `exact: false`
+  past it. Phase 10 calls it with its own cap.
+- `compareSets(old, new, changes)`: **the** verdict, used per field change (here) and per flush
+  and source (phase 10b):
+
+  | Case                                                                                                  | Verdict                                                                                            |
+  | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+  | same object, empty                                                                                    | **same set**                                                                                       |
+  | same object, non-empty, `old.map(changes)` equal to `old` entry for entry (positions, value identity) | **same set** (nothing it holds moved: a mark-only change, changes past its end)                    |
+  | same object, non-empty, otherwise                                                                     | **kept across a change that moved its positions** (amber)                                          |
+  | new object, either side empty                                                                         | **updated** +a or −d (nothing could be shared)                                                     |
+  | new object, values shared (`===`), counted by position                                                | **updated**: kept k, added a, dropped d (a `map`, a `modify`, or a rebuild from hoisted constants) |
+  | new object, none shared                                                                               | **recreated**                                                                                      |
+
+  The amber case is usually a bug (a field or source that forgot to `map`), but not always: sets
+  whose positions aren't doc positions, or that are remapped where they're read. The verdict
+  says what happened; the guide lists those cases. `map` returns the same set only for empty
+  changes, and `PointSet.create([])` / `RangeSet.create([])` return the shared `empty`.
+
+  - Changes: `changes.iterGaps((fromA, toA, fromB) => old.compareRange(fromA, new, fromB, toA -
+fromA, add))`, the editor's own method, in a `try` (`compareRange` calls the values' `eq`;
+    app values may lack it): `changes: null` on failure.
+  - Bound: both sets are walked whole up to 20 000 entries each; past that, the counts are marked
+    partial.
+
+- `setPaths(doc, entry)`: the node an entry falls in (`pathAt` of a point, of a range's `from`),
+  or `null` when the position is outside the document or resolving throws (bounds checked first,
+  as `resolvePos` does): a stale set must not fail a reply. At a boundary between text leaves
+  that's the parent plot, at 0 the doc; phase 10 adds the decoration rules on top.
+
+### Page side: serialising and the Fields history
+
+- `toSafe`: a set case after the `depth <= 0` branch, before `hasToJSON` and the generic object
+  branch: `{"[PointSet]": [[pos, side, value]…], more, exact}` / `{"[RangeSet]": [[from, to,
+value]…], more, exact}` (positions first, then the value; Wordgard's own tuples are `[value,
+from, to]`, mind it in tests), capped at 200 entries, values at `depth - 1` as `Map` and `Set`
+  entries are. `preview` (one line in the Fields list and every history row) shows a set as
+  `PointSet(n)` / `RangeSet(n)`, without walking it past its count. Console logging stays live.
+- Fields history: each change's verdict is `compareSets(tr.startState.field(field, false), value,
+tr.changes)`. The previous value is the transaction's start state's, not the previous history
+  entry (wrong after the 50-change cap, for the first entry, after a clear, or when a change was
+  missed). `set: null` when either side isn't a set of the same kind (a field added by a
+  reconfigure starts `undefined`). Computed once and stored on the `Change` (values and
+  transactions are immutable): `fields` requests run on every state change while the tab is
+  shown. Sets inside an object field aren't compared (its value only shows them).
+- `fieldChange`'s result becomes `{value, set: SetChangeDetail | null}`: the added entries with
+  paths against `tr.state.doc`, the dropped ones against `tr.startState.doc` (capped). Types in
+  `protocol.ts` (`SetVerdict`, `SetChangeDetail`; phase 10b's `FlushDecorations` reuses
+  `SetVerdict`). The result's shape changes, so `PROTOCOL` goes to 2 (an old panel would show the
+  object as the value). The extension transport needs no change: no request gains a parameter.
+
+### Panel
+
+- Values: a set shows as a list of its entries (position or range, value) instead of JSON chunks;
+  the JSON view shows the `toSafe` form. In the **live** value, clicking an entry's position
+  sends the existing `resolve {id, pos}` (`parent.path`, plus `index` in text, is `pathAt`) and
+  shows the node; a failed resolve says "outside the document". History values link only through
+  the paths `fieldChange` sends (they refer to that transaction's documents).
+- Fields history: a badge per change: "updated +2 −1", "recreated", "moved positions kept"
+  (amber), "same set"; the change's pane lists what was added and dropped, linked.
+- The set view goes in `components/set-view.tsx` (`lib/sets.ts` already exists: a `Set` toggle
+  helper). Pure rendering of `value` / `FieldChange`; resolve on click is an event handler.
+- Guides: the Fields guide explains the set view, the verdicts and the amber case's legitimate
+  exceptions; then `npm run readme`.
+
+### Tests
+
+- Unit (`__tests__/sets.spec.ts`, Chromium): walk, cap, `more`/`exact`; `toSafe` on both kinds,
+  nested in an object, past the cap, at depth 0; `preview`; `compareSets` on a mapped set, a
+  `modify`, a recreated set, a set emptied by `map`, `empty` to non-empty, the same set after a
+  doc change before its entries (amber), after a mark-only change and after a change past its
+  end (same set), values without `eq` (`changes: null`); `setPaths` in text, between nodes, at 0,
+  out of range (`null`).
+- Integration (`test/`): a field holding a `RangeSet` mapped on each transaction and one that
+  forgets to map: the set view, live entry links, history badges (amber on the second after
+  typing before its ranges, not after typing past them), the `fieldChange` detail's linked
+  added/dropped entries; the first history entry and one past the 50 cap have verdicts.
+
 ## Phase 10: decorations in the Structure
 
 ### Page side
 
 - `decorations.ts` (lazy, with the serialisers): `decorations(state): DecorationsInfo`.
   - `state.facet(wordgardEditor.Decoration.Point.source)` and `…Range.source`: arrays of
-    functions. Call each in a `try` (an error is reported per source, not thrown). Walk the set
-    with `cursor()` until `value == null`. The walk stops at the cap (2000 per request) plus a
-    bound on counting the rest (`more`, counted up to 10× the cap, then "10000+"), so a runaway
-    source isn't walked whole.
+    functions. Call each in a `try` (an error is reported per source, not thrown). Walk each set
+    with `walkSet(set, 2000)` (phase 9b), so a runaway source isn't walked whole.
   - Kind: compare `value.constructor` with the constructors of decorations built once through
     the public factories: `Point.attributes({})`, `Point.wrapper(Elt.create("span",
 Attributes.none, Elt.hole))`, `Point.shape(…)`, `Range.attribute("x", "")`,
@@ -147,7 +248,7 @@ Attributes.none, Elt.hole))`, `Point.shape(…)`, `Range.attribute("x", "")`,
 ## Phase 10b: decorations in the Log
 
 Per flush, per source: did the source keep its set, update it, or recreate it, and what did the
-editor have to redraw because of it. Needs phase 10's source walk; independent of 11 and 12.
+editor have to redraw because of it. Needs phase 10's source walk and phase 9b's `compareSets`; independent of 11 and 12.
 Revised after a Fable review (see [Review of phase 10b](#review-of-phase-10b-2026-11-06)).
 
 ### What the editor does (and so what we measure)
@@ -173,18 +274,8 @@ Revised after a Fable review (see [Review of phase 10b](#review-of-phase-10b-202
   an added source share index and kind and both lists have the same length, pair them ("same
   slot, new function": `derive` providers, a reconfigure calling `decoratePlots` again);
   otherwise "added" / "removed".
-- Independent of whether the doc changed:
-
-  | Same set object? | Decoration objects shared (`===`) | Verdict                                                                                            |
-  | ---------------- | --------------------------------- | -------------------------------------------------------------------------------------------------- |
-  | yes              | n/a                               | **same set**; after a doc change and non-empty: **not mapped** (its positions are stale: a bug)    |
-  | no               | some                              | **updated**: kept k, added a, dropped d (a `map`, a `modify`, or a rebuild from hoisted constants) |
-  | no               | none                              | **recreated**                                                                                      |
-
-  `map` keeps decoration identity and returns the same set only when there are no changes and no
-  replacements; `PointSet.create([])` / `RangeSet.create([])` return the shared `empty`, so an
-  empty rebuild reads "same set" (the guide says so). Counts are by position (a hoisted constant
-  at n positions counts n).
+- The verdict and counts are `compareSets(old, new, flushChanges)` (phase 9b): same set, kept
+  across a change that moved its positions (amber), updated (kept, added, dropped), recreated.
 
 - **Changes**: what the editor redraws because of this source: `flushChanges.iterGaps((fromA,
 toA, fromB) => old.compareRange(fromA, new, fromB, toA - fromA, add))`, the editor's own method
@@ -431,3 +522,27 @@ and accepted; the section above includes them:
 9. Time is ~0 for field-backed sources: shown only for updated and recreated ones.
 10. One throwing source mustn't fail the slice; counts by position.
 11. The missing tests.
+
+## Review of phase 9b (2026-11-06)
+
+Fable reviewed phase 9b. Every finding was checked against the code and accepted; the section
+above includes them:
+
+1. "Not mapped" fired on mark-only changes and changes past a set's end, where keeping the set
+   is correct. The rule is now exact (`old.map(changes)` compared entry for entry), worded "kept
+   across a change that moved its positions", with its legitimate exceptions in the guide; 10b
+   defers to it.
+2. Entry links had no source of paths: live values resolve on click; history entries carry
+   paths computed against that transaction's documents.
+3. `fieldChange`'s result changes shape: new types in `protocol.ts`, `PROTOCOL` 2.
+4. Stale positions must not throw: `setPaths` returns `null`.
+5. The previous value is `tr.startState`'s, not the previous history entry.
+6. `compareRange` calls `eq` (guarded) and the comparison walk is bounded.
+7. Emptied or first-filled sets read "updated", not "recreated".
+8. `toSafe` form: one order (positions, then value), branch placement, `more`/`exact`; `preview`
+   shows only the count.
+9. The State tab rarely sees a set (fields' own `toJSON`): claim reworded.
+10. Verdicts memoised on the history's `Change`.
+11. Phase 10 uses `walkSet` instead of restating it.
+12. `lib/sets.ts` exists in the panel (name the view differently); `optimizeDeps`; README
+    regeneration.
