@@ -31,7 +31,6 @@ export default defineConfig(({command}) => ({
       "@base-ui/react/select",
       "@base-ui/react/tabs",
       "@base-ui/react/tooltip",
-      "@tanstack/react-virtual",
       "class-variance-authority",
       "cn",
       "react",

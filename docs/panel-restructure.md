@@ -1,7 +1,7 @@
 # Panel restructure — plan
 
 Status: NOT EXECUTED. Drafted 2026-11-06 from an audit of `packages/panel`, scope agreed with the
-user the same day.
+user the same day; revised after a Fable review the same day, see [Review](#review-2026-11-06).
 
 Scope: `packages/panel` only, plus what has to follow it (root lint and format config, the scripts
 that import panel files, docs). The page side (`packages/devtools`) and its protocol don't change:
@@ -41,8 +41,8 @@ plan moves and deduplicates code. It doesn't redesign it.
   would mix the two.
 - Every phase ends with all checks green: `npm run typecheck`, `npm test`, `npm run build`,
   `npm run lint`, `npm run dependency-check`, `npm run readme:check`, and, from phase 1 on,
-  `npm run format:check`. `npm run e2e -w wordgard-devtools-extension` runs at the end of phases
-  2, 4, 5 and 7.
+  `npm run format:check`, and `npm run compiler:check` after the build.
+  `npm run e2e -w wordgard-devtools-extension` runs at the end of phases 2, 4, 5 and 7.
 - One phase per commit: the user commits between phases (agents never run `git commit` or
   `git stash`). Phases 1 and 2 in particular must each be a commit of their own, so `git log
   --follow` and blame survive.
@@ -64,7 +64,7 @@ packages/panel/src/
   stores/
     panel-store.ts       createPanelStore (was store.ts)
     theme.ts
-    persistent.ts        the persistent-atom helper (phase 5; replaces stored.ts)
+    persistent.ts        the persistent-atom helper (phase 5; replaces stored.ts and the ad-hoc localStorage)
     resource.ts          createResource (phase 6)
   tabs/
     tabs.ts              TABS: id, label, in order. Plain data: scripts import it under Node
@@ -78,6 +78,7 @@ packages/panel/src/
     fields/     fields.tsx, field-view.tsx, field-history.tsx, field-menus.tsx, fields-source.ts
     log/        log.tsx, log-rows.tsx, log-timeline.tsx, log-filters.tsx, entry-pane.tsx,
                 row-menu.tsx, log-format.ts, log-source.ts
+    (tests: test/<tab>.test.ts stays flat; view.test.ts → dom.test.ts)
   components/            shared app components (React)
     icon-button.tsx  choice-menu.tsx  tip.tsx  copy-button.tsx  copy-selection.tsx
     type-link.tsx  clear-filters.tsx  guide-popover.tsx  search-box.tsx  split-pane.tsx
@@ -85,7 +86,7 @@ packages/panel/src/
     inspect-section.tsx  portal.tsx
   components/ui/         shadcn only, generated, then icons rewritten to #icons
   lib/                   no React
-    colours.ts  clipboard.ts  selected-text.ts  menu-anchor.ts  paths.ts  json.ts
+    colours.ts  clipboard.ts  selected-text.ts  menu-anchor.ts  paths.ts  json.ts  time.ts (clock)
     dom.ts (scrollInto, centreRow)  sets.ts (toggled)  promise-cache.ts  detail-cache.ts
   icons/
   guides/                *.md, plus parse.ts (pure) and guides.ts (loads them, Vite only)
@@ -96,14 +97,16 @@ when splitting it would scatter one idea across files.
 
 Import rules, enforced by dependency-cruiser (phase 4):
 
-- `lib/` imports nothing from `components/`, `tabs/`, `panel/` or `stores/` (except types), and
-  no React.
+- `lib/` imports nothing from `components/`, `tabs/`, `panel/` or `stores/`, and no React.
 - `stores/` doesn't import `components/`, `tabs/` or `panel/`.
 - `components/` doesn't import `tabs/` or `panel/`.
 - A tab doesn't import another tab. Today Schema takes `scrollInto` from Structure and Fields takes
-  `clock` from Log; both move to `lib/` (and `tabs/log/log-format.ts` respectively, then `lib/` if
-  Fields still needs it).
+  `clock` from Log; both move to `lib/` in phase 3 (`lib/dom.ts`, `lib/time.ts`).
 - `tabs/tabs.ts` imports nothing (Node scripts load it).
+- Type-only imports are exempt (`to: {dependencyTypesNot: ["type-only"]}` on each rule):
+  `lib/colours.ts` takes `type CSSProperties` from React, and that's fine. Runtime imports are what
+  the layers are about. Where a component only needed a tab's *type*, prefer passing the value in:
+  `GuideButton` takes the `Guide` from the registry instead of a tab id.
 
 Import aliases: `#components/*` stays as it is (`./src/components/*.tsx`: shadcn's
 `components.json` writes `#components/ui/x`, with no extension). Add `#lib/*` → `./src/lib/*` and
@@ -113,8 +116,9 @@ imports stay relative.
 
 ## Phase 0: junk
 
-- Delete `packages/panel/.vitest/` (ignored, but full of failure screenshots of tests that no
-  longer exist: `tree`, `zz-probe`, `zz-tmp-layout`, `*.scratch`, `flip`, `shot`, `fields-empty`).
+- Delete `packages/panel/.vitest/` and `packages/devtools/.vitest/` (ignored, but full of failure
+  screenshots of tests that no longer exist: `tree`, `zz-probe`, `zz-tmp-layout`, `*.scratch`,
+  `flip`, `shot`, `fields-empty`).
 - Delete any other `__screenshots__` / `.vitest` directories in the repo.
 - `scripts/bench-tmp.ts`, listed as untracked in the audit, is already gone; check that nothing
   else untracked is a leftover (`git status --short --untracked-files=all`) and ask before
@@ -123,25 +127,35 @@ imports stay relative.
 ## Phase 1: Prettier and arrow functions
 
 - Add `prettier` (root devDependency), `.prettierrc.json` and `.prettierignore` (`dist`, `.output`,
-  `.wxt`, `node_modules`, `package-lock.json`, `docs/screenshots`).
-- Style: the one most of the repo already uses, so the format commit mostly touches the five
-  semicolon files: `{"semi": false, "bracketSpacing": false, "arrowParens": "avoid",
-  "printWidth": 120, "endOfLine": "lf"}`, double quotes (the default), trailing commas `"all"`
-  (the default).
-  **Open to the user:** `../react-wordgard` uses `semi: true`, `printWidth: 100`. Matching it
-  instead means reformatting nearly every file. The plan assumes the repo's majority style.
-- Scripts: `"format": "prettier --write ."`, `"format:check": "prettier --check ."`. CI step
-  "Format" after "Lockstep versions".
-- Format the whole repo once (not only the panel: the config is root-level, and a half-formatted
-  repo fails `format:check`). This is the whole of the commit: no other change.
-- `.gitattributes` with `* text=auto eol=lf`: git currently warns that LF will become CRLF in the
-  panel files, and Prettier's `endOfLine: lf` would fight a CRLF checkout. Check with the user
-  before adding it if it renormalises many files.
+  `.wxt`, `node_modules`, `package-lock.json`, `docs/screenshots`). Everything else is formatted,
+  `components/ui/*` and `styles.css` included: phase 7 ends with `npm run format`, since
+  `shadcn add` writes its own style.
+- Style: the one most of the repo already uses (no semicolons, no bracket spacing):
+  `{"semi": false, "bracketSpacing": false, "arrowParens": "avoid", "printWidth": 120,
+  "endOfLine": "lf"}`, double quotes (the default), trailing commas `"all"` (the default).
+  The commit is still repo-wide: a dry run (Fable's review) changes 70 of 124 TS files (line
+  wrapping), all 9 `components/ui/*`, `styles.css`, `demo/src/style.css`, three `package.json`s
+  (trailing newline) and the `docs/*.md`. A wider `printWidth` doesn't make it much smaller (160:
+  73 files). The README's generated Tabs section is stable under Prettier.
+  **Open to the user:** `../react-wordgard` uses `semi: true`, `printWidth: 100`.
+- Scripts: `"format": "prettier --write ."`, `"format:check": "prettier --check ."`. CI steps
+  "Format" and "Dependency rules" (`npm run dependency-check`, which CI doesn't run today) after
+  "Lockstep versions".
+- Format the whole repo once (the config is root-level, and a half-formatted repo fails
+  `format:check`). This is the whole of the commit apart from the config: no other change.
+- `.gitattributes` with `* text=auto eol=lf`, in the same commit. The index already holds LF for
+  every text file (`git ls-files --eol`: 164 `i/lf`, 22 binary), so nothing is renormalised in
+  history; with `core.autocrlf=true`, the working copy has about 30 CRLF or mixed files, which
+  would fail `format:check` against `endOfLine: lf`. After adding it, re-check out the working
+  copy (`git add --renormalize .` shows nothing to commit; `git checkout -- .` only on a clean
+  tree).
 - ESLint: a block for every TS file in the repo (not only the React ones) with
-  `"no-restricted-syntax": ["error", "FunctionDeclaration", "FunctionExpression"]` and
-  `"prefer-arrow-callback": "error"`. Class methods stay allowed (`AgentError`). There are no
-  `function`s in the repo today; the rule keeps it that way. If a generator or a `this`-binding
-  function is ever needed, it gets an `eslint-disable-next-line` with the reason.
+  `"no-restricted-syntax": ["error", "FunctionDeclaration",
+  "FunctionExpression:not(MethodDefinition > FunctionExpression):not(Property[method=true] > FunctionExpression)"]`
+  and `"prefer-arrow-callback": "error"`. Methods stay allowed: class methods, and object method
+  shorthand, which `scripts/third-party-licenses.ts:94` (`generateBundle(_, bundle) {…}`) needs
+  for Rollup's `this.emitFile`. There are no `function`s in the repo today; the rule keeps it that
+  way.
 - `eslint-config-prettier` isn't needed: no stylistic ESLint rules are enabled.
 
 ## Phase 2: move and rename (no code changes)
@@ -171,7 +185,8 @@ git records renames and the diff is reviewable.
 - Windows: the checkout is case-insensitive. Every rename here also changes folder, so none is
   case-only; if one ever is, `git mv` it in two steps (`a.tsx` → `a.tmp.tsx` → `A.tsx`).
 - Update the importers outside `src`: `test/*.test.ts` (`colours`, `store`, `theme`),
-  `scripts/readme.ts` and `scripts/screenshots.ts` (they import `guides.ts` and `store.ts`),
+  `scripts/readme.ts` and `scripts/screenshots.ts` (they import `guides.ts` and `type View` from
+  `store.ts`),
   the `#components`/`#lib`/`#stores` aliases, `eslint.config.js` globs (they already cover
   `src/**`), `.dependency-cruiser.cjs` paths, `scripts/third-party-licenses.ts` notes (the
   `components/ui` and `icons` paths don't move), and the paths named in `CLAUDE.md`.
@@ -191,8 +206,8 @@ Code moves between files; nothing is rewritten. Each piece keeps its comments.
 - **Log** → `log.tsx`, `log-rows.tsx` (`Row`, `SortHeading`, sorting), `log-timeline.tsx`,
   `log-filters.tsx` (`FilterBar`, `UserEventFilter`, `SettingBox`, `FilterToggle`, `logFilters`,
   `matches`), `entry-pane.tsx` (`EntryPane`, `EntryView`, `Ranges`, `Values`, `Section`),
-  `row-menu.tsx` (`RowMenu`, `rowText`), `log-format.ts` (`clock`, `ms`, `pad`, `slow`, `isSlow`,
-  flags).
+  `row-menu.tsx` (`RowMenu`, `rowText`), `log-format.ts` (`ms`, `slow`, `isSlow`, flags).
+  `clock` and `pad` → `lib/time.ts`: Fields uses `clock` too, and a tab can't import another.
 - **State** → `state.tsx`, `json-lines.ts` (pure: `Line`, `flatten`, `search`, `containers`,
   `childId`, `keysOf`, `nodePathOf`, `childOf`, `typeOf`), `state-menu.tsx`, `state-file.tsx`
   (`download`, `fileName`, the replace notice with its timers).
@@ -220,11 +235,12 @@ Code moves between files; nothing is rewritten. Each piece keeps its comments.
 
 ### Tab registry
 
-- `tabs/tabs.ts`: `export const TABS = [{id: "structure", label: "Structure"}, …] as const`
-  (the one `as const` this needs: a literal tuple, not a cast) and `export type Tab = (typeof
-  TABS)[number]["id"]`, `isTab`. It replaces `VIEWS` and `isView` in `store.ts`, `TAB_ORDER` in
-  `guides.ts` and the `View` type. No React and no imports, so `scripts/readme.ts` and
-  `scripts/screenshots.ts` import it under Node.
+- `tabs/tabs.ts`: `export type Tab = "structure" | "selection" | …`, `export const TABS: readonly
+  {id: Tab; label: string}[] = [{id: "structure", label: "Structure"}, …]` and `isTab`. No `as
+  const` (the no-typecast rule): the `Record<Tab, …>` in the registry catches a tab missing there,
+  and a test checks that `TABS` lists every tab once. It replaces `VIEWS` and `isView` in
+  `store.ts`, `TAB_ORDER` in `guides.ts` and the `View` type. No React and no imports, so
+  `scripts/readme.ts` and `scripts/screenshots.ts` import it under Node.
 - `tabs/registry.tsx`: each tab's component (all take `{store, editorId}`) and guide, keyed by
   `Tab`, typed as a `Record<Tab, …>` so a missing tab fails the typecheck.
 - `panel-body.tsx` maps the registry to the `TabsTrigger`s and the `TabsContent`s (`keepMounted`,
@@ -241,6 +257,10 @@ Code moves between files; nothing is rewritten. Each piece keeps its comments.
   a user's last tab survives the update. Written as `{tab, editor}` from then on.
 - The page-side request `{type: "view"}` and `ViewInfo` keep their names (protocol, out of scope).
   Inside the tab, the panel-side names follow the tab (`createDomSource`, `DomState`).
+- The UI strings follow too: the tree's `aria-label="View"` → `"DOM"`, `"View status"` →
+  `"DOM status"`, "Couldn't load the view" → "Couldn't load the DOM". `test/view.test.ts` →
+  `test/dom.test.ts`, its selectors (lines 39, 54, 102) updated. The tab's label is already "DOM",
+  so the e2e tests, which find tabs by name, don't change.
 - `docs/screenshots/view.png` → `dom.png`; `scripts/screenshots.ts` writes `{tab: …}`.
   `npm run readme` regenerates the README.
 - Tests that call `setView` or read `.view` follow.
@@ -280,39 +300,55 @@ Code moves between files; nothing is rewritten. Each piece keeps its comments.
 
 ### dependency-cruiser
 
-Add the import rules from [Target layout](#target-layout). "A tab doesn't import another tab"
-needs a group match: `from: {path: "^packages/panel/src/tabs/([^/]+)/"}`, `to: {path:
-"^packages/panel/src/tabs/", pathNot: "^packages/panel/src/tabs/$1/"}`.
+Add the import rules from [Target layout](#target-layout), each with `dependencyTypesNot:
+["type-only"]` on its `to`. "A tab doesn't import another tab" needs a group match, as
+`no-cross-package-relative` already does: `from: {path: "^packages/panel/src/tabs/([^/]+)/"}`,
+`to: {path: "^packages/panel/src/tabs/", pathNot: ["^packages/panel/src/tabs/$1/",
+"^packages/panel/src/tabs/[^/]+$"]}`. The second `pathNot` lets a tab reach `tabs/tabs.ts`, which
+sits beside the tab folders, not in one. CI runs these from phase 1 on.
 
 ## Phase 5: nanostores
 
-Dependencies: `nanostores`, `@nanostores/react`, `@nanostores/persistent` (devDependencies of the
-panel, as React is: the build bundles them; CONTRIBUTING asks new runtime dependencies to be
-justified, this is about 1 kB).
+Dependencies: `nanostores` and `@nanostores/react` (devDependencies of the panel, as React is:
+the build bundles them; CONTRIBUTING asks new runtime dependencies to be justified, this is about
+1 kB). **Not** `@nanostores/persistent` (see [Review](#review-2026-11-06), findings 1 and 2): it
+reads storage once at creation and again only on mount (and a store stays mounted 1 s after its
+last listener, `STORE_UNMOUNT_DELAY`), and its writes aren't guarded.
 
 What changes:
 
-- **Persistence.** `stored.ts` and the six try/catch `localStorage` pairs (panel layout in the
-  store, the dock layout, split-pane sizes, the Log's record settings, the Fields tab's last field,
-  the theme's local storage) become persistent atoms (`persistentAtom` / `persistentMap` with
-  `encode`/`decode`), each `decode` validating and falling back as `read` does now.
-  - **Verify first:** that `@nanostores/persistent` survives blocked storage (a sandboxed iframe or
-    a browser setting where touching `localStorage` throws). If it doesn't, `stores/persistent.ts`
-    sets a guarded engine (`setPersistentEngine`, with try/catch around each access; in-memory
-    when blocked). The current behaviour (the value lasts until reload) has to hold. Add a test
-    with a `localStorage` that throws.
-  - New behaviour: persistent atoms follow `storage` events, so two tabs on the same origin share
-    filters live. Fine for a developer tool.
+- **Persistence.** `stores/persistent.ts`: `persistent(key, fallback, read, write)` returns a
+  nanostores `atom`. It reads `localStorage` once, at creation, guarded (blocked or unparsable →
+  `fallback`, run through `read` as `stored.ts` does now), and its `set` writes guarded (blocked or
+  full → the value lives in memory until reload, as now). It replaces `stored.ts` and the six
+  try/catch pairs: the panel layout (`wordgard-devtools:panel`), the dock layout, the split-pane
+  sizes, the Log's record settings, the Fields tab's last field, and the `stored()` values
+  (guides shown, Log filters, Schema filters). Not the theme (below).
+  - **Every persistent atom is created by a factory, never at module level.** `createPanelStore`
+    creates the panel's settings (`store.settings.guidesShown`, `.logFilters`, `.schemaFilters`,
+    `.logRecording`, `.lastField`, `.paneSizes`), shared by every tab and editor of that panel, as
+    the module-level values are now; `renderDock` creates the dock layout. Why: today `stored.ts`
+    re-reads storage on every `get`, and tests rely on it (they `localStorage.setItem` before
+    `mountDevtools()`: `fields.test.ts:267`, `log.test.ts:325` and `436`, `mount.test.ts:210`,
+    `copy-selection.test.ts:63`, `guides.test.ts:47`). A module-level atom read once would carry
+    the previous test's value; one created per mount reads fresh.
+  - Components without the store at hand (`GuidePopover` is used in a dozen places) read the
+    settings through a context that `Panel` provides, as `PortalContainer` already does.
+  - A test with a `localStorage` whose `getItem` and `setItem` throw: the panel mounts, filters
+    and the layout still change, nothing throws from an event handler.
   - Storage keys and stored JSON shapes stay the same, except the panel layout's `view` → `tab`
-    (phase 4).
+    (phase 4). No `storage`-event sync between browser tabs (not needed).
 - **The panel store.** `PanelState` becomes a `map`, read with `useStore`. The four
   `onXChanged` listener sets and the reveal slots (below) stay as plain events: they're
   notifications, not state. The request versioning (`run`, `selectionRun`), the per-frame
   coalescing and `start`/`pause` stay as they are.
-- **Theme.** The theme store becomes a `computed` over the choice atom and the source; the lazy
-  start and stop of the source (`stopSource`) becomes `onMount`. `ThemeStore`, `ThemeSource` and
-  `ThemeStorage` keep their exported shapes: the extension passes its own async storage and
-  DevTools theme source.
+- **Theme: unchanged.** `createThemeStore` keeps its hand-written lazy start and stop of the
+  source: with `onMount` the source would unsubscribe 1 s late and `get()` on an unmounted store
+  would subscribe it, breaking `theme.test.ts:25` and `36-37`. `localThemeStorage` stays a
+  `ThemeStorage` (exported by `ui.ts`; the extension passes its own async one). Only its internal
+  listener set may become an atom, if that reads better.
+- **No `onMount` anywhere** without a test that covers the 1 s unmount delay: it's the trap
+  above.
 - **Per-editor sources** (`createXSource`): their `get`/`subscribe`/listener sets become atoms.
   Whether they're built on `createResource` (phase 6) or directly on atoms is settled in phase 6;
   doing this phase first means `createResource` is written once, on atoms.
@@ -342,39 +378,48 @@ In order of payoff. Each one is done only if the result reads at least as well a
 4. **`createResource(fetch)`** for the five near-identical versioned loaders (structure, schema,
    state, dom, the selection's main load): drop replies to an older load, keep the last value with
    the error. `structure-source` and `schema-source` also need `ready()`.
-5. **`createPromiseCache(fetch, size = 32)`** for the three caches with `KEPT = 32` (node
-   details, field details and changes, log entries).
-6. **The store's events and reveals.** Four `onXChanged` + four listener sets → `on(event,
-   listener)`. Four `showX`/`takeXReveal` pairs + `onReveal` → `reveal(tab, editorId, target)` /
-   `takeReveal(tab, editorId)`, with the target type looked up per tab. Keep it only if the
-   per-tab target types stay readable.
-7. **Fire-and-forget sends.** About 30 `transport.send(…).catch(() => {})` → `store.fire(request)`.
+5. **`createPromiseCache(fetch, size = 32)`** for the four caches with `KEPT = 32`, in three
+   files (node details; field details and field changes; log entries).
+6. **The store's events.** Four `onXChanged` + four listener sets → `on(event, listener)`.
+   **Likely skip** the reveals: merging the four `showX`/`takeXReveal` pairs into
+   `reveal(tab, editorId, target)` needs a per-tab mapped type and a generic signature for four
+   different targets, harder to read than four named pairs.
+7. **Fire-and-forget sends.** About 25 `transport.send(…).catch(() => {})` → `store.fire(request)`
+   (the other `.catch(() => {})`s are on copies and the theme, and stay).
 8. **Highlight in the page.** The `outlined` ref and highlight callback in Structure, State and
    DOM → one helper.
 9. **`<ExpandCollapse onExpand onCollapse>`** in Structure, State and DOM.
-10. **`<Toolbar>`** for the strip under the tab bar (11 copies of `border-b bg-strip px-2 …`), if
-    the variants (fixed height or wrapping, `text-xs` or `font-sans`) fit in one or two props. If
-    they don't, skip it.
+10. **`<Toolbar>`**, **likely skip**: of the 11 strips with `border-b bg-strip px-2`, heights
+    (`h-7`, `min-h-7`, `min-h-8`), wrapping, `font-sans`/`text-xs`, `sticky` and `border-y` all
+    vary (`Selection.tsx:336,401`, `Schema.tsx:659,877`). Only the five fixed `h-7` tab toolbars
+    (Structure, State, DOM, Fields, Log) are the same; a `Toolbar` for those alone, if it helps.
 11. **Schema's three sections** (nodes, marks, groups): copy-pasted JSX → one `SchemaSection` fed
     by a small config per kind.
-12. **`InspectSection`**: the Log's and the Selection's `Section` (a focusable card with a
-    "Log / Copy JSON" context menu) are the same component, give or take `fixed`, `code` and
-    "Clear".
+12. **`InspectSection`**, **maybe**: the Log's and the Selection's `Section` (a focusable card with a
+    "Log / Copy JSON" context menu) are close, but the Selection's has `fixed`, `code`, "Clear" and
+    a disabled copy. Merge only if the props stay few; otherwise share the menu only.
 13. **`ChoiceMenu`'s radio group** reused by the Dock's `ReopenSettings`.
 14. **Small helpers to `lib/`**: `toggled` (Log, Schema), `includes`/`matches` (search, Schema),
     `pathOf` (four versions: detail-cache, node-menu, DOM, Structure's `pathOfItem`).
 15. **`ContextMenuItem className="text-xs"`** (28 times): make `text-xs` the item's default in
-    `components/ui/context-menu.tsx` (our copy) and drop it at the call sites. Do the same in
-    `dropdown-menu.tsx` if its call sites all set it too.
+    `components/ui/context-menu.tsx` (our copy) and drop it at the call sites. (The dropdown
+    menus' items don't all set it: leave `dropdown-menu.tsx` alone.)
 16. **Maybe:** State and DOM both implement a virtualized, collapsible tree with keyboard
     navigation. A shared `useTreeNav` only if it doesn't need many parameters; the likely outcome is
     to leave them separate.
 
 ## Phase 7: shadcn
 
-Add each with `npx shadcn add <name>` (from `packages/panel`), then rewrite its icon imports to
-`#icons` (adding any icon it needs to `icons/heroicons.tsx`, from Heroicons 16/solid) and check
-it renders inside the shadow root (popups through `PortalContainer`).
+Add each with `npx shadcn add <name>` (from `packages/panel`), then:
+
+- rewrite its icon imports to `#icons` (adding any icon it needs to `icons/heroicons.tsx`, from
+  Heroicons 16/solid), and remove `lucide-react` if `shadcn add` added it to `package.json`
+  (`iconLibrary: "lucide"` makes it do so);
+- add its Base UI subpath (`@base-ui/react/toggle`, `toggle-group`, `checkbox`, `collapsible`) to
+  `optimizeDeps.include` in `packages/panel/vite.config.ts`: a dependency found mid-run reloads the
+  browser tests;
+- check it renders inside the shadow root (popups through `PortalContainer`);
+- end the phase with `npm run format` (shadcn writes its own style).
 
 - **Toggle**: Schema's `Toggle` and the Log's `FilterToggle` → shadcn `toggle` (Base UI's,
   `aria-pressed` handled), with a size and variant for the dense filter chips (h-5, `text-xs`).
@@ -390,14 +435,15 @@ it renders inside the shadow root (popups through `PortalContainer`).
   toggle the section) and the Fields history items (a chevron that opens the change's value). Not
   the Structure, State and DOM trees: their items carry `role="treeitem"` and `aria-expanded`
   themselves, and collapsible's trigger and panel would fight the tree semantics.
-- `components.json` keeps `iconLibrary` as is (shadcn has no heroicons option); the icon rewrite
-  above is the fix, written in a comment at the top of `components/ui/LICENSE.md` or `CLAUDE.md`
-  so the next `shadcn add` gets it too.
+- `components.json` keeps `iconLibrary` as is (shadcn has no heroicons option); the steps above
+  are the fix, written down in `CLAUDE.md` (phase 8) so the next `shadcn add` follows them too.
 
 ## Phase 8: docs
 
-- `CLAUDE.md`: the layout lines for the panel, and "guides are markdown in
-  `packages/panel/src/guides/`".
+- `CLAUDE.md`: the layout lines for the panel; "guides are markdown in
+  `packages/panel/src/guides/`"; the `shadcn add` steps (phase 7); `npm run format`; and the
+  dependency-cruiser script's name: it says `npm run deps`, but the script is
+  `npm run dependency-check`.
 - `CONTRIBUTING.md`: `npm run format`, the folder rules.
 - `packages/panel/README.md`, if it names files.
 - Mark this plan executed phase by phase, with deviations, and move it to `docs/executed/` when done
@@ -415,8 +461,42 @@ it renders inside the shadow root (popups through `PortalContainer`).
   and 3 must pass them unchanged (apart from import paths). From phase 4 on, a test that changes
   says why in the notes.
 
+## Review (2026-11-06)
+
+A Fable review of this plan, each finding checked against the code (and, for nanostores, the
+published source of `nanostores` 1.5.5 and `@nanostores/persistent` 1.3.5). All 14 held up and
+the plan above includes them:
+
+1. `@nanostores/persistent` reads storage at creation and on mount only, and a store stays mounted
+   1 s after its last listener: module-level persistent atoms would carry one test's value into
+   the next. → Phase 5: our own `persistent()` on `atom`, every one created by a factory.
+2. Its writes aren't guarded (`storageEngine[name] = …`): a full or blocked storage would throw from
+   an event handler. → Phase 5: guarded writes, and a test with a throwing `localStorage`.
+3. Theme as `computed` + `onMount` breaks `theme.test.ts` (late unsubscribe, `get()` subscribing).
+   → Theme unchanged.
+4. `no-restricted-syntax: FunctionExpression` also flags methods, and
+   `scripts/third-party-licenses.ts:94` needs one (Rollup's `this`). → Phase 1: the selector
+   excludes methods.
+5. The format commit touches about 70 TS files, not only the semicolon files. → Phase 1 says so,
+   and phase 7 ends with `npm run format`.
+6. CI doesn't run dependency-cruiser, and `CLAUDE.md` names it `deps`. → CI step in phase 1,
+   `CLAUDE.md` in phase 8.
+7. New Base UI subpaths need `optimizeDeps.include`; `shadcn add` adds `lucide-react`. → Phase 7.
+8. `view` → `dom` missed the aria labels, the error text and `test/view.test.ts`. → Phase 4.
+9. `clock` must reach `lib/` in phase 3, or phase 4's "no tab imports another" fails. → Phase 3.
+10. The layer rules need a type-only exemption (`lib/colours.ts` takes a React type; the guide
+    button takes a tab type). → Target layout and phase 4.
+11. The `as const` on `TABS` is avoidable. → Phase 4: an explicit `Tab` union.
+12. Readability risks in the dedup: the merged reveals, `Toolbar`, `InspectSection`. → Phase 6
+    marks them likely skip / maybe.
+13. Counts: four caches in three files; about 25 of the 30 `.catch(() => {})` are on sends; the
+    dropdown items don't set `text-xs`. → Corrected.
+14. `.gitattributes` is safe: the index is all LF. → Phase 1 adds it, no longer asks.
+
+Found while applying them: the tab-to-tab rule's `pathNot` must also let a tab import
+`tabs/tabs.ts` (phase 4).
+
 ## Open points
 
 - Prettier style: the repo's majority style (assumed) or `../react-wordgard`'s.
 - Input group around the search boxes, or only around "Resolve" (phase 7).
-- `.gitattributes` / line endings (phase 1).

@@ -179,7 +179,9 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
 ### 1. Doc tree and selection
 
 - `@headless-tree/core` + `@headless-tree/react` with `asyncDataLoaderFeature`,
-  `hotkeysCoreFeature` and `searchFeature`. The visible rows go to `@tanstack/react-virtual`.
+  `hotkeysCoreFeature` and `searchFeature`. The visible rows go to `@tanstack/react-virtual`
+  (replaced by the panel's own `useRows` on 2026-11-06, see
+  [React Compiler](#react-compiler-and-the-rules-of-react-2026-11-06)).
 - Item id = frame + editor id + path. On `stateChanged` with `docChanged`, the panel coalesces
   pushes per animation frame, invalidates the loaded children, and refetches the expanded items
   with one batched `children()` call. Expanded items whose path no longer resolves are
@@ -492,7 +494,8 @@ the first found the tree's cache broken (below), the second checked the rewrite.
   2 s.
 - `packages/panel/src/DocTree.tsx`: headless-tree with its **synchronous** loader over the source
   (`syncDataLoaderFeature`, `hotkeysCoreFeature`, `searchFeature`), expanded and focused items as
-  React state, rows virtualized with `@tanstack/react-virtual` at a fixed 20 px. Levels that no
+  React state, rows virtualized with `@tanstack/react-virtual` at a fixed 20 px (`useRows` since
+  2026-11-06). Levels that no
   longer resolve collapse; a focused node that's gone hands focus to its nearest remaining
   ancestor. The selection strip shows type, anchor and head, with Reveal (expands down to the head
   and focuses it). Rows holding the anchor or the head are marked. The side pane shows the focused
@@ -821,8 +824,8 @@ editor's state as plain JSON, and the Structure is the one view of the document.
   `wordgardDevtools({fields})` whose spec has a `toJSON` (Wordgard's `toJSON(fields)` throws for the
   others; they're left out). The `children` request, `doc-source.ts`, `DocTree.tsx` and headless-tree
   are gone.
-- `State.tsx`: a virtualized JSON viewer (TanStack Virtual, one line per value, opening or closing
-  bracket), collapsible per object and array, expand all / collapse all, copy, tree keyboard
+- `State.tsx`: a virtualized JSON viewer (TanStack Virtual until 2026-11-06, `useRows` since;
+  one line per value, opening or closing bracket), collapsible per object and array, expand all / collapse all, copy, tree keyboard
   (arrows, Home, End; Left closes or goes to the parent). Reloads on every state change while shown.
 - The Structure is the first tab and the default. A pick switches to it. The context menu's
   "Show in Tree / Structure" is gone.
@@ -1246,9 +1249,8 @@ At the user's request. React 19 doesn't memoize by itself; the compiler does, at
 - Log's and View's `container` keep their first render's `select` / `showLine` (refs and setters
   only), with the exhaustive-deps rule disabled on that line: listing them would re-subscribe on
   every render.
-- Log, State and View use TanStack Virtual, which the compiler can't memoize: they opt out with
-  `"use no memo"` and keep their manual memoization (the lint rule still flags the virtualizer,
-  so it has a line exception too).
+- Log, State and View used TanStack Virtual, which the compiler can't memoize, and first opted out
+  with `"use no memo"`. Superseded the same day, see [Every component compiled](#every-component-compiled-2026-11-06).
 - Compiler limitations, rewritten: the guide's `label` default (a template literal in a default
   parameter) moved into the body; the Log entry's flags expression moved into `entryFlags`.
 
@@ -1287,8 +1289,38 @@ back to back (before the audit's fixes, which only add compiled code and a memo)
 
 ### Open points
 
-- The three virtualised tabs (Log, State, View) are where most rendering happens and aren't
-  compiled. Moving `useVirtualizer` into a small child component would let the rest of each
-  compile.
 - Three Schema tests fail since commit `ea18c7c`, which removed the "node type" / "mark type"
   label the tests wait for ("Paragraphnode type"). They fail with or without this change.
+
+### Every component compiled (2026-11-06)
+
+At the user's request, the follow-up the audit's notes left open: Log, State and View opted out
+of the compiler because of TanStack Virtual, and they're where most rendering happens.
+
+- **Deviation from the handoff** (move `useVirtualizer` into a child component): TanStack Virtual
+  is replaced by `useRows` (`packages/panel/src/rows.ts`), a hook on `useSyncExternalStore`. All
+  three lists have rows of one fixed height and nothing is measured, so the window is plain
+  arithmetic: the first row in view and how many fit, a new snapshot only when a row boundary is
+  crossed, plus 20 rows either side. The parents also read the drawn range (for
+  `aria-activedescendant`), which a child component would have had to hand back. The dependency
+  is gone from the panel. `keepRowInView` there too: the three tabs' scroll-into-view, one helper.
+- Compiling them surfaced Rules of React breaks the opt-out had hidden, now fixed:
+  - Log wrote `shownNow.current = shown` during render, for the reveal. The reveal now recomputes
+    the order from its sources (rows, filters and a `sortNow` ref set in the sort handler).
+  - State and View scrolled by setting `scrollTop` on an element held in state, which the
+    compiler counts as mutating state: `keepRowInView`, at module level.
+  - View's menu anchor, built during render, captured `select`, which wrote an `outlined` ref.
+    Whether the page has an outline now lives in the view source (`element`, `hideOutline`).
+  - State's file import (`replaceFrom`) moved to module level: the compiler can't yet compile
+    conditionals inside `try`/`catch`.
+  - The two exhaustive-deps exceptions are gone: Log's `select` and View's `select`, `showLine`
+    and `setCollapsed` are `useCallback`s now, listed in the ref callbacks that use them.
+- Memoization removed where the compiler does it: State's and View's `lines` and `find`.
+- Tests: `test/rows.test.tsx` (window, following the scroll, a list shrinking under the scroll
+  checked before the browser clamps it, the scroller growing, a header margin, `keepRowInView`);
+  in `log.test.ts`, following new rows and keyboard scrolling below the sticky header; in
+  `state.test.ts`, a search match far down the list scrolled into view. Each was checked to fail
+  when what it covers is broken.
+- Measured as before, all compiled against no compiler, back to back (the machine was slower
+  than in the first run: compare the ratios): Log 2948 → 1544 ms (-48%), Structure 1975 → 1034
+  (-48%), State 1921 → 1076 (-44%), View 1887 → 991 (-47%), collapsed 570 → 594 (noise).

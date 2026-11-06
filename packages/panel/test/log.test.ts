@@ -444,3 +444,69 @@ it("saves the filters, but not unnamed annotations, and reads them back", async 
   type(again, "b")
   await until(() => shadow().textContent?.includes("No transactions match the filters"))
 })
+
+// The Log's scroller: the list and its sticky column header scroll in it.
+const logScroller = () => {
+  let element = list()?.parentElement ?? null
+  while (element && getComputedStyle(element).overflowY != "auto") element = element.parentElement
+  return element
+}
+const drawnRow = (index: number) => list()?.querySelector<HTMLElement>(`[data-index='${index}']`) ?? null
+// Row indices count across the page's whole log, and the log may hold more than the test's rows.
+const drawnIndices = () => [...(list()?.querySelectorAll("[data-index]") ?? [])].map(row => Number(row.getAttribute("data-index")))
+const newestDrawn = () => Math.max(...drawnIndices())
+const oldestDrawn = () => Math.min(...drawnIndices())
+// Below the sticky header and above the scroller's bottom.
+const inView = (row: HTMLElement, scroller: HTMLElement) => {
+  const shown = row.getBoundingClientRect()
+  const view = scroller.getBoundingClientRect()
+  return shown.top >= view.top + 20 - 0.5 && shown.bottom <= view.bottom + 0.5
+}
+// Following scrolls to the bottom; its scroll event comes a frame later.
+const followed = async (scroller: HTMLElement) => {
+  await until(() => Math.abs(scroller.scrollTop + scroller.clientHeight - scroller.scrollHeight) <= 1)
+  for (let n = 0; n < 2; n++) await new Promise(resolve => requestAnimationFrame(resolve))
+}
+const recordMany = async (editor: Wordgard, count: number) => {
+  ;(await until(() => button("Record"))).click()
+  await until(() => button("Pause"))
+  for (let n = 0; n < count; n++) type(editor, "x")
+  const scroller = await until(logScroller)
+  await until(() => scroller.scrollHeight >= (count + 1) * 20)
+  return scroller
+}
+
+it("follows new rows while scrolled to the bottom, and stays put once scrolled up", async () => {
+  const editor = await setup()
+  const scroller = await recordMany(editor, 80)
+  await followed(scroller)
+  const newest = newestDrawn()
+
+  scroller.scrollTop = 0
+  await new Promise(resolve => setTimeout(resolve, 50))
+  for (let n = 0; n < 5; n++) type(editor, "y")
+  await until(() => scroller.scrollHeight >= 86 * 20)
+  await new Promise(resolve => setTimeout(resolve, 50))
+  expect(scroller.scrollTop).toBe(0)
+  const oldest = drawnRow(oldestDrawn())
+  expect(oldest && inView(oldest, scroller)).toBe(true)
+  expect(drawnRow(newest + 5)).toBeNull()
+})
+
+it("scrolls the row the keyboard selects into view, below the header", async () => {
+  const editor = await setup()
+  const scroller = await recordMany(editor, 80)
+  await followed(scroller)
+  const newest = newestDrawn()
+  scroller.scrollTop = 0
+  await until(() => drawnRow(newest) == null)
+  const oldest = oldestDrawn()
+  await userEvent.click(await until(() => drawnRow(oldest)))
+  await userEvent.keyboard("{End}")
+  const last = await until(() => drawnRow(newest))
+  await until(() => last.getAttribute("aria-selected") == "true" && inView(last, scroller))
+  await userEvent.keyboard("{Home}")
+  const first = await until(() => drawnRow(oldest))
+  await until(() => first.getAttribute("aria-selected") == "true" && inView(first, scroller))
+  expect(scroller.scrollTop).toBe(0)
+})

@@ -1,4 +1,3 @@
-import {useVirtualizer} from "@tanstack/react-virtual"
 import {cn} from "cn"
 import {
   ChevronDownIcon,
@@ -24,6 +23,7 @@ import type {PanelStore} from "./store.ts"
 import {Tip} from "./tip.tsx"
 import {SplitPane} from "./split-pane.tsx"
 import {isRecord, stored, stringSet} from "./stored.ts"
+import {keepRowInView, useRows} from "./rows.ts"
 
 const ROW = 20
 const COLUMNS = "grid grid-cols-[3rem_6.5rem_minmax(5rem,1fr)_4.5rem_2rem_2rem_3.5rem_3.5rem] gap-x-2"
@@ -218,6 +218,8 @@ const matches = (row: LogRow, {events, hidden, annotations}: Filters) =>
   !events.has(eventOf(row)) &&
   (!flags(row).length || flags(row).some(flag => !hidden.has(flag))) &&
   [...annotations].every(name => row.annotations.includes(name))
+
+const filteredRows = (rows: LogRow[], filters: Filters) => (filtering(filters) ? rows.filter(row => matches(row, filters)) : rows)
 
 /** The rows' user events, sorted, "none" last for rows without one. */
 const userEvents = (rows: LogRow[]) => {
@@ -657,49 +659,41 @@ const EntryPane = ({source, row}: {source: LogSource; row: LogRow | null}) => {
 
 /** The transaction log of one editor, with record/pause and per-update timing. Mounted per editor. */
 export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) => {
-  // TanStack Virtual can't be memoized: not compiled; this component keeps its manual memoization.
-  "use no memo"
   const [source] = useState(() => createLogSource(store.transport, editorId))
   const view = useSyncExternalStore(source.subscribe, source.get)
   const [selected, setSelected] = useState<number | null>(null)
   const scroller = useRef<HTMLDivElement | null>(null)
   // State, not only a ref: the list may mount a render after this component (the split pane
-  // measures first), and the virtualizer reads its element when this component renders.
+  // measures first), and the rows are read from it when this component renders.
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const {rows} = view
   const rowCount = rows.length
   const [sort, setSort] = useState<Sort>({key: "index", descending: false})
+  // Also read by a reveal, which runs outside a render: set with the state, in the event.
+  const sortNow = useRef(sort)
+  const changeSort = (next: Sort) => {
+    sortNow.current = next
+    setSort(next)
+  }
   const filters = useSyncExternalStore(logFilters.subscribe, logFilters.get)
-  const filtered = filtering(filters) ? rows.filter(row => matches(row, filters)) : rows
+  const filtered = filteredRows(rows, filters)
   const shown = sorted(filtered, sort)
   // The newest rows come last: new ones are followed.
   const chronological = (sort.key == "index" || sort.key == "time") && !sort.descending
-  // Also read by a reveal, which runs outside a render.
-  const shownNow = useRef(shown)
-  shownNow.current = shown
 
   // The column header is a sticky row at the top of the scroller.
-  // eslint-disable-next-line react-hooks/incompatible-library -- not compiled: "use no memo" above
-  const virtualizer = useVirtualizer({
-    count: shown.length,
-    getScrollElement: () => scrollElement,
-    estimateSize: () => ROW,
-    overscan: 20,
-    scrollMargin: ROW,
-  })
+  const {indices, height} = useRows(scrollElement, shown.length, ROW, {margin: ROW})
 
-  const scrollToRow = (position: number) => {
-    const element = scroller.current
-    if (!element || position < 0) return
-    const top = position * ROW
-    if (top < element.scrollTop) element.scrollTop = top
-    else if (top + 2 * ROW > element.scrollTop + element.clientHeight) element.scrollTop = top + 2 * ROW - element.clientHeight
-  }
-
-  const select = (index: number) => {
-    setSelected(index)
-    scrollToRow(shownNow.current.findIndex(row => row.index == index))
-  }
+  // Stable: the list's ref callback uses it, and would subscribe again on a new one.
+  const select = useCallback(
+    (index: number) => {
+      setSelected(index)
+      const order = sorted(filteredRows(source.get().rows, logFilters.get()), sortNow.current)
+      // Two rows of room: the sticky column header covers the first.
+      keepRowInView(scroller.current, order.findIndex(row => row.index == index), ROW, 2)
+    },
+    [source],
+  )
 
   // New rows are followed while the list is scrolled to the bottom.
   const atBottom = useRef(true)
@@ -774,10 +768,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
         scroller.current = null
       }
     },
-    // `select` reads the latest values through refs and setters: the first render's copy is enough,
-    // and listing it would re-subscribe on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [store, editorId, source],
+    [store, editorId, source, select],
   )
 
   // The row a menu opens on is selected.
@@ -810,9 +801,8 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
   }
 
   const selectedRow = rows.find(row => row.index == selected) ?? null
-  const virtualItems = virtualizer.getVirtualItems()
   // Only a rendered row can be the active descendant.
-  const activeRow = virtualItems.some(item => shown[item.index]?.index == selected) ? selectedRow : null
+  const activeRow = indices.some(index => shown[index]?.index == selected) ? selectedRow : null
   const slowCount = rows.filter(isSlow).length
 
   return (
@@ -876,16 +866,16 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
         <div ref={container} className="relative min-h-0 min-w-0 flex-1 overflow-auto">
           <div className="min-w-[34rem]">
             <div className={cn(COLUMNS, "sticky top-0 z-10 h-5 items-center border-b bg-background px-2 text-xs text-muted-foreground")}>
-              <SortHeading sortKey="index" label="#" tip="Index" sort={sort} onSort={setSort} />
-              <SortHeading sortKey="time" label="time" tip="Time" sort={sort} onSort={setSort} />
+              <SortHeading sortKey="index" label="#" tip="Index" sort={sort} onSort={changeSort} />
+              <SortHeading sortKey="time" label="time" tip="Time" sort={sort} onSort={changeSort} />
               <span>userEvent</span>
               <span>changed</span>
               <Tip label="Effects">
                 <span>eff</span>
               </Tip>
-              <SortHeading sortKey="annotations" label="ann" tip="Annotations" sort={sort} onSort={setSort} />
-              <SortHeading sortKey="dispatch" label="disp" tip="Dispatch, ms" sort={sort} onSort={setSort} right />
-              <SortHeading sortKey="flush" label="flush" tip="Flush, ms; * forced by DevTools" sort={sort} onSort={setSort} right />
+              <SortHeading sortKey="annotations" label="ann" tip="Annotations" sort={sort} onSort={changeSort} />
+              <SortHeading sortKey="dispatch" label="disp" tip="Dispatch, ms" sort={sort} onSort={changeSort} right />
+              <SortHeading sortKey="flush" label="flush" tip="Flush, ms; * forced by DevTools" sort={sort} onSort={changeSort} right />
             </div>
             {!rows.length && view.loaded && (
               <p className="p-2 text-xs text-muted-foreground">
@@ -906,12 +896,12 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
                 if (index != null) setSelected(Number(index))
               }}
               className="relative outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset"
-              style={{height: virtualizer.getTotalSize()}}
+              style={{height}}
             >
-              {virtualItems.map(item => {
-                const row = shown[item.index]
+              {indices.map(index => {
+                const row = shown[index]
                 return (
-                  row && <Row key={row.index} row={row} start={item.start - ROW} selected={row.index == selected} />
+                  row && <Row key={row.index} row={row} start={index * ROW} selected={row.index == selected} />
                 )
               })}
             </div>

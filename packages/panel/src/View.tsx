@@ -1,4 +1,3 @@
-import {useVirtualizer} from "@tanstack/react-virtual"
 import {cn} from "cn"
 import {
   ChevronDownIcon,
@@ -12,7 +11,7 @@ import {
   NoSymbolIcon,
   RectangleGroupIcon,
 } from "#icons"
-import {useCallback, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent} from "react"
+import {useCallback, useRef, useState, useSyncExternalStore, type KeyboardEvent} from "react"
 import type {Path, ViewInfo, ViewNode} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
@@ -23,6 +22,7 @@ import {CopySelection, copy, createMenuAnchor, type MenuAnchor} from "./node-men
 import type {PanelStore} from "./store.ts"
 import {Tip} from "./tip.tsx"
 import {createViewSource} from "./view-source.ts"
+import {keepRowInView, useRows} from "./rows.ts"
 
 const ROW = 20
 const INDENT = 14
@@ -246,60 +246,51 @@ const Status = ({status}: {status: ViewInfo["status"]}) => {
 
 /** The editor's view: its status and its content's DOM, mapped to the document. Mounted per editor. */
 export const View = ({store, editorId}: {store: PanelStore; editorId: number}) => {
-  // TanStack Virtual can't be memoized: not compiled; this component keeps its manual memoization.
-  "use no memo"
   const [source] = useState(() => createViewSource(store.transport, editorId))
   const {info, error} = useSyncExternalStore(source.subscribe, source.get)
   const [collapsed, setCollapsedState] = useState<ReadonlySet<string>>(() => new Set())
   // Also read by a reveal, which runs outside a render.
   const collapsedNow = useRef(collapsed)
-  const setCollapsed = (next: ReadonlySet<string>) => {
+  const setCollapsed = useCallback((next: ReadonlySet<string>) => {
     collapsedNow.current = next
     setCollapsedState(next)
-  }
+  }, [])
   // Nothing until the user picks a line.
   const [focused, setFocused] = useState<string | null>(null)
-  // State: the virtualizer reads its element when this component renders.
+  // State: the rows are read from it when this component renders.
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
-  const lines = useMemo(() => (info ? flatten(info.dom, collapsed) : []), [info, collapsed])
-  const outlined = useRef(false)
+  const lines = info ? flatten(info.dom, collapsed) : []
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- not compiled: "use no memo" above
-  const virtualizer = useVirtualizer({
-    count: lines.length,
-    getScrollElement: () => scrollElement,
-    estimateSize: () => ROW,
-    overscan: 20,
-  })
+  const {indices, height} = useRows(scrollElement, lines.length, ROW)
 
-  const element = (id: string, action: "outline" | "log" | "logHTML") =>
-    // The element may have changed since the last load: load again.
-    store.transport.send({type: "viewElement", id: editorId, path: pathOf(id), action}).catch(() => source.load())
+  const element = (id: string, action: "outline" | "log" | "logHTML") => source.element(pathOf(id), action)
 
-  const hide = useCallback(() => {
-    if (!outlined.current) return
-    outlined.current = false
-    store.transport.send({type: "highlight", id: editorId, path: null}).catch(() => {})
-  }, [store, editorId])
+  const hide = source.hideOutline
 
   // A clicked element is outlined in the page until another is clicked, or the tab or editor changes.
-  const select = (id: string) => {
-    setFocused(id)
-    outlined.current = true
-    void element(id, "outline")
-  }
+  const select = useCallback(
+    (id: string) => {
+      setFocused(id)
+      void source.element(pathOf(id), "outline")
+    },
+    [source],
+  )
 
-  // A line opened up to, selected and scrolled to. Takes the scroller: the reveal calls it from its first render's closure.
-  const showLine = (dom: ViewNode, id: string, scroller: HTMLElement | null) => {
-    const next = new Set(collapsedNow.current)
-    const parts = id ? id.split(".") : []
-    for (let depth = 0; depth < parts.length; depth++) next.delete(parts.slice(0, depth).join("."))
-    setCollapsed(next)
-    select(id)
-    centreRow(scroller, flatten(dom, next).findIndex(line => line.id == id), ROW)
-  }
+  // A line opened up to, selected and scrolled to. Stable: the tree's ref callback uses it, and would
+  // subscribe again on a new one.
+  const showLine = useCallback(
+    (dom: ViewNode, id: string, scroller: HTMLElement | null) => {
+      const next = new Set(collapsedNow.current)
+      const parts = id ? id.split(".") : []
+      for (let depth = 0; depth < parts.length; depth++) next.delete(parts.slice(0, depth).join("."))
+      setCollapsed(next)
+      select(id)
+      centreRow(scroller, flatten(dom, next).findIndex(line => line.id == id), ROW)
+    },
+    [setCollapsed, select],
+  )
 
-  const find = useMemo(() => (info ? (query: string) => search(info.dom, query) : null), [info])
+  const find = info ? (query: string) => search(info.dom, query) : null
   const searching = useSearch(find, id => info && showLine(info.dom, id, scrollElement))
 
   const toggle = (id: string) => {
@@ -350,26 +341,14 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
         hide()
       }
     },
-    // `showLine` reads the latest values through refs and setters: the first render's copy is enough,
-    // and listing it would re-subscribe on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [store, editorId, source, hide],
+    [store, editorId, source, hide, showLine],
   )
-
-  const scrollToLine = (position: number) => {
-    if (!scrollElement || position < 0) return
-    const top = position * ROW
-    if (top < scrollElement.scrollTop) scrollElement.scrollTop = top
-    else if (top + ROW > scrollElement.scrollTop + scrollElement.clientHeight) {
-      scrollElement.scrollTop = top + ROW - scrollElement.clientHeight
-    }
-  }
 
   const focusLine = (position: number) => {
     const line = lines[Math.max(0, Math.min(lines.length - 1, position))]
     if (!line) return
     select(line.id)
-    scrollToLine(lines.indexOf(line))
+    keepRowInView(scrollElement, lines.indexOf(line), ROW)
   }
 
   // The line a menu opens on is selected (and outlined).
@@ -404,8 +383,7 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
     }
   }
 
-  const rendered = virtualizer.getVirtualItems()
-  const active = rendered.some(item => lines[item.index]?.id == focused) ? focused : null
+  const active = indices.some(index => lines[index]?.id == focused) ? focused : null
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -480,15 +458,15 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
         }}
         className="relative min-h-0 flex-1 overflow-auto outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
-        <div style={{height: virtualizer.getTotalSize()}}>
-          {rendered.map(item => {
-            const line = lines[item.index]
+        <div style={{height}}>
+          {indices.map(index => {
+            const line = lines[index]
             return (
               line && (
                 <Row
                   key={line.id}
                   line={line}
-                  start={item.start}
+                  start={index * ROW}
                   focused={line.id == focused}
                   match={matchClass(line.id, searching)}
                   onToggle={toggle}

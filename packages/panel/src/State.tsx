@@ -1,4 +1,3 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "cn";
 import {
   ArrowDownTrayIcon,
@@ -17,7 +16,6 @@ import {
 } from "#icons";
 import {
   useCallback,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -38,6 +36,7 @@ import { SearchBox, centreRow, includes, matchClass, useSearch } from "./search.
 import { createStateSource } from "./state-source.ts";
 import type { PanelStore } from "./store.ts";
 import { Tip } from "./tip.tsx";
+import { keepRowInView, useRows } from "./rows.ts";
 
 const ROW = 20;
 
@@ -340,10 +339,28 @@ const StateMenu = ({
   );
 };
 
+// Outside the component: the React Compiler can't compile conditionals inside a try/catch yet.
+const replaceFrom = async (store: PanelStore, editorId: number, file: File, notify: (notice: Notice) => void) => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch (e) {
+    notify({ ok: false, text: `${file.name} isn't JSON: ${e instanceof Error ? e.message : String(e)}` });
+    return;
+  }
+  try {
+    const { exact } = await store.transport.send({ type: "replaceState", id: editorId, json: parsed });
+    notify({
+      ok: true,
+      text: `State replaced from ${file.name}${exact ? "" : ", then changed by the editor (an appender or a filter)"}. Undo reverts it.`,
+    });
+  } catch (e) {
+    notify({ ok: false, text: `Couldn't replace the state: ${e instanceof Error ? e.message : String(e)}` });
+  }
+};
+
 /** The editor's state as plain JSON (`GardState.toJSON`), collapsible and virtualized. Mounted per editor. */
 export const State = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
-  // TanStack Virtual can't be memoized: not compiled; this component keeps its manual memoization.
-  "use no memo";
   const [source] = useState(() => createStateSource(store.transport, editorId));
   const { json, loaded, error } = useSyncExternalStore(source.subscribe, source.get);
 
@@ -360,38 +377,15 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
     ];
   };
   const editorName = () => store.get().editors.find((editor) => editor.id == editorId)?.name ?? "editor";
-  const replaceFrom = async (file: File) => {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(await file.text());
-    } catch (e) {
-      notify({ ok: false, text: `${file.name} isn't JSON: ${e instanceof Error ? e.message : String(e)}` });
-      return;
-    }
-    try {
-      const { exact } = await store.transport.send({ type: "replaceState", id: editorId, json: parsed });
-      notify({
-        ok: true,
-        text: `State replaced from ${file.name}${exact ? "" : ", then changed by the editor (an appender or a filter)"}. Undo reverts it.`,
-      });
-    } catch (e) {
-      notify({ ok: false, text: `Couldn't replace the state: ${e instanceof Error ? e.message : String(e)}` });
-    }
-  };
+
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   // Nothing until the user picks a line.
   const [focused, setFocused] = useState<string | null>(null);
-  // State: the virtualizer reads its element when this component renders.
+  // State: the rows are read from it when this component renders.
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
-  const lines = useMemo(() => (loaded ? flatten(json, collapsed) : []), [json, loaded, collapsed]);
+  const lines = loaded ? flatten(json, collapsed) : [];
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- not compiled: "use no memo" above
-  const virtualizer = useVirtualizer({
-    count: lines.length,
-    getScrollElement: () => scrollElement,
-    estimateSize: () => ROW,
-    overscan: 20,
-  });
+  const { indices, height } = useRows(scrollElement, lines.length, ROW);
 
   // A node highlighted from the menu stays outlined in the page until a line is clicked, the
   // document changes, or the tab or editor does.
@@ -470,20 +464,11 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
     [store, editorId, source, highlight],
   );
 
-  const scrollToLine = (position: number) => {
-    const element = scrollElement;
-    if (!element || position < 0) return;
-    const top = position * ROW;
-    if (top < element.scrollTop) element.scrollTop = top;
-    else if (top + ROW > element.scrollTop + element.clientHeight)
-      element.scrollTop = top + ROW - element.clientHeight;
-  };
-
   const focusLine = (position: number) => {
     const line = lines[Math.max(0, Math.min(lines.length - 1, position))];
     if (!line) return;
     setFocused(line.id);
-    scrollToLine(lines.indexOf(line));
+    keepRowInView(scrollElement, lines.indexOf(line), ROW);
   };
 
   // As in a tree: Right opens a closed object, Left closes an open one or goes to its parent.
@@ -528,11 +513,10 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
     setFocused(id);
     centreRow(scrollElement, flatten(json, next).findIndex((line) => line.id == id), ROW);
   };
-  const find = useMemo(() => (loaded ? (query: string) => search(json, query) : null), [json, loaded]);
+  const find = loaded ? (query: string) => search(json, query) : null;
   const searching = useSearch(find, reveal);
 
-  const rendered = virtualizer.getVirtualItems();
-  const active = rendered.some((item) => lines[item.index]?.id == focused) ? focused : null;
+  const active = indices.some((index) => lines[index]?.id == focused) ? focused : null;
   // A focused bracket selects its whole object or array, from its opening to its closing.
   const focusedLine = lines.find((line) => line.id == focused);
   const range =
@@ -650,7 +634,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
                   const file = event.target.files?.[0];
                   // The same file can be picked again.
                   event.target.value = "";
-                  if (file) void replaceFrom(file);
+                  if (file) void replaceFrom(store, editorId, file, notify);
                 }}
               />
             </Button>
@@ -699,15 +683,15 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
         }}
         className="relative min-h-0 flex-1 overflow-auto outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
-        <div style={{ height: virtualizer.getTotalSize() }}>
-          {rendered.map((item) => {
-            const line = lines[item.index];
+        <div style={{ height }}>
+          {indices.map((index) => {
+            const line = lines[index];
             return (
               line && (
                 <Row
                   key={line.id}
                   line={line}
-                  start={item.start}
+                  start={index * ROW}
                   selected={selected(line)}
                   focused={line.id == focused}
                   match={matchClass(line.id, searching)}

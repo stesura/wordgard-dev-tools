@@ -336,3 +336,36 @@ it("refuses a file that isn't a state of the schema, with a red banner", async (
   await until(() => banner()?.textContent?.includes("Couldn't replace the state"));
   expect(editor.state.doc).toBe(before);
 });
+
+it("scrolls a search match far down the list into view", async () => {
+  // Far more lines than fit: the match is drawn only once scrolled to.
+  const paragraphs = Array.from({ length: 150 }, (_, n) => `<p>p${n}</p>`).join("");
+  wg = Wordgard.create({
+    parent: document.body,
+    doc: `${paragraphs}<p>needle</p>`,
+    config: [basicSchema(), wordgardDevtools()],
+  });
+  localStorage.setItem(
+    "wordgard-devtools:dock",
+    JSON.stringify({ side: "bottom", size: 640, collapsed: false }),
+  );
+  mounted = mountDevtools();
+  await mounted.ready;
+  (await until(() => tab("State"))).click();
+  await until(() => line("$/doc/type"));
+  const match = "$/doc/content/150/content/0/param";
+  expect(line(match)).toBeNull();
+  const input = await until(() =>
+    shadow().querySelector<HTMLInputElement>("[aria-label='Search the state']"),
+  );
+  await userEvent.click(input);
+  await userEvent.keyboard("needle");
+  const found = await until(() => line(match));
+  const tree = await until(() => shadow().querySelector<HTMLElement>("[aria-label='State']"));
+  await until(() => {
+    const shown = found.getBoundingClientRect();
+    const view = tree.getBoundingClientRect();
+    return shown.top >= view.top - 0.5 && shown.bottom <= view.bottom + 0.5;
+  });
+  expect(tree.scrollTop).toBeGreaterThan(0);
+});
