@@ -1,6 +1,6 @@
 # Panel restructure — plan
 
-Status: PARTIALLY EXECUTED. Phases 0 to 6 done on 2026-11-06, see
+Status: PARTIALLY EXECUTED. Phases 0 to 7 done on 2026-11-06, see
 [Implementation notes](#implementation-notes). Drafted 2026-11-06 from an audit of
 `packages/panel`, scope agreed with the user the same day; revised after a Fable review the same
 day, see [Review](#review-2026-11-06).
@@ -409,7 +409,7 @@ In order of payoff. Each one is done only if the result reads at least as well a
     navigation. A shared `useTreeNav` only if it doesn't need many parameters; the likely outcome is
     to leave them separate.
 
-## Phase 7: shadcn
+## Phase 7: shadcn (executed 2026-11-06)
 
 Add each with `npx shadcn add <name>` (from `packages/panel`), then:
 
@@ -704,3 +704,31 @@ error, version}, load, ready}`. Structure, Schema, State, DOM, the selection's d
 
 Checks: typecheck, lint, tests (87 + 155 + 12), build, `compiler:check` (panel 122, extension
 119, demo 123), `format:check`, `readme:check`, `dependency-check`, e2e (11): all pass.
+
+### Phase 7 (2026-11-06)
+
+- `npx shadcn add toggle toggle-group checkbox collapsible`. It didn't add `lucide-react` to
+  `package.json`, but `checkbox.tsx` imported its `CheckIcon` from it: now from `#icons`. The four
+  files follow the other `components/ui` files: arrow functions (the lint rule), no
+  `"use client"`, and no cast in `toggle-group.tsx` (its `--gap` CSS variable is declared on
+  React's `CSSProperties`, as `--hue` is in `lib/colours.ts`). Their Base UI subpaths are in
+  `optimizeDeps.include`.
+- **Toggle.** A `chip` variant and size in `ui/toggle.tsx` (h-5, `text-xs`, muted, primary while
+  pressed: the old look). `components/filter-chip.tsx` (`FilterChip`) replaces the Schema's
+  `Toggle` and the Log's `FilterToggle`: the Schema's tag filters and section switches, the Log's
+  "changed" and annotation filters (in `font-mono`).
+- **Toggle group** (one of two; pressing the pressed one keeps it): the Marks' order (schema /
+  rank) and, beyond the plan, the JSON pane's Spec / Effective, the same kind of switch. The amber
+  "an override changes it" look is now in `aria-pressed:` classes.
+- **Checkbox.** The Log's user-event filter ("All", indeterminate when some are ticked, and one
+  per event) and its two record settings. `test/log.test.ts` now reads `role="checkbox"` and
+  `aria-checked` (`"mixed"` for indeterminate) instead of the native input's `checked` and
+  `indeterminate`: Base UI's checkbox isn't an `<input>`, and `aria-checked` is what assistive
+  technology reads.
+- **Collapsible.** `SchemaSection` is a `Collapsible` (controlled: the toolbar's section chips
+  and the bar's empty stretch still toggle it); its title is the trigger. The Fields history items
+  too: the chevron is the trigger, the change's value the content.
+- Looked at the Schema and Log tabs in the demo (a one-off run of the screenshots script into a
+  scratch folder): chips and checkboxes as before.
+- Checks: typecheck, lint, tests (87 + 155 + 12), build, `compiler:check` (panel 123, extension
+  120, demo 124), `format:check`, `readme:check`, `dependency-check`, e2e (11): all pass.

@@ -278,22 +278,23 @@ it("filters by user event, what changed and annotation", async () => {
   );
   expect(trigger.textContent).toContain("all");
   trigger.click();
+  // Base UI's checkboxes: role="checkbox", aria-checked "true", "false" or "mixed".
   const box = (text: string) =>
     [...shadow().querySelectorAll("label")]
       .find((l) => l.textContent == text)
-      ?.querySelector("input");
+      ?.querySelector<HTMLElement>("[role='checkbox']");
   const all = await until(() => box("All"));
   expect(
     [...shadow().querySelectorAll("[aria-label='User events'] label")].map((l) => l.textContent)
   ).toEqual(["input.type", "select.pointer", "none"]);
   (await until(() => box("input.type"))).click();
   await until(() => order().join() == "1,2");
-  expect(all.indeterminate).toBe(true);
+  expect(all.getAttribute("aria-checked")).toBe("mixed");
   expect(trigger.textContent).toContain("2 of 3");
   // Some unticked: All ticks them all.
   all.click();
   await until(() => rows().length == 3);
-  expect(all.checked).toBe(true);
+  expect(all.getAttribute("aria-checked")).toBe("true");
   // All ticked: All unticks them all.
   all.click();
   await until(() => rows().length == 0);
@@ -327,9 +328,9 @@ it("skips select.pointer transactions when its box is unticked, and remembers it
   const box = await until(() =>
     [...shadow().querySelectorAll("label")]
       .find((l) => l.textContent?.includes("record select.pointer"))
-      ?.querySelector("input")
+      ?.querySelector<HTMLElement>("[role='checkbox']")
   );
-  expect(box.checked).toBe(true);
+  expect(box.getAttribute("aria-checked")).toBe("true");
   box.click();
   await until(() => localStorage.getItem("wordgard-devtools:log-select-pointer") == "false");
   editor.dispatch({ selection: { anchor: 2 }, userEvent: "select.pointer" });
@@ -357,9 +358,9 @@ it("skips focus changes when its box is unticked, and remembers it", async () =>
   const box = await until(() =>
     [...shadow().querySelectorAll("label")]
       .find((l) => l.textContent?.includes("record focus"))
-      ?.querySelector("input")
+      ?.querySelector<HTMLElement>("[role='checkbox']")
   );
-  expect(box.checked).toBe(true);
+  expect(box.getAttribute("aria-checked")).toBe("true");
   box.click();
   await until(() => localStorage.getItem("wordgard-devtools:log-focus-changes") == "false");
   editor.dispatch({ annotations: Wordgard.isFocusChange.of(false) });
@@ -374,9 +375,9 @@ it("reads the saved select.pointer setting back, and records with it", async () 
   const box = await until(() =>
     [...shadow().querySelectorAll("label")]
       .find((l) => l.textContent?.includes("record select.pointer"))
-      ?.querySelector("input")
+      ?.querySelector<HTMLElement>("[role='checkbox']")
   );
-  expect(box.checked).toBe(false);
+  expect(box.getAttribute("aria-checked")).toBe("false");
   await record();
   editor.dispatch({ selection: { anchor: 2 }, userEvent: "select.pointer" });
   type(editor, "a");

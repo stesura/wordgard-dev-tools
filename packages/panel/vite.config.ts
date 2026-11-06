@@ -33,6 +33,8 @@ export default defineConfig(({ command }) => ({
   optimizeDeps: {
     include: [
       "@base-ui/react/button",
+      "@base-ui/react/checkbox",
+      "@base-ui/react/collapsible",
       "@base-ui/react/context-menu",
       "@base-ui/react/menu",
       "@base-ui/react/merge-props",
@@ -40,6 +42,8 @@ export default defineConfig(({ command }) => ({
       "@base-ui/react/use-render",
       "@base-ui/react/select",
       "@base-ui/react/tabs",
+      "@base-ui/react/toggle",
+      "@base-ui/react/toggle-group",
       "@base-ui/react/tooltip",
       "@nanostores/react",
       "class-variance-authority",

@@ -1,3 +1,4 @@
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "#components/ui/collapsible";
 import { useStore } from "@nanostores/react";
 import { ChevronDownIcon, ChevronRightIcon, ClipboardDocumentIcon, CommandLineIcon } from "#icons";
 import { Suspense, use, useState } from "react";
@@ -72,24 +73,26 @@ export const HistoryItem = ({
 }) => {
   const [open, setOpen] = useState(false);
   return (
-    <li data-seq={change.seq} className="border-b py-0.5">
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      render={<li data-seq={change.seq} className="border-b py-0.5" />}
+    >
       <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-expanded={open}
+        <CollapsibleTrigger
           aria-label={open ? "Collapse the value" : "Expand the value"}
-          onClick={() => setOpen(!open)}
           className="flex cursor-pointer text-muted-foreground hover:text-foreground [&_svg]:size-3"
         >
           {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
-        </button>
+        </CollapsibleTrigger>
         <When change={change} onLog={onLog} />
       </div>
-      {open ? (
+      <CollapsibleContent>
         <Suspense fallback={<p className="font-sans text-muted-foreground">Loading…</p>}>
           <ChangeValue source={source} index={index} seq={change.seq} />
         </Suspense>
-      ) : (
+      </CollapsibleContent>
+      {!open && (
         // The chevron is the keyboard's way in.
         <button
           type="button"
@@ -100,7 +103,7 @@ export const HistoryItem = ({
           {change.preview}
         </button>
       )}
-    </li>
+    </Collapsible>
   );
 };
 

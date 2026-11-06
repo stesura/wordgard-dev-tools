@@ -1,3 +1,5 @@
+import { FilterChip } from "#components/filter-chip";
+import { ToggleGroup, ToggleGroupItem } from "#components/ui/toggle-group";
 import { whileShown } from "#stores/while-shown.ts";
 import { LoadError } from "#components/load-error";
 import { fire } from "../../transport.ts";
@@ -31,7 +33,7 @@ import {
   groupTags,
   nodeTags,
 } from "./schema-cards.tsx";
-import { SchemaSection, Toggle, count } from "./schema-heading.tsx";
+import { SchemaSection, count } from "./schema-heading.tsx";
 
 /** The editor's node and mark types. Mounted per editor. */
 export const Schema = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
@@ -167,15 +169,15 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
         {filtered && <ClearFilters onClick={clearAll} />}
         {schema && (
           <span className="flex shrink-0 gap-1">
-            <Toggle pressed={open.node} onClick={() => toggleOpen("node")}>
+            <FilterChip pressed={open.node} onPressedChange={() => toggleOpen("node")}>
               {schema.nodes.length} nodes
-            </Toggle>
-            <Toggle pressed={open.mark} onClick={() => toggleOpen("mark")}>
+            </FilterChip>
+            <FilterChip pressed={open.mark} onPressedChange={() => toggleOpen("mark")}>
               {schema.marks.length} marks
-            </Toggle>
-            <Toggle pressed={open.group} onClick={() => toggleOpen("group")}>
+            </FilterChip>
+            <FilterChip pressed={open.group} onPressedChange={() => toggleOpen("group")}>
               {schema.groups.length} groups
-            </Toggle>
+            </FilterChip>
           </span>
         )}
       </div>
@@ -244,12 +246,20 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
             actions={
               <>
                 <span className="text-muted-foreground">order</span>
-                <Toggle pressed={!byRank} onClick={() => setByRank(false)}>
-                  schema
-                </Toggle>
-                <Toggle pressed={byRank} onClick={() => setByRank(true)}>
-                  rank
-                </Toggle>
+                {/* One of the two: pressing the pressed one keeps it. */}
+                <ToggleGroup
+                  aria-label="Mark order"
+                  variant="chip"
+                  size="chip"
+                  spacing={1}
+                  value={[byRank ? "rank" : "schema"]}
+                  onValueChange={([order]) => {
+                    if (order) setByRank(order == "rank");
+                  }}
+                >
+                  <ToggleGroupItem value="schema">schema</ToggleGroupItem>
+                  <ToggleGroupItem value="rank">rank</ToggleGroupItem>
+                </ToggleGroup>
               </>
             }
           >

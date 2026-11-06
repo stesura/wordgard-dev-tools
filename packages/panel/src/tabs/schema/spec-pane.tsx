@@ -1,3 +1,4 @@
+import { ToggleGroup, ToggleGroupItem } from "#components/ui/toggle-group";
 import { IconButton } from "#components/icon-button";
 import { useStore } from "@nanostores/react";
 import { cn } from "cn";
@@ -21,7 +22,6 @@ import { Tip } from "#components/tip";
 import { GuidePopover } from "#components/guide-popover";
 import { SPEC_EFFECTIVE_MARK, SPEC_EFFECTIVE_NODE } from "../../guides/guides.ts";
 import type { Kind } from "./schema-cards.tsx";
-import { Toggle } from "./schema-heading.tsx";
 
 /** A card's id (`node-Paragraph`): its kind and name. */
 const parseCard = (card: string) => {
@@ -123,31 +123,38 @@ export const SpecPane = ({
             <span className="text-muted-foreground">{shown.label}</span>
             {shown.effective && (
               <span className="flex items-center gap-1">
-                <Tip label="The spec, as written">
-                  <Toggle pressed={view == "spec"} onClick={() => onView("spec")}>
-                    Spec
-                  </Toggle>
-                </Tip>
-                <Tip
-                  label={
-                    overridden.length
-                      ? "What applies differs from the spec: an override changes it"
-                      : "What applies: defaults filled in, overrides applied, what the schema works out"
-                  }
+                {/* One of the two: pressing the pressed one keeps it. */}
+                <ToggleGroup
+                  aria-label="Spec or effective"
+                  variant="chip"
+                  size="chip"
+                  spacing={1}
+                  value={[view]}
+                  onValueChange={([next]) => {
+                    if (next == "spec" || next == "effective") onView(next);
+                  }}
                 >
-                  <Toggle
-                    pressed={view == "effective"}
-                    onClick={() => onView("effective")}
-                    className={cn(
-                      overridden.length > 0 &&
-                        (view == "effective"
-                          ? "bg-amber-700 text-white"
-                          : "bg-amber-500/20 text-amber-800 hover:text-amber-950 dark:text-amber-300 dark:hover:text-amber-100")
-                    )}
+                  <Tip label="The spec, as written">
+                    <ToggleGroupItem value="spec">Spec</ToggleGroupItem>
+                  </Tip>
+                  <Tip
+                    label={
+                      overridden.length
+                        ? "What applies differs from the spec: an override changes it"
+                        : "What applies: defaults filled in, overrides applied, what the schema works out"
+                    }
                   >
-                    Effective
-                  </Toggle>
-                </Tip>
+                    <ToggleGroupItem
+                      value="effective"
+                      className={cn(
+                        overridden.length > 0 &&
+                          "bg-amber-500/20 text-amber-800 hover:bg-amber-500/20 hover:text-amber-950 aria-pressed:bg-amber-700 aria-pressed:text-white aria-pressed:hover:bg-amber-700 aria-pressed:hover:text-white dark:text-amber-300 dark:hover:text-amber-100 dark:aria-pressed:text-white"
+                      )}
+                    >
+                      Effective
+                    </ToggleGroupItem>
+                  </Tip>
+                </ToggleGroup>
                 {/* Only with the switch: a type, not a group. */}
                 <GuidePopover
                   guide={shown.kind == "mark" ? SPEC_EFFECTIVE_MARK : SPEC_EFFECTIVE_NODE}

@@ -1,7 +1,8 @@
+import { Checkbox } from "#components/ui/checkbox";
+import { FilterChip } from "#components/filter-chip";
 import { toggled } from "#lib/sets.ts";
 import { cn } from "cn";
 import { ChevronDownIcon } from "#icons";
-import type { ComponentProps } from "react";
 import type { LogRow } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
 import { ClearFilters } from "#components/clear-filters";
@@ -95,7 +96,7 @@ const UserEventFilter = ({
       : shown.length == 1
         ? eventLabel(only)
         : `${shown.length} of ${events.length}`;
-  const check = "size-3 cursor-pointer accent-primary";
+  const check = "size-3.5";
   const row = "flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-accent";
   return (
     <Popover>
@@ -118,14 +119,11 @@ const UserEventFilter = ({
         className="max-h-80 w-auto min-w-40 gap-0 overflow-auto p-1 font-mono text-xs"
       >
         <label className={cn(row, "border-b pb-1 font-sans font-medium")}>
-          <input
-            type="checkbox"
+          <Checkbox
             checked={all}
             // Some ticked: shown as a dash.
-            ref={(box) => {
-              if (box) box.indeterminate = !all && shown.length > 0;
-            }}
-            onChange={() => onChange(all ? new Set(events) : new Set())}
+            indeterminate={!all && shown.length > 0}
+            onCheckedChange={() => onChange(all ? new Set(events) : new Set())}
             className={check}
           />
           All
@@ -133,10 +131,9 @@ const UserEventFilter = ({
         <div role="group" aria-label="User events" className="pt-1">
           {events.map((event) => (
             <label key={event} className={cn(row, event == NONE && "text-muted-foreground")}>
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={!hidden.has(event)}
-                onChange={() => onChange(toggled(hidden, event))}
+                onCheckedChange={() => onChange(toggled(hidden, event))}
                 className={check}
               />
               {eventLabel(event)}
@@ -151,26 +148,6 @@ const UserEventFilter = ({
 /** Every annotation in the rows but the time stamp, which all have. */
 const annotationTypes = (rows: LogRow[]) =>
   [...new Set(rows.flatMap((row) => row.annotations))].filter((name) => name != "time").sort();
-
-/** A filter toggle. Passes other props on: a tooltip's trigger adds its own. */
-const FilterToggle = ({
-  pressed,
-  className,
-  ...props
-}: ComponentProps<"button"> & { pressed: boolean }) => (
-  <button
-    type="button"
-    aria-pressed={pressed}
-    {...props}
-    className={cn(
-      "h-5 cursor-pointer rounded px-1.5 font-mono text-xs disabled:cursor-default disabled:opacity-50",
-      pressed
-        ? "bg-primary text-primary-foreground"
-        : "bg-secondary text-muted-foreground enabled:hover:text-foreground",
-      className
-    )}
-  />
-);
 
 type FilterUpdate = (update: (filters: Filters) => Filters) => void;
 
@@ -210,13 +187,14 @@ export const FilterBar = ({
             key={flag}
             label={`${FLAG_TIPS[flag]}: ${filters.hidden.has(flag) ? "hidden, unless something else shown changed too" : "shown"}`}
           >
-            <FilterToggle
+            <FilterChip
+              className="font-mono"
               pressed={!filters.hidden.has(flag)}
               disabled={disabled}
-              onClick={() => onChange((f) => ({ ...f, hidden: toggled(f.hidden, flag) }))}
+              onPressedChange={() => onChange((f) => ({ ...f, hidden: toggled(f.hidden, flag) }))}
             >
               {flag}
-            </FilterToggle>
+            </FilterChip>
           </Tip>
         ))}
       </span>
@@ -228,14 +206,17 @@ export const FilterBar = ({
         >
           <span className={label(disabled)}>annotations:</span>
           {annotations.map((name) => (
-            <FilterToggle
+            <FilterChip
               key={name}
+              className="font-mono"
               disabled={disabled}
               pressed={filters.annotations.has(name)}
-              onClick={() => onChange((f) => ({ ...f, annotations: toggled(f.annotations, name) }))}
+              onPressedChange={() =>
+                onChange((f) => ({ ...f, annotations: toggled(f.annotations, name) }))
+              }
             >
               {name}
-            </FilterToggle>
+            </FilterChip>
           ))}
         </span>
       )}
@@ -260,11 +241,10 @@ export const SettingBox = ({
 }) => (
   <Tip label={<span className="block max-w-72">{tip}</span>}>
     <label className="flex cursor-pointer items-center gap-1 font-mono text-muted-foreground hover:text-foreground">
-      <input
-        type="checkbox"
+      <Checkbox
         checked={on}
-        onChange={(event) => void source.setSetting(setting, event.target.checked)}
-        className="size-3 cursor-pointer accent-primary"
+        onCheckedChange={(checked) => void source.setSetting(setting, checked)}
+        className="size-3.5"
       />
       {label}
     </label>

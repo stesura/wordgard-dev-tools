@@ -1,37 +1,11 @@
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "#components/ui/collapsible";
+import { FilterChip } from "#components/filter-chip";
 import { cn } from "cn";
 import { XMarkIcon } from "#icons";
 import type { ReactNode } from "react";
 import { Tip } from "#components/tip";
 import { GuidePopover } from "#components/guide-popover";
 import type { Guide } from "../../guides/guides.ts";
-
-/** A toggle in a row of filters. */
-export const Toggle = ({
-  pressed,
-  onClick,
-  className,
-  children,
-}: {
-  pressed: boolean;
-  onClick: () => void;
-  className?: string;
-  children: ReactNode;
-}) => (
-  <button
-    type="button"
-    aria-pressed={pressed}
-    onClick={onClick}
-    className={cn(
-      "h-5 cursor-pointer rounded px-1.5 text-xs",
-      pressed
-        ? "bg-primary text-primary-foreground"
-        : "bg-secondary text-muted-foreground hover:text-foreground",
-      className
-    )}
-  >
-    {children}
-  </button>
-);
 
 /** Clears a row of filters. */
 const Clear = ({ label, onClick }: { label: string; onClick: () => void }) => (
@@ -80,24 +54,21 @@ export const Heading = ({
     className="sticky top-0 z-10 flex min-h-7 flex-wrap items-center gap-1 border-b bg-strip px-2 py-1 font-sans"
   >
     <h3 className="font-semibold">
-      <button
-        type="button"
-        aria-expanded={open}
+      <CollapsibleTrigger
         aria-label={`${open ? "Collapse" : "Expand"} the ${title.toLowerCase()}`}
         className="cursor-pointer rounded hover:underline"
-        onClick={onToggleOpen}
       >
         {title}
-      </button>
+      </CollapsibleTrigger>
     </h3>
     <span className="text-muted-foreground">{count}</span>
     <span className="mr-1">
       <GuidePopover guide={guide} label={`About the ${title.toLowerCase()}`} align="start" />
     </span>
     {tags.map((tag) => (
-      <Toggle key={tag} pressed={pressed.has(tag)} onClick={() => onToggle(tag)}>
+      <FilterChip key={tag} pressed={pressed.has(tag)} onPressedChange={() => onToggle(tag)}>
         {tag}
-      </Toggle>
+      </FilterChip>
     ))}
     {pressed.size > 0 && (
       <Clear label={`Clear the ${title.toLowerCase()} filters`} onClick={onClear} />
@@ -118,7 +89,7 @@ export const count = (shown: number, all: number) =>
   shown == all ? String(all) : `${shown} of ${all}`;
 
 /**
- * A section: its bar (`actions` at its end), then its cards while open, or `empty` when none
+ * A collapsible section: its bar (`actions` at its end), then its cards while open, or `empty` when none
  * match. `last`: no line under it. The line above a bar is the section before's: the bar's own
  * would double the toolbar's, stuck under it.
  */
@@ -134,13 +105,15 @@ export const SchemaSection = ({
   last?: boolean;
   children: ReactNode;
 }) => (
-  <section data-list aria-label={heading.title}>
+  <Collapsible
+    open={heading.open}
+    onOpenChange={heading.onToggleOpen}
+    render={<section data-list aria-label={heading.title} />}
+  >
     <Heading {...heading}>{actions}</Heading>
-    {heading.open && (
-      <div className={cn("p-2", !last && "border-b")}>
-        {children}
-        {empty && <p className="font-sans text-muted-foreground">{empty}</p>}
-      </div>
-    )}
-  </section>
+    <CollapsibleContent className={cn("p-2", !last && "border-b")}>
+      {children}
+      {empty && <p className="font-sans text-muted-foreground">{empty}</p>}
+    </CollapsibleContent>
+  </Collapsible>
 );
