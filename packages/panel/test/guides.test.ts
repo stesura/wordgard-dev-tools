@@ -70,7 +70,7 @@ it("links Wordgard's reference inline, with no reference row", async () => {
   );
 });
 
-it("guides the selection bar, its Selection button without a tooltip", async () => {
+it("guides the selection bar", async () => {
   await setup();
   const bar = await until(() => byLabel("Selection"));
   const guide = await until(() =>

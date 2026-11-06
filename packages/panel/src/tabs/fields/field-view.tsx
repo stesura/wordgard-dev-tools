@@ -1,7 +1,7 @@
 import { IconButton } from "#components/icon-button";
 import { useStore } from "@nanostores/react";
 import { ClipboardDocumentIcon, CommandLineIcon, NoSymbolIcon } from "#icons";
-import { use, useState, type ReactNode } from "react";
+import { use, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -19,7 +19,13 @@ import { SplitPane, type Orientation, type SplitKind } from "#components/split-p
 import { HistoryItem, HistoryMenu, type HistoryTarget } from "./field-history.tsx";
 import type { Path } from "@stesura/wordgard-dev-tools";
 import { SetView } from "#components/set-view";
+import { cn } from "cn";
 import { readSet } from "#lib/set-value.ts";
+import { scrollInto } from "#lib/dom.ts";
+
+// Keyboard focus on the value: an outline, as on a Schema card.
+const valueFocus =
+  "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid";
 
 // Value | history, inside the field pane: laid out as the tab is (`wide` unused).
 const FIELD_SPLIT: SplitKind = {
@@ -46,7 +52,7 @@ const ValueMenu = ({
       <ContextMenuTrigger className="hidden">
         <span ref={setTrigger} />
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-52">
+      <ContextMenuContent className="w-52" finalFocus={() => opened.get()?.row ?? true}>
         <CopySelection text={target?.selection} />
         <ContextMenuItem onClick={onLog}>
           <CommandLineIcon /> Log to console
@@ -100,13 +106,19 @@ export const FieldView = ({
 }) => {
   // Per field: the pane stays mounted when another is selected.
   const [posError, setPosError] = useState<{ index: number; error: string | null } | null>(null);
+  // The change a menu opens on takes focus.
   const [menu] = useState(() =>
     createMenuAnchor<HistoryTarget>(
       "[data-seq]",
-      (row) => ({ seq: Number(row.getAttribute("data-seq")) }),
-      () => {}
+      (row) => ({
+        seq: Number(row.getAttribute("data-seq")),
+        log: row.hasAttribute("data-log") ? Number(row.getAttribute("data-log")) : null,
+      }),
+      (row) => row.focus({ preventScroll: true })
     )
   );
+  // The history's tab stop: the change focused last (per field), or the newest.
+  const [focused, setFocused] = useState<{ index: number; seq: number } | null>(null);
   const [valueMenu] = useState(() =>
     createMenuAnchor(
       "[data-field-value]",
@@ -118,9 +130,9 @@ export const FieldView = ({
   if (result.error != null) return <p className="p-2 text-destructive">{result.error}</p>;
   const { field } = result;
   const set = readSet(field.value);
+  const changes = field.history.toReversed();
   // Newest first, as shown; a change gone meanwhile is left out.
   const copyHistory = async () => {
-    const changes = field.history.toReversed();
     const values = await Promise.all(
       changes.map((change) => source.change(field.index, change.seq))
     );
@@ -131,6 +143,34 @@ export const FieldView = ({
         : [];
     });
     return json(copied);
+  };
+  const active =
+    focused?.index == field.index && changes.some((change) => change.seq == focused.seq)
+      ? focused.seq
+      : changes[0]?.seq;
+  // Up and Down (Home, End) move between the changes, from a change or a link in it.
+  const onHistoryKeyDown = (event: KeyboardEvent<HTMLOListElement>) => {
+    menu.onKeyDown(event);
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    const current = event.target instanceof Element ? event.target.closest("[data-seq]") : null;
+    const items = [...event.currentTarget.querySelectorAll("[data-seq]")];
+    const at = current ? items.indexOf(current) : -1;
+    const moves: Partial<Record<string, number>> = {
+      ArrowDown: at + 1,
+      ArrowUp: at - 1,
+      Home: 0,
+      End: items.length - 1,
+    };
+    const next = items[moves[event.key] ?? -1];
+    if (!(next instanceof HTMLElement)) return;
+    event.preventDefault();
+    next.focus({ preventScroll: true });
+    const scroller = event.currentTarget.parentElement;
+    if (scroller) scrollInto(scroller, next);
+  };
+  const onHistoryFocus = (event: FocusEvent<HTMLOListElement>) => {
+    const seq = event.target.closest("[data-seq]")?.getAttribute("data-seq");
+    if (seq != null) setFocused({ index: field.index, seq: Number(seq) });
   };
   const history = (
     <Part
@@ -160,14 +200,21 @@ export const FieldView = ({
       }
     >
       {field.history.length ? (
-        <ol aria-label="History" onContextMenu={menu.onContextMenu} onKeyDown={menu.onKeyDown}>
-          {[...field.history].reverse().map((change) => (
+        <ol
+          role="tree"
+          aria-label="History"
+          onContextMenu={menu.onContextMenu}
+          onKeyDown={onHistoryKeyDown}
+          onFocus={onHistoryFocus}
+        >
+          {changes.map((change) => (
             <HistoryItem
               key={change.seq}
               source={source}
               index={field.index}
               change={change}
               version={version}
+              active={change.seq == active}
               onLog={onLog}
               onShowNode={onShowNode}
             />
@@ -186,9 +233,10 @@ export const FieldView = ({
       </div>
       <SplitPane kind={FIELD_SPLIT} orientation={orientation} pane={history}>
         <Part title="Value">
-          <div onContextMenu={valueMenu.onContextMenu}>
+          <div onContextMenu={valueMenu.onContextMenu} onKeyDown={valueMenu.onKeyDown}>
+            {/* A stop of its own: its menu opens from the keyboard, and keys scroll it. */}
             {set ? (
-              <div data-field-value>
+              <div data-field-value tabIndex={0} className={valueFocus}>
                 <SetView
                   set={set}
                   onPos={(pos) =>
@@ -200,14 +248,14 @@ export const FieldView = ({
                 )}
               </div>
             ) : (
-              <pre data-field-value className="whitespace-pre-wrap">
+              <pre data-field-value tabIndex={0} className={cn("whitespace-pre-wrap", valueFocus)}>
                 {json(field.value)}
               </pre>
             )}
           </div>
         </Part>
       </SplitPane>
-      <HistoryMenu source={source} index={field.index} anchor={menu} />
+      <HistoryMenu source={source} index={field.index} anchor={menu} onLog={onLog} />
       <ValueMenu
         anchor={valueMenu}
         onLog={() => source.logValue(field.index)}

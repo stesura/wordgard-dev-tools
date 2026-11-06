@@ -23,13 +23,7 @@ export const SelectionBar = ({ store, editorId }: { store: PanelStore; editorId:
       aria-label="Selection"
     >
       <span className="flex items-center gap-0.5">
-        <button
-          type="button"
-          className="cursor-pointer font-sans font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid"
-          onClick={() => store.setTab("selection")}
-        >
-          Selection
-        </button>
+        <span className="font-sans font-medium">Selection</span>
         <GuidePopover guide={SELECTION_BAR} label="About the selection bar" align="start" />
       </span>
       {info ? (

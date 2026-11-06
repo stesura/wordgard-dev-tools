@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 import { Leaf } from "wordgard/doc";
 import { Wordgard } from "wordgard/editor";
 import { history } from "wordgard/history";
@@ -399,4 +400,227 @@ it("shows a set field's entries, links them to the Structure, and flags it unmap
   await until(
     () => shadow().querySelector("[data-path='0']")?.getAttribute("aria-selected") == "true"
   );
+});
+
+const list = () => shadow().querySelector<HTMLElement>("[aria-label='State fields']");
+const active = () => shadow().activeElement;
+const selectedField = () =>
+  list()?.querySelector("[aria-selected='true']")?.getAttribute("data-field");
+const historyTree = () => pane()?.querySelector<HTMLElement>("[role='tree'][aria-label='History']");
+const changes = () => [
+  ...(historyTree()?.querySelectorAll<HTMLElement>("[role='treeitem']") ?? []),
+];
+const spyLog = () => {
+  const logged: unknown[][] = [];
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args);
+  });
+  return logged;
+};
+// Down from the selected field (the list focused) until it's `name`'s.
+const selectByKeys = async (name: string) => {
+  for (let i = 0; i < 10 && selectedField() != name; i++) await userEvent.keyboard("{ArrowDown}");
+  expect(selectedField()).toBe(name);
+};
+const record = async () => {
+  (await until(() => tab("Log"))).click();
+  (await until(() => button("Record"))).click();
+  await until(() => button("Pause"));
+  (await until(() => tab("Fields"))).click();
+};
+
+it("moves through the fields with the keys, the selection following, and opens a field's menu", async () => {
+  const editor = await setup();
+  editor.dispatch({ effects: bump.of(4) });
+  await until(() => row("counter")?.textContent?.startsWith("counter41"));
+  const fields = await until(() => list());
+  const names = [...fields.querySelectorAll("[role='option']")].map((option) =>
+    option.getAttribute("data-field")
+  );
+  // One tab stop: the list, its options reached through aria-activedescendant.
+  expect(fields.tabIndex).toBe(0);
+  fields.focus();
+  // Nothing selected: Down goes to the first.
+  await userEvent.keyboard("{ArrowDown}");
+  expect(selectedField()).toBe(names[0]);
+  await userEvent.keyboard("{End}");
+  expect(selectedField()).toBe(names.at(-1));
+  await userEvent.keyboard("{ArrowDown}");
+  expect(selectedField()).toBe(names.at(-1));
+  await userEvent.keyboard("{Home}{ArrowUp}");
+  expect(selectedField()).toBe(names[0]);
+  await selectByKeys("counter");
+  expect(fields.getAttribute("aria-activedescendant")).toBe(row("counter")?.id);
+  await until(() => pane()?.textContent?.includes("namecounter"));
+
+  const logged = spyLog();
+  await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+  await until(() => item("Log to console"));
+  await userEvent.keyboard("{ArrowDown}{Enter}");
+  await until(() =>
+    logged.some((args) => args[0] == "[wordgard-devtools] counter" && args[1] == 4)
+  );
+  await until(() => !shadow().querySelector("[role='menu']"));
+  expect(active()).toBe(fields);
+  // The ContextMenu key too; Escape gives the list focus back.
+  await userEvent.keyboard("{ContextMenu}");
+  await until(() => item("Copy value"));
+  await userEvent.keyboard("{Escape}");
+  await until(() => !shadow().querySelector("[role='menu']"));
+  expect(active()).toBe(fields);
+});
+
+it("shows a field's transaction in the log from its menu, its link out of the tab order", async () => {
+  const editor = await setup();
+  await record();
+  editor.dispatch({ effects: bump.of(1) });
+  const link = await until(() => row("counter")?.querySelector<HTMLButtonElement>("button"));
+  expect(link.tabIndex).toBe(-1);
+  const fields = await until(() => list());
+  fields.focus();
+  await selectByKeys("counter");
+  await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+  (await until(() => item("Show #0 in Log"))).click();
+  await until(() => tab("Log")?.getAttribute("aria-selected") == "true");
+  await until(() =>
+    shadow().querySelector("[role='option'][aria-selected='true'][data-index='0']")
+  );
+});
+
+it("moves through the history with the keys, and logs a change from its menu", async () => {
+  const editor = await setup();
+  await record();
+  editor.dispatch({ effects: bump.of(3) });
+  editor.dispatch({ effects: bump.of(2) });
+  (await until(() => row("counter"))).click();
+  await until(() => changes().length == 2);
+  // One tab stop, the newest change; the toggles and links aren't stops.
+  expect(changes().map((change) => change.tabIndex)).toEqual([0, -1]);
+  expect(
+    [...(historyTree()?.querySelectorAll("button") ?? [])].every((b) => b.tabIndex == -1)
+  ).toBe(true);
+  const [newer, older] = changes();
+  if (!newer || !older) throw new Error("No changes");
+  newer.focus();
+  await userEvent.keyboard("{ArrowDown}");
+  expect(active()).toBe(older);
+  expect(changes().map((change) => change.tabIndex)).toEqual([-1, 0]);
+  await userEvent.keyboard("{Home}");
+  expect(active()).toBe(newer);
+  await userEvent.keyboard("{End}");
+  expect(active()).toBe(older);
+
+  // Right opens, then goes to the change's link; Left comes back, then closes.
+  expect(older.getAttribute("aria-expanded")).toBe("false");
+  await userEvent.keyboard("{ArrowRight}");
+  await until(() => older.querySelector("pre")?.textContent == "3");
+  expect(older.getAttribute("aria-expanded")).toBe("true");
+  await userEvent.keyboard("{ArrowRight}");
+  expect(active()?.textContent).toBe("#0");
+  // From the link, Up goes to the change above.
+  await userEvent.keyboard("{ArrowUp}");
+  expect(active()).toBe(newer);
+  older.focus();
+  await userEvent.keyboard("{ArrowRight}{ArrowLeft}");
+  expect(active()).toBe(older);
+  await userEvent.keyboard("{ArrowLeft}");
+  await until(() => !older.querySelector("pre"));
+  // Enter and Space toggle it.
+  await userEvent.keyboard("{Enter}");
+  await until(() => older.querySelector("pre"));
+  await userEvent.keyboard(" ");
+  await until(() => !older.querySelector("pre"));
+
+  const logged = spyLog();
+  await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+  await until(() => item("Log to console"));
+  expect(item("Show #0 in Log")).toBeDefined();
+  await userEvent.keyboard("{ArrowDown}{Enter}");
+  await until(() =>
+    logged.some(
+      (args) => args[0] == "[wordgard-devtools] counter, as set by transaction #0" && args[1] == 3
+    )
+  );
+  await until(() => !shadow().querySelector("[role='menu']"));
+  expect(active()).toBe(older);
+  // Tab leaves the history; Shift+Tab comes back to the change focused last.
+  await userEvent.keyboard("{Tab}");
+  expect(historyTree()?.contains(active())).toBe(false);
+  await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+  expect(active()).toBe(older);
+});
+
+it("logs the value from its menu by the keyboard", async () => {
+  const editor = await setup();
+  editor.dispatch({ effects: bump.of(4) });
+  (await until(() => row("counter"))).click();
+  const value = await until(() => {
+    const found = pane()?.querySelector<HTMLElement>("[data-field-value]");
+    return found?.textContent == "4" && found;
+  });
+  expect(value.tabIndex).toBe(0);
+  value.focus();
+  const logged = spyLog();
+  await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+  await until(() => item("Log to console"));
+  await userEvent.keyboard("{ArrowDown}{Enter}");
+  await until(() =>
+    logged.some((args) => args[0] == "[wordgard-devtools] counter" && args[1] == 4)
+  );
+  await until(() => !shadow().querySelector("[role='menu']"));
+  expect(active()).toBe(value);
+});
+
+it("gives the list focus when a clear disables the button it was on", async () => {
+  const editor = await setup();
+  editor.dispatch({ effects: bump.of(2) });
+  (await until(() => row("counter"))).click();
+  await until(() => changes().length == 1);
+  const clearOne = await until(() =>
+    pane()?.querySelector<HTMLButtonElement>(
+      '[aria-label="Clear this field\'s history"]:not(:disabled)'
+    )
+  );
+  clearOne.focus();
+  await userEvent.keyboard("{Enter}");
+  await until(() => pane()?.textContent?.includes("No changes seen."));
+  expect(active()).toBe(list());
+
+  editor.dispatch({ effects: bump.of(1) });
+  const clearAll = await until(() => {
+    const found = button("Clear all");
+    return found && !found.disabled && found;
+  });
+  clearAll.focus();
+  await userEvent.keyboard("{Enter}");
+  await until(() => clearAll.disabled);
+  expect(active()).toBe(list());
+});
+
+it("takes a set change's badge out of the tab order, reached by Right", async () => {
+  const editor = Wordgard.create({
+    parent: document.body,
+    doc: "<p>Hi</p>",
+    config: [basicSchema(), notes, wordgardDevtools({ name: "s", fields: { notes } })],
+  });
+  wg = editor;
+  localStorage.setItem(
+    "wordgard-devtools:dock",
+    JSON.stringify({ side: "bottom", size: 640, collapsed: false })
+  );
+  mounted = mountDevtools();
+  await mounted.ready;
+  (await until(() => tab("Fields"))).click();
+  (await until(() => row("notes"))).click();
+  await tracking();
+  editor.dispatch({ changes: { from: 1, insert: [Leaf.text("XY")] } });
+  const change = await until(() => changes()[0]);
+  const badge = await until(() => change.querySelector<HTMLElement>("[data-set-verdict]"));
+  expect(badge.tabIndex).toBe(-1);
+  change.focus();
+  // Opened, then the badge.
+  await userEvent.keyboard("{ArrowRight}{ArrowRight}");
+  expect(active()).toBe(badge);
+  await userEvent.keyboard("{ArrowLeft}");
+  expect(active()).toBe(change);
 });

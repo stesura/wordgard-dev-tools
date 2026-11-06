@@ -1,5 +1,6 @@
 import { ChevronDownIcon, ChevronUpIcon } from "#icons";
-import { useMemo, useState } from "react";
+import { type ComponentProps, useMemo, useState } from "react";
+import { cn } from "cn";
 import { Button } from "./ui/button.tsx";
 import { Tip } from "./tip.tsx";
 
@@ -41,16 +42,65 @@ export const useSearch = (find: Find, reveal: (id: string) => void) => {
 
 export type Search = ReturnType<typeof useSearch>;
 
-// In dark, a yellow tint strong enough to see drowns the text: a ring marks the match instead.
+// In dark, a yellow tint strong enough to see drowns the text: an outline marks the match instead.
+// The current match is outlined in light too (not by its tint alone, WCAG 1.4.1). Outlines, inset
+// (rows are flush), not rings: forced colours drop box shadows and draw outlines, even transparent
+// ones, in the text colour; there the others' is dashed.
 export const matchClass = (
   id: string,
   search: { all: ReadonlySet<string>; current: string | null }
 ) =>
   search.current == id
-    ? "bg-yellow-500/40 dark:bg-yellow-500/15 dark:ring-2 dark:ring-yellow-500"
+    ? "bg-yellow-500/40 outline-2 -outline-offset-2 outline-yellow-700 dark:bg-yellow-500/15 dark:outline-yellow-500"
     : search.all.has(id)
-      ? "bg-yellow-500/20 dark:bg-yellow-500/10 dark:ring-1 dark:ring-yellow-500/60"
+      ? "bg-yellow-500/20 outline-1 -outline-offset-2 outline-transparent forced-colors:outline-dashed dark:bg-yellow-500/10 dark:outline-yellow-500/60"
       : "";
+
+/** The toolbar holding a search box. */
+export const searchStrip = "flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs";
+
+// No ring: focus grows an underline from the centre, over the toolbar's border (as Fluent's input).
+const underline =
+  "relative flex min-w-0 flex-1 self-stretch after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:scale-x-0 after:bg-ring/70 after:transition-transform after:duration-200 after:ease-out focus-within:after:scale-x-100 motion-reduce:after:transition-none";
+
+/** Ctrl+F (Cmd+F) with focus anywhere in the input's tab panel goes to the input, not the browser's find. */
+const findShortcut = (input: HTMLInputElement | null) => {
+  const scope = input?.closest("[role='tabpanel']");
+  if (!input || !scope) return;
+  const onKeyDown = (event: Event) => {
+    if (
+      event instanceof KeyboardEvent &&
+      (event.ctrlKey || event.metaKey) &&
+      !event.altKey &&
+      !event.shiftKey &&
+      event.key.toLowerCase() == "f"
+    ) {
+      event.preventDefault();
+      input.focus();
+      input.select();
+    }
+  };
+  scope.addEventListener("keydown", onKeyDown);
+  return () => scope.removeEventListener("keydown", onKeyDown);
+};
+
+/**
+ * A toolbar's search input, without a ring: an underline on focus, and Ctrl+F in its tab focuses it.
+ * `className` is the wrapper's, the flex item in the toolbar.
+ */
+export const SearchInput = ({
+  className,
+  ...props
+}: Omit<ComponentProps<"input">, "type" | "ref" | "className"> & { className?: string }) => (
+  <span className={cn(underline, className)}>
+    <input
+      {...props}
+      ref={findShortcut}
+      type="search"
+      className="min-h-6 min-w-0 flex-1 bg-transparent outline-none"
+    />
+  </span>
+);
 
 /** The search input, its count and its previous/next buttons: Enter and Shift+Enter step, Escape clears. */
 export const SearchBox = ({
@@ -63,8 +113,7 @@ export const SearchBox = ({
   placeholder: string;
 }) => (
   <>
-    <input
-      type="search"
+    <SearchInput
       value={search.query}
       onChange={(event) => search.onQuery(event.target.value)}
       onKeyDown={(event) => {
@@ -75,7 +124,6 @@ export const SearchBox = ({
       }}
       aria-label={label}
       placeholder={placeholder}
-      className="h-6 min-w-0 flex-1 bg-transparent outline-none"
     />
     {search.query && (
       <span className="shrink-0 text-muted-foreground" aria-live="polite">

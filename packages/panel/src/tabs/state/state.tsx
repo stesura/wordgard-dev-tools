@@ -6,24 +6,23 @@ import { LoadError } from "#components/load-error";
 import { fire } from "../../transport.ts";
 import { useStore } from "@nanostores/react";
 import { cn } from "cn";
-import { ArrowDownTrayIcon, ArrowUpTrayIcon, CodeBracketIcon, CommandLineIcon } from "#icons";
+import {
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
+  CodeBracketIcon,
+  CommandLineIcon,
+  XMarkIcon,
+} from "#icons";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Path } from "@stesura/wordgard-dev-tools";
 import { CopyButton } from "#components/copy-button";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
-import { SearchBox, matchClass, useSearch } from "#components/search-box";
+import { SearchBox, searchStrip, matchClass, useSearch } from "#components/search-box";
 import { centreRow } from "#lib/dom.ts";
 import { createStateSource } from "./state-source.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { keepRowInView, useRows } from "#hooks/use-rows.ts";
-import {
-  CLOSING_MS,
-  type Notice,
-  SHOWN_MS,
-  download,
-  fileName,
-  replaceFrom,
-} from "./state-file.ts";
+import { CLOSING_MS, type Notice, download, fileName, replaceFrom } from "./state-file.ts";
 import { type Line, ROOT, childOf, containers, flatten, keysOf, search } from "./json-lines.ts";
 import { copy } from "#lib/clipboard.ts";
 import { selectedText } from "#lib/selected-text.ts";
@@ -37,17 +36,20 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
   // The state is an object: null until the first load.
   const loaded = json != null;
 
-  // The outcome of a replace: shown for 5 s, then closed. Timers, not transitionend: it doesn't
-  // fire with reduced motion.
+  // The outcome of a replace: shown until closed, replaced, or the tab or editor changes. Its close
+  // eases out on a timer, not transitionend: that doesn't fire with reduced motion.
   const [notice, setNotice] = useState<Notice | null>(null);
-  const noticeTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const closingTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const notify = (next: Notice) => {
-    for (const timer of noticeTimers.current) clearTimeout(timer);
+    clearTimeout(closingTimer.current);
     setNotice(next);
-    noticeTimers.current = [
-      setTimeout(() => setNotice((shown) => shown && { ...shown, closing: true }), SHOWN_MS),
-      setTimeout(() => setNotice(null), SHOWN_MS + CLOSING_MS),
-    ];
+  };
+  // Focus goes to the tree: the button it was on goes.
+  const closeNotice = () => {
+    clearTimeout(closingTimer.current);
+    setNotice((shown) => shown && { ...shown, closing: true });
+    closingTimer.current = setTimeout(() => setNotice(null), CLOSING_MS);
+    scrollElement?.focus();
   };
   const editorName = () =>
     store.state.get().editors.find((editor) => editor.id == editorId)?.name ?? "editor";
@@ -107,7 +109,12 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
         editorId,
         on: "state",
         load: () => void source.load(),
-        onHide: outline.hide,
+        // The tabs stay mounted: the banner would wait for the tab's return.
+        onHide: () => {
+          outline.hide();
+          clearTimeout(closingTimer.current);
+          setNotice(null);
+        },
       });
       // The outline follows a path: after an edit it could be another node's.
       const stopDoc = store.on("doc", (id) => {
@@ -115,6 +122,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
       });
       return () => {
         outline.hide();
+        clearTimeout(closingTimer.current);
         stop();
         stopDoc();
       };
@@ -207,7 +215,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <LoadError what="the state" error={error} onRetry={() => void source.load()} />
-      <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
+      <div className={searchStrip}>
         <SearchBox
           search={searching}
           label="Search the state"
@@ -272,17 +280,23 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
           )}
         >
           <div className="min-h-0 overflow-hidden">
-            <p
-              role={notice.ok ? "status" : "alert"}
+            {/* The button outside the live region: announced, it would read "Close the message". The
+              ghost button takes the tint's text colour. */}
+            <div
               className={cn(
-                "flex items-center gap-2 border-b px-2 py-1 text-xs",
+                "flex items-center gap-2 border-b py-0.5 pr-1 pl-2 text-xs",
                 notice.ok
                   ? "bg-green-500/15 text-green-800 dark:text-green-300"
                   : "bg-destructive/10 text-destructive"
               )}
             >
-              {notice.text}
-            </p>
+              <p role={notice.ok ? "status" : "alert"} className="min-w-0 flex-1">
+                {notice.text}
+              </p>
+              <IconButton label="Close the message" onClick={closeNotice}>
+                <XMarkIcon />
+              </IconButton>
+            </div>
           </div>
         </div>
       )}

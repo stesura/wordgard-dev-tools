@@ -103,8 +103,12 @@ it("logs the editor to the console", async () => {
 
 it("clears the selection and its outline", async () => {
   await setup();
+  // In the DOM tab's panel: the Structure has a button of the same name.
   const clear = await until(() =>
-    shadow().querySelector<HTMLButtonElement>("[aria-label='Clear the selection']")
+    shadow()
+      .querySelector("[aria-label='DOM']")
+      ?.closest("[role='tabpanel']")
+      ?.querySelector<HTMLButtonElement>("[aria-label='Clear the selection']")
   );
   expect(clear.disabled).toBe(true);
   await userEvent.click(await until(() => line("1")));
@@ -112,6 +116,12 @@ it("clears the selection and its outline", async () => {
   clear.click();
   await until(() => !overlay());
   expect(line("1")?.getAttribute("aria-selected")).not.toBe("true");
+  expect(clear.disabled).toBe(true);
+  // Escape in the tree too.
+  await userEvent.click(await until(() => line("1")));
+  await until(() => overlay()?.textContent == "p");
+  await userEvent.keyboard("{Escape}");
+  await until(() => !overlay());
   expect(clear.disabled).toBe(true);
 });
 
@@ -131,7 +141,7 @@ it("searches text, tags and node names, opening and outlining the match", async 
   await userEvent.keyboard("title");
   await until(() => line("0.0")?.className.includes("bg-yellow-500/40"));
   await until(() => overlay()?.textContent == "text");
-  expect(input.parentElement?.textContent).toContain("1/1");
+  expect(input.closest("div")?.textContent).toContain("1/1");
   await userEvent.clear(input);
   await userEvent.keyboard("paragraph");
   await until(() => line("1")?.className.includes("bg-yellow-500/40"));

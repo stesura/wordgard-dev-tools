@@ -60,8 +60,15 @@ const redrawn = (changed: SetVerdict["changed"]) =>
       ? `The editor sees ${changed.count} change${changed.count == 1 ? "" : "s"}.`
       : "Nothing for the editor to redraw.";
 
-/** How a set changed: same, kept while it moved (amber), updated, recreated. */
-export const SetVerdictBadge = ({ verdict: v }: { verdict: SetVerdict }) => {
+/** How a set changed: same, kept while it moved (amber), updated, recreated. `tabIndex`: -1 inside a
+ * composite that moves focus to it by arrows. */
+export const SetVerdictBadge = ({
+  verdict: v,
+  tabIndex = 0,
+}: {
+  verdict: SetVerdict;
+  tabIndex?: number;
+}) => {
   const text =
     v.verdict == "same"
       ? "same set"
@@ -81,7 +88,7 @@ export const SetVerdictBadge = ({ verdict: v }: { verdict: SetVerdict }) => {
       }
     >
       <Tag
-        tabIndex={0}
+        tabIndex={tabIndex}
         data-set-verdict={v.verdict}
         className={cn(
           "shrink-0",
@@ -98,10 +105,12 @@ const Entries = ({
   title,
   entries,
   onPath,
+  tabIndex,
 }: {
   title: string;
   entries: SetEntry[];
   onPath?: (path: Path) => void;
+  tabIndex?: number;
 }) =>
   entries.length ? (
     <div className="mb-2">
@@ -112,6 +121,7 @@ const Entries = ({
             {onPath && entry.path ? (
               <button
                 type="button"
+                tabIndex={tabIndex}
                 className={cn("shrink-0", linkClass)}
                 onClick={() => entry.path && onPath(entry.path)}
               >
@@ -127,16 +137,19 @@ const Entries = ({
     </div>
   ) : null;
 
-/** What a change to a set added and dropped; a dropped entry's position is in the old document. */
+/** What a change to a set added and dropped; a dropped entry's position is in the old document.
+ * `tabIndex`: its links', as the badge's. */
 export const SetChange = ({
   detail,
   onPath,
+  tabIndex,
 }: {
   detail: SetChangeDetail;
   onPath?: (path: Path) => void;
+  tabIndex?: number;
 }) => (
   <div className="mb-2">
-    <Entries title="Added" entries={detail.addedEntries} onPath={onPath} />
+    <Entries title="Added" entries={detail.addedEntries} onPath={onPath} tabIndex={tabIndex} />
     <Entries title="Dropped" entries={detail.droppedEntries} />
   </div>
 );

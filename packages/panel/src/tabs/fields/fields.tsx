@@ -10,6 +10,7 @@ import { Button } from "#components/ui/button";
 import { createFieldsSource } from "./fields-source.ts";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
 import { errorMessage } from "#lib/json.ts";
+import { scrollInto } from "#lib/dom.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { SplitPane, type Orientation, type SplitKind } from "#components/split-pane";
 import { Tip } from "#components/tip";
@@ -63,7 +64,10 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
   const [menu] = useState(() =>
     createMenuAnchor<MenuTarget>(
       "[data-field-index]",
-      (row) => ({ index: Number(row.getAttribute("data-field-index")) }),
+      (row) => ({
+        index: Number(row.getAttribute("data-field-index")),
+        log: row.hasAttribute("data-log") ? Number(row.getAttribute("data-log")) : null,
+      }),
       (_, target) => setSelected(target.index)
     )
   );
@@ -115,16 +119,34 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
   );
 
   const fields = info?.fields ?? [];
-  const onKeyDown = (event: KeyboardEvent) => {
+  // Selection follows the keys; nothing selected, Down goes to the first.
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     menu.onKeyDown(event);
-    if (event.defaultPrevented) return;
-    const step: Record<string, number> = { ArrowDown: 1, ArrowUp: -1 };
-    if (!(event.key in step) || !fields.length) return;
-    event.preventDefault();
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
     const position = fields.findIndex((f) => f.index == selected);
-    const next =
-      fields[Math.max(0, Math.min(fields.length - 1, position + (step[event.key] ?? 0)))];
-    if (next) setSelected(next.index);
+    const moves: Partial<Record<string, number>> = {
+      ArrowDown: position + 1,
+      ArrowUp: Math.max(0, position - 1),
+      Home: 0,
+      End: fields.length - 1,
+    };
+    const next = fields[Math.min(fields.length - 1, moves[event.key] ?? -1)];
+    if (!next) return;
+    event.preventDefault();
+    setSelected(next.index);
+    const option = event.currentTarget.querySelector(`#field-${next.index}`);
+    const header = event.currentTarget.querySelector("[data-header]");
+    if (option)
+      scrollInto(
+        event.currentTarget,
+        option,
+        header instanceof HTMLElement ? header.offsetHeight : 0
+      );
+  };
+  // Focus goes to the list: the button it was on is disabled once the history is gone.
+  const clearFrom = (index?: number) => {
+    list?.focus({ preventScroll: true });
+    void clearHistory(index);
   };
 
   // The field's next detail (a new version) has the history gone, and the list its count.
@@ -146,7 +168,7 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
             index={shownIndex}
             version={version}
             onLog={onLog}
-            onClearHistory={(index) => void clearHistory(index)}
+            onClearHistory={clearFrom}
             onShowNode={(path) => store.showNode(editorId, path)}
             onShowPos={showPos}
             orientation={orientation}
@@ -164,7 +186,7 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
           variant="ghost"
           size="xs"
           disabled={!fields.some((field) => field.changes > 0)}
-          onClick={() => void clearHistory()}
+          onClick={() => clearFrom()}
         >
           <NoSymbolIcon /> Clear all
         </Button>
@@ -178,7 +200,7 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
           aria-activedescendant={selected == null ? undefined : `field-${selected}`}
           onKeyDown={onKeyDown}
           onContextMenu={menu.onContextMenu}
-          className="min-h-0 min-w-0 flex-1 overflow-auto font-mono text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="group/list min-h-0 min-w-0 flex-1 overflow-auto font-mono text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset"
         >
           {info && !fields.length && (
             <p className="p-2 font-sans text-muted-foreground">No state fields found.</p>
@@ -186,6 +208,7 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
           {fields.length > 0 && (
             <div
               aria-hidden="true"
+              data-header
               className={cn(
                 COLUMNS,
                 "sticky top-0 z-10 border-b bg-background px-3 py-1 font-sans text-muted-foreground"
@@ -205,11 +228,14 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
               aria-selected={field.index == selected}
               data-field={field.name}
               data-field-index={field.index}
+              data-log={field.last?.log ?? undefined}
               onClick={() => setSelected(field.index)}
               className={cn(
                 COLUMNS,
                 "mx-1.5 mt-1.5 cursor-default rounded-md border px-1.5 py-1.5 whitespace-nowrap",
-                field.index == selected && "border-ring bg-accent"
+                // Selected: the border; focused by keyboard, an outline too (forced colours: styles.css).
+                field.index == selected &&
+                  "border-ring bg-accent group-focus-visible/list:outline-2 group-focus-visible/list:outline-offset-2 group-focus-visible/list:outline-ring group-focus-visible/list:outline-solid"
               )}
             >
               <span className="min-w-0">
@@ -234,7 +260,7 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
           ))}
         </div>
       </SplitPane>
-      <FieldMenu source={source} anchor={menu} list={list} />
+      <FieldMenu source={source} anchor={menu} list={list} onLog={onLog} />
     </div>
   );
 };

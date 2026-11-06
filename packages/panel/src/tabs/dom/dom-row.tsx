@@ -4,7 +4,8 @@ import { Tag } from "#components/ui/badge";
 import { hue, typeColour } from "#lib/colours.ts";
 import type { Line } from "./dom-lines.ts";
 
-export const ROW = 20;
+// The chevron's target is 24 × 24 (WCAG 2.5.8): the row is its height.
+export const ROW = 24;
 const INDENT = 14;
 
 export const Row = ({
@@ -33,21 +34,28 @@ export const Row = ({
       data-dom={line.id}
       className={cn(
         "absolute inset-x-0 top-0 flex cursor-default items-center gap-1 pr-2 font-mono text-xs whitespace-nowrap ring-inset",
-        match || (focused && "bg-accent")
+        match || (focused && "bg-accent"),
+        // The selection: a bar (bg-accent alone is 1.1:1), wider under a match's inset outline.
+        focused &&
+          (match
+            ? "shadow-[inset_5px_0_0_var(--color-ring)]"
+            : "shadow-[inset_3px_0_0_var(--color-ring)]")
       )}
       style={{
         height: ROW,
         transform: `translateY(${start}px)`,
-        paddingLeft: line.depth * INDENT + 4,
+        paddingLeft: line.depth * INDENT,
       }}
     >
-      <span className="flex w-3 shrink-0 justify-center text-muted-foreground [&_svg]:size-3">
+      {/* The target, empty on a leaf (for the alignment); -mr-1 takes back the row's gap: the
+          icon, centred, already stands 6px off the text. */}
+      <span className="-mr-1 flex size-6 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-3">
         {folder && (
           <button
             type="button"
             tabIndex={-1}
             aria-label={line.collapsed ? "Expand" : "Collapse"}
-            className="cursor-pointer"
+            className="flex size-6 cursor-pointer items-center justify-center"
             onClick={(event) => {
               event.stopPropagation();
               onToggle(line.id);

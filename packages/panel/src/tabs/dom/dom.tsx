@@ -7,7 +7,7 @@ import { CommandLineIcon, NoSymbolIcon } from "#icons";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Path, ViewNode } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
-import { SearchBox, matchClass, useSearch } from "#components/search-box";
+import { SearchBox, searchStrip, matchClass, useSearch } from "#components/search-box";
 import { centreRow } from "#lib/dom.ts";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
@@ -128,10 +128,21 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
     )
   );
 
-  // As in a tree: Right opens a closed element or goes to its first child; Left closes or goes to the parent.
+  const clear = () => {
+    setFocused(null);
+    hide();
+  };
+
+  // As in a tree: Right opens a closed element or goes to its first child; Left closes or goes to
+  // the parent. Escape clears.
   const onKeyDown = (event: KeyboardEvent) => {
     menu.onKeyDown(event);
     if (event.defaultPrevented) return;
+    if (event.key == "Escape" && focused != null) {
+      event.preventDefault();
+      clear();
+      return;
+    }
     const position = lines.findIndex((line) => line.id == focused);
     const line = lines[position];
     const moves: Partial<Record<string, number>> = {
@@ -163,7 +174,7 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
     <div className="flex min-h-0 flex-1 flex-col">
       <LoadError what="the DOM" error={error} onRetry={() => void source.load()} />
       {info && <Status status={info.status} />}
-      <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
+      <div className={searchStrip}>
         <SearchBox
           search={searching}
           label="Search the DOM"
@@ -177,10 +188,7 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
               size="icon-xs"
               aria-label="Clear the selection"
               disabled={focused == null}
-              onClick={() => {
-                setFocused(null);
-                hide();
-              }}
+              onClick={clear}
             >
               <NoSymbolIcon />
             </Button>

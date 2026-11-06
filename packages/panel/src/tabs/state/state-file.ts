@@ -20,7 +20,6 @@ export const download = (json: unknown, name: string) => {
 export type Notice = { ok: boolean; text: string; closing?: boolean };
 
 // The banner's close: its height eases to nothing, then it unmounts.
-export const SHOWN_MS = 5000;
 export const CLOSING_MS = 300;
 
 // Outside the component: the React Compiler can't compile conditionals inside a try/catch yet.

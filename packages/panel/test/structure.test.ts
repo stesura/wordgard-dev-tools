@@ -180,16 +180,16 @@ it("searches text, names and params, and steps through the matches", async () =>
   await userEvent.click(input);
   await userEvent.keyboard("bol");
   await until(() => box("1.1")?.className.includes("bg-yellow-500/40"));
-  expect(input.parentElement?.textContent).toContain("1/1");
+  expect(input.closest("div")?.textContent).toContain("1/1");
   await until(() => pane()?.textContent?.includes('text"bold"'));
   await userEvent.clear(input);
   await userEvent.keyboard("paragraph");
-  await until(() => input.parentElement?.textContent?.includes("1/2"));
+  await until(() => input.closest("div")?.textContent?.includes("1/2"));
   await userEvent.keyboard("{Enter}");
-  await until(() => input.parentElement?.textContent?.includes("2/2"));
+  await until(() => input.closest("div")?.textContent?.includes("2/2"));
   expect(box("2")?.firstElementChild?.className).toContain("bg-yellow-500/40");
   await userEvent.keyboard("{Shift>}{Enter}{/Shift}");
-  await until(() => input.parentElement?.textContent?.includes("1/2"));
+  await until(() => input.closest("div")?.textContent?.includes("1/2"));
 });
 
 it("walks the boxes with the arrow keys", async () => {

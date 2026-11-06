@@ -35,7 +35,8 @@ export const Timeline = ({
         </span>
       )}
       <div
-        className="relative flex h-full items-end gap-px overflow-hidden"
+        // Clip, not hidden: its margin lets the selected bar's marker show below, in the padding.
+        className="relative flex h-full items-end gap-px overflow-clip [overflow-clip-margin:4px]"
         onClick={(event) => {
           const index = barOf(event.target);
           if (index != null) onSelect(index);
@@ -52,12 +53,21 @@ export const Timeline = ({
             key={row.index}
             data-bar={row.index}
             className={cn(
-              "max-w-2 min-w-px flex-1 cursor-pointer rounded-t-sm",
+              // Forced colours paint backgrounds Canvas, but not a system colour.
+              "relative max-w-2 min-w-px flex-1 cursor-pointer rounded-t-sm forced-colors:bg-[CanvasText]",
               isSlow(row) ? "bg-destructive" : "bg-primary/60",
-              selected == row.index && "bg-foreground"
+              selected == row.index && "bg-foreground forced-colors:bg-[Highlight]"
             )}
             style={{ height: `${barHeight((row.dispatchMs ?? 0) + (row.flushMs ?? 0))}%` }}
-          />
+          >
+            {/* Not by its shade alone (WCAG 1.4.1). A border: forced colours keep it. */}
+            {selected == row.index && (
+              <span
+                data-selected-marker
+                className="pointer-events-none absolute top-full left-1/2 mt-px w-3 -translate-x-1/2 border-t-2 border-foreground"
+              />
+            )}
+          </div>
         ))}
       </div>
     </div>

@@ -187,6 +187,38 @@ it("tabs from the tab bar straight to the State's search, not the tab panel", as
   expect(shadow().activeElement?.getAttribute("aria-label")).toBe("Search the state");
 });
 
+it("goes to the State's search on Ctrl+F from within its tab, selecting the query", async () => {
+  await setup();
+  const input = await until(() =>
+    shadow().querySelector<HTMLInputElement>("[aria-label='Search the state']")
+  );
+  await userEvent.click(input);
+  await userEvent.keyboard("doc");
+  await userEvent.click(await until(() => line("$/doc/type")));
+  expect(shadow().activeElement?.getAttribute("aria-label")).toBe("State");
+  const find = new KeyboardEvent("keydown", {
+    key: "f",
+    ctrlKey: true,
+    bubbles: true,
+    cancelable: true,
+  });
+  shadow().activeElement?.dispatchEvent(find);
+  expect(find.defaultPrevented).toBe(true);
+  expect(shadow().activeElement).toBe(input);
+  expect([input.selectionStart, input.selectionEnd]).toEqual([0, 3]);
+  // Outside the tab panel (the tab bar), the browser's own find.
+  const tabBar = await until(() => tab("State"));
+  tabBar.focus();
+  const outside = new KeyboardEvent("keydown", {
+    key: "f",
+    ctrlKey: true,
+    bubbles: true,
+    cancelable: true,
+  });
+  tabBar.dispatchEvent(outside);
+  expect(outside.defaultPrevented).toBe(false);
+});
+
 it("offers highlighting for nodes only, and logs and copies any value", async () => {
   const editor = await setup();
   const copied: string[] = [];
@@ -303,7 +335,7 @@ it("searches keys and values, opening what holds the match", async () => {
     line("$/doc/content/0/content/0/param")?.className.includes("bg-yellow-500/40")
   );
   expect(line("$/doc/content/0/content/0/param")?.getAttribute("aria-selected")).toBe("true");
-  expect(input.parentElement?.textContent).toMatch(/1\/\d/);
+  expect(input.closest("div")?.textContent).toMatch(/1\/\d/);
   await userEvent.clear(input);
   await userEvent.keyboard("selection");
   // A key.
@@ -343,7 +375,10 @@ it("downloads the state as a JSON file", async () => {
   expect(JSON.parse(await (blobs[0] ?? new Blob()).text()).doc).toEqual(editor.state.doc.toJSON());
 });
 
-it("replaces the state from a file, with a banner that goes after 5 s", async () => {
+const closeButton = () => button("Close the message");
+const broken = () => new File(["{not json"], "broken.json");
+
+it("replaces the state from a file, with a banner that stays until closed", async () => {
   const editor = await setup();
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   try {
@@ -354,27 +389,99 @@ it("replaces the state from a file, with a banner that goes after 5 s", async ()
     pick(new File([JSON.stringify({ doc, selection: { type: "text", anchor: 1 } })], "state.json"));
     await vi.waitUntil(() => banner()?.getAttribute("role") == "status");
     expect(banner()?.textContent).toContain("State replaced from state.json");
-    expect(banner()?.className).toContain("green");
+    expect(banner()?.parentElement?.className).toContain("green");
     expect(editor.state.doc.textContent()).toBe("Replaced");
-    vi.advanceTimersByTime(5000);
-    // Closing: its height eases to nothing, then it goes.
-    const closing = await vi.waitUntil(() => banner()?.closest<HTMLElement>("[data-closing]"));
-    expect(getComputedStyle(closing).transitionProperty).toContain("grid-template-rows");
-    await vi.waitUntil(() => closing.getBoundingClientRect().height < 1, { timeout: 1000 });
-    vi.advanceTimersByTime(300);
-    await vi.waitUntil(() => !banner());
+    // No timer closes it.
+    vi.advanceTimersByTime(60_000);
+    expect(banner()).not.toBeNull();
+    expect(banner()?.closest("[data-closing]")).toBeNull();
   } finally {
     vi.useRealTimers();
   }
+  // The button is outside the live region: announced, it would be read out.
+  expect(banner()?.querySelector("button")).toBeNull();
+  await userEvent.click(await until(() => closeButton()));
+  // Closing: its height eases to nothing, then it goes; focus goes to the tree.
+  const closing = await until(() => banner()?.closest<HTMLElement>("[data-closing]"));
+  expect(getComputedStyle(closing).transitionProperty).toContain("grid-template-rows");
+  expect(shadow().activeElement?.getAttribute("aria-label")).toBe("State");
+  await until(() => !banner());
+  expect(shadow().activeElement?.getAttribute("aria-label")).toBe("State");
+});
+
+it("replaces a banner with the next one", async () => {
+  await setup();
+  pick(broken());
+  await until(() => banner()?.textContent?.includes("broken.json isn't JSON"));
+  pick(new File(["[1"], "other.json"));
+  await until(() => banner()?.textContent?.includes("other.json isn't JSON"));
+  expect(panelOf()?.querySelectorAll("p[role='alert']")).toHaveLength(1);
+});
+
+it("closes the banner when the tab is hidden", async () => {
+  await setup();
+  pick(broken());
+  await until(() => banner());
+  (await until(() => tab("Structure"))).click();
+  // The tab stays mounted, hidden: the banner goes as it hides.
+  await until(() => !banner());
+  (await until(() => tab("State"))).click();
+  await until(() => line("$/doc/type"));
+  expect(banner()).toBeNull();
+});
+
+it("closes the banner when the editor changes", async () => {
+  await setup();
+  const second = Wordgard.create({
+    parent: document.body,
+    doc: "<p>Second</p>",
+    config: [basicSchema(), wordgardDevtools({ name: "second" })],
+  });
+  try {
+    pick(broken());
+    await until(() => banner());
+    const choose = async (second: boolean) => {
+      (await until(() => shadow().querySelector<HTMLElement>("[aria-label='Editor']"))).click();
+      (
+        await until(() =>
+          [...shadow().querySelectorAll<HTMLElement>("[role='option']")].find(
+            (option) => Boolean(option.textContent?.includes("second")) == second
+          )
+        )
+      ).click();
+    };
+    await choose(true);
+    await until(() => line("$/doc/content/0/content/0/param")?.textContent?.includes("Second"));
+    expect(banner()).toBeNull();
+    await choose(false);
+    await until(() => line("$/doc/content/0/content/0/param")?.textContent?.includes("Hi"));
+    expect(banner()).toBeNull();
+  } finally {
+    second.dom.remove();
+  }
+});
+
+it("closes the banner when the panel closes", async () => {
+  await setup();
+  pick(broken());
+  await until(() => banner());
+  (await until(() => shadow().querySelector<HTMLElement>("[aria-label='Close']"))).click();
+  (
+    await until(() => shadow().querySelector<HTMLElement>("[aria-label='Open Wordgard DevTools']"))
+  ).click();
+  // Back on the State tab, the banner gone.
+  await until(() => line("$/doc/type"));
+  expect(banner()).toBeNull();
 });
 
 it("refuses a file that isn't a state of the schema, with a red banner", async () => {
   const editor = await setup();
   const before = editor.state.doc;
   vi.spyOn(console, "error").mockImplementation(() => {});
-  pick(new File(["{not json"], "broken.json"));
+  pick(broken());
   await until(() => banner()?.textContent?.includes("broken.json isn't JSON"));
   expect(banner()?.getAttribute("role")).toBe("alert");
+  expect(banner()?.parentElement?.className).toContain("destructive");
   const doc = {
     type: "Doc",
     content: [{ type: "Paragraph", content: [{ type: "Paragraph", content: [] }] }],
@@ -415,4 +522,28 @@ it("scrolls a search match far down the list into view", async () => {
     return shown.top >= view.top - 0.5 && shown.bottom <= view.bottom + 0.5;
   });
   expect(tree.scrollTop).toBeGreaterThan(0);
+});
+
+it("outlines the current search match, not only by a stronger tint", async () => {
+  await setup();
+  const input = await until(() =>
+    shadow().querySelector<HTMLInputElement>("[aria-label='Search the state']")
+  );
+  await userEvent.click(input);
+  await userEvent.keyboard("type");
+  const lines = () => [
+    ...shadow().querySelectorAll<HTMLElement>("[aria-label='State'] [data-line]"),
+  ];
+  const current = await until(() => lines().find((l) => l.className.includes("bg-yellow-500/40")));
+  const others = lines().filter((l) => l.className.includes("bg-yellow-500/20"));
+  expect(others.length).toBeGreaterThan(0);
+  const outline = getComputedStyle(current);
+  expect([outline.outlineStyle, outline.outlineWidth, outline.outlineOffset]).toEqual([
+    "solid",
+    "2px",
+    "-2px",
+  ]);
+  expect(outline.outlineColor).not.toBe("rgba(0, 0, 0, 0)");
+  // Others: an outline only forced colours draw.
+  for (const other of others) expect(getComputedStyle(other).outlineColor).toBe("rgba(0, 0, 0, 0)");
 });

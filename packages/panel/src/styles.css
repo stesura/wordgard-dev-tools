@@ -70,7 +70,9 @@
   --success: oklch(0.55 0.15 150);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Primary, not shadcn's grey 0.708 (2.6:1 on background). Set in each theme: a var() in only
+     one would resolve where it's declared, to that theme's primary. */
+  --ring: var(--primary);
 }
 
 .dark {
@@ -93,7 +95,7 @@
   --success: oklch(0.78 0.17 150);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: var(--primary);
 }
 
 @layer base {
@@ -130,5 +132,30 @@
       scrollbar-width: thin;
       scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent;
     }
+  }
+}
+
+/* Forced colours (Windows High Contrast) drop box shadows (the rings) and backgrounds (selection,
+   pressed chips): outlines and system colours in their place. Unlayered, so they beat the
+   utilities' outline-none. Selection and pressed states (:where, no specificity) come before focus,
+   which wins where both apply. */
+@media (forced-colors: active) {
+  :where(
+    [role="treeitem"][aria-selected="true"],
+    [role="option"][aria-selected="true"],
+    [role="tab"][aria-selected="true"]
+  ) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  /* Not adjusted: forced, the text would keep its own colour on Highlight (and vanish). */
+  :where([aria-pressed="true"], [data-pressed]) {
+    forced-color-adjust: none;
+    background-color: Highlight;
+    color: HighlightText;
+  }
+  :focus-visible {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
   }
 }

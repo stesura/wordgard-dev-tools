@@ -1,5 +1,5 @@
 import { useStore } from "@nanostores/react";
-import { ClipboardDocumentIcon, CommandLineIcon } from "#icons";
+import { ArrowUpRightIcon, ClipboardDocumentIcon, CommandLineIcon } from "#icons";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -12,17 +12,20 @@ import { copy } from "#lib/clipboard.ts";
 import type { MenuAnchor } from "#lib/menu-anchor.ts";
 import { json } from "#lib/json.ts";
 
-export type MenuTarget = { index: number };
+/** `log`: its last change's transaction in the log. */
+export type MenuTarget = { index: number; log: number | null };
 
 /** A field's context menu. */
 export const FieldMenu = ({
   source,
   anchor,
   list,
+  onLog,
 }: {
   source: FieldsSource;
   anchor: MenuAnchor<MenuTarget>;
   list: HTMLElement | null;
+  onLog: (index: number) => void;
 }) => {
   const { target: opened, setTrigger } = anchor;
   const target = useStore(opened);
@@ -44,6 +47,11 @@ export const FieldMenu = ({
         <ContextMenuItem onClick={() => index != null && void copyValue(index)}>
           <ClipboardDocumentIcon /> Copy value
         </ContextMenuItem>
+        {target?.log != null && (
+          <ContextMenuItem onClick={() => target.log != null && onLog(target.log)}>
+            <ArrowUpRightIcon /> Show #{target.log} in Log
+          </ContextMenuItem>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   );
