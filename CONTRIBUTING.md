@@ -63,7 +63,7 @@ Add or update tests for what you change. In the panel:
 ## The panel's layout
 
 `packages/panel/src`, layered; `npm run dependency-check` enforces the rules (type-only imports
-are exempt):
+are exempt, and so are tests in `__tests__`, which may import from any layer):
 
 - `tabs/<tab>/`: one folder per tab, its component beside its helpers and its source (what it
   loads from the page). A tab doesn't import another tab: what they share goes below.

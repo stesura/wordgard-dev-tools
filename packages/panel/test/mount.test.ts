@@ -1,4 +1,4 @@
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 import { Leaf } from "wordgard/doc";
 import { Wordgard } from "wordgard/editor";
@@ -24,6 +24,7 @@ afterEach(() => {
   mounted = null;
   for (const wg of editors.splice(0)) wg.dom.remove();
   localStorage.clear();
+  vi.restoreAllMocks();
 });
 
 const until = async <T>(get: () => T | null | undefined | false, timeout = 2000): Promise<T> => {
@@ -153,6 +154,59 @@ const dockTo = async (side: string) => {
   );
   item.click();
 };
+
+const savedDock = () => JSON.parse(localStorage.getItem("wordgard-devtools:dock") ?? "{}");
+
+const mountDock = async () => {
+  open("first", "<p>Alpha</p>");
+  mounted = mountDevtools();
+  await mounted.ready;
+  const dock = await until(() => shadow().querySelector<HTMLElement>("[role='region']"));
+  const handle = await until(() =>
+    shadow().querySelector<HTMLElement>("[aria-label='Resize Wordgard DevTools']")
+  );
+  return { dock, handle };
+};
+
+it("resizes from the keyboard, by 20 px, and remembers it", async () => {
+  const { dock, handle } = await mountDock();
+  expect(dock.style.height).toBe("280px");
+  handle.focus();
+  await userEvent.keyboard("{ArrowUp}{ArrowUp}");
+  expect(dock.style.height).toBe("320px");
+  expect(savedDock()).toMatchObject({ side: "bottom", size: 320 });
+  await userEvent.keyboard("{ArrowDown}");
+  expect(dock.style.height).toBe("300px");
+  expect(savedDock()).toMatchObject({ size: 300 });
+});
+
+it("resizes as it's dragged, and saves the size when the drag ends", async () => {
+  const { dock, handle } = await mountDock();
+  // Synthetic pointers can't be captured.
+  vi.spyOn(Element.prototype, "setPointerCapture").mockImplementation(() => {});
+  const pointer = (type: string, clientY: number) =>
+    handle.dispatchEvent(
+      new PointerEvent(type, { bubbles: true, pointerId: 1, clientX: 10, clientY })
+    );
+  pointer("pointerdown", 500);
+  pointer("pointermove", 440);
+  await until(() => dock.style.height == "340px");
+  expect(savedDock().size).toBeUndefined();
+  pointer("pointerup", 420);
+  await until(() => dock.style.height == "360px");
+  expect(savedDock()).toMatchObject({ size: 360 });
+});
+
+it("keeps a saved size within the window", async () => {
+  localStorage.setItem("wordgard-devtools:dock", JSON.stringify({ side: "bottom", size: 99999 }));
+  const big = await mountDock();
+  expect(big.dock.style.height).toBe(`${window.innerHeight - 40}px`);
+  mounted?.unmount();
+  for (const wg of editors.splice(0)) wg.dom.remove();
+  localStorage.setItem("wordgard-devtools:dock", JSON.stringify({ side: "bottom", size: 10 }));
+  const small = await mountDock();
+  expect(small.dock.style.height).toBe("120px");
+});
 
 it("switches the theme from its menu", async () => {
   open("first", "<p>Alpha</p>");

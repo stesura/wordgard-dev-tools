@@ -1,5 +1,13 @@
 import type { Tab } from "../tabs/tabs.ts";
-import type { Change, PanelStore } from "./panel-store.ts";
+import type { ReadableAtom } from "nanostores";
+import type { Change, PanelState, PanelStore } from "./panel-store.ts";
+
+/** What it reads of the panel store. */
+export type ShownStore = {
+  state: ReadableAtom<Pick<PanelState, "tab" | "editors">>;
+  on: PanelStore["on"];
+  onReveal: PanelStore["onReveal"];
+};
 
 /**
  * A tab loads only while it's shown: on showing, when `on` changed meanwhile (or never loaded), and
@@ -11,7 +19,7 @@ import type { Change, PanelStore } from "./panel-store.ts";
  *   data gone: load again on showing.
  */
 export const whileShown = (
-  store: PanelStore,
+  store: ShownStore,
   options: {
     tab: Tab;
     editorId: number;

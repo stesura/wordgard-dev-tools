@@ -59,12 +59,12 @@ module.exports = {
       to: { path: "^(packages/extension|demo)/" },
     },
     // The panel's layers (docs/executed/panel-restructure.md). Type-only imports are exempt: the layers are
-    // about what runs. tabs/tabs.ts is plain data, open to all.
+    // about what runs. tabs/tabs.ts is plain data, open to all. Tests (__tests__) may import anything.
     {
       name: "panel-lib-plain",
       comment: "lib/ is plain helpers: no React, no components, tabs, panel, stores or hooks.",
       severity: "error",
-      from: { path: "^packages/panel/src/lib/" },
+      from: { path: "^packages/panel/src/lib/", pathNot: "/__tests__/" },
       to: {
         path: [
           "^packages/panel/src/(components|tabs|panel|stores|hooks)/",
@@ -78,7 +78,7 @@ module.exports = {
       name: "panel-stores-below-ui",
       comment: "stores/ knows no components, tabs, panel or hooks.",
       severity: "error",
-      from: { path: "^packages/panel/src/stores/" },
+      from: { path: "^packages/panel/src/stores/", pathNot: "/__tests__/" },
       to: {
         path: "^packages/panel/src/(components|tabs|panel|hooks)/",
         pathNot: "^packages/panel/src/tabs/tabs\\.ts$",
@@ -89,7 +89,7 @@ module.exports = {
       name: "panel-components-below-tabs",
       comment: "components/ and hooks/ are shared by the tabs, so they know no tab and no panel.",
       severity: "error",
-      from: { path: "^packages/panel/src/(components|hooks)/" },
+      from: { path: "^packages/panel/src/(components|hooks)/", pathNot: "/__tests__/" },
       to: {
         path: "^packages/panel/src/(tabs|panel)/",
         pathNot: "^packages/panel/src/tabs/tabs\\.ts$",
@@ -100,7 +100,7 @@ module.exports = {
       name: "panel-tabs-apart",
       comment: "A tab doesn't import another tab: what they share goes to components/ or lib/.",
       severity: "error",
-      from: { path: "^packages/panel/src/tabs/([^/]+)/" },
+      from: { path: "^packages/panel/src/tabs/([^/]+)/", pathNot: "/__tests__/" },
       to: {
         path: "^packages/panel/src/tabs/",
         pathNot: ["^packages/panel/src/tabs/$1/", "^packages/panel/src/tabs/tabs\\.ts$"],

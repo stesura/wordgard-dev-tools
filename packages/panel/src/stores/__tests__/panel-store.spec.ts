@@ -1,7 +1,7 @@
 // The store against a slow fake agent, as the extension's transport will be.
 import { afterEach, expect, it } from "vitest";
 import type { EditorInfo, Push, Request, RequestType, Results } from "@stesura/wordgard-dev-tools";
-import { createPanelStore } from "../panel-store.ts";
+import { createPanelStore, type Change } from "../panel-store.ts";
 import type { Transport } from "../../transport.ts";
 
 const fakeAgent = (ids: number[], delay = 20) => {
@@ -13,6 +13,7 @@ const fakeAgent = (ids: number[], delay = 20) => {
   }));
   // What the agent handled, in order.
   const sent: string[] = [];
+  let selections = 0;
   const listeners = new Set<(push: Push) => void>();
   const unsupported = () => {
     throw new Error("unsupported");
@@ -29,19 +30,23 @@ const fakeAgent = (ids: number[], delay = 20) => {
     },
     stateJSON: unsupported,
     replaceState: unsupported,
-    selection: () => ({
-      anchor: 0,
-      head: 0,
-      from: 0,
-      to: 0,
-      empty: true,
-      json: null,
-      headPath: [],
-      anchorPath: [],
-      nodePath: null,
-      activeMarks: [],
-      storedMarks: false,
-    }),
+    selection: () => {
+      selections++;
+      return {
+        anchor: 0,
+        head: 0,
+        from: 0,
+        to: 0,
+        empty: true,
+        json: null,
+        headPath: [],
+        anchorPath: [],
+        nodePath: null,
+        cells: null,
+        activeMarks: [],
+        storedMarks: false,
+      };
+    },
     node: unsupported,
     structure: unsupported,
     schema: unsupported,
@@ -117,6 +122,7 @@ const fakeAgent = (ids: number[], delay = 20) => {
     add,
     push,
     attached: () => editors.filter((e) => e.attached).map((e) => e.id),
+    selections: () => selections,
   };
 };
 
@@ -256,5 +262,83 @@ it("detaches while paused, and attaches again on resume", async () => {
   await settle();
   expect(agent.attached()).toEqual([1]);
   expect(store.state.get().editors.map((e) => e.id)).toEqual([1, 2, 3]);
+  stop();
+});
+
+const CHANGES: Change[] = ["state", "config", "log", "doc"];
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+
+const listen = (store: ReturnType<typeof createPanelStore>) => {
+  const heard: string[] = [];
+  for (const change of CHANGES) store.on(change, (id) => heard.push(`${change}:${id}`));
+  return heard;
+};
+
+it("tells each change once per frame, in order: doc, log, config, state", async () => {
+  const agent = fakeAgent([1]);
+  const store = createPanelStore(agent.transport);
+  const stop = store.start();
+  await settle();
+  const heard = listen(store);
+  const selections = agent.selections();
+  agent.push({
+    type: "stateChanged",
+    id: 1,
+    docChanged: false,
+    selectionSet: false,
+    reconfigured: false,
+  });
+  agent.push({
+    type: "stateChanged",
+    id: 1,
+    docChanged: true,
+    selectionSet: true,
+    reconfigured: true,
+  });
+  agent.push({ type: "logChanged", id: 1, end: 1 });
+  agent.push({ type: "logChanged", id: 1, end: 2 });
+  // Coalesced: nothing until the next frame.
+  expect(heard).toEqual([]);
+  await nextFrame();
+  expect(heard).toEqual(["doc:1", "log:1", "config:1", "state:1"]);
+  await settle();
+  expect(agent.selections()).toBe(selections + 1);
+  stop();
+});
+
+it("tells only the selected editor's changes, and reloads the selection on state changes only", async () => {
+  const agent = fakeAgent([1, 2]);
+  const store = createPanelStore(agent.transport);
+  const stop = store.start();
+  await settle();
+  const heard = listen(store);
+  const selections = agent.selections();
+  agent.push({
+    type: "stateChanged",
+    id: 2,
+    docChanged: true,
+    selectionSet: false,
+    reconfigured: false,
+  });
+  agent.push({ type: "logChanged", id: 1, end: 1 });
+  await settle();
+  expect(heard).toEqual(["log:1"]);
+  expect(agent.selections()).toBe(selections);
+  stop();
+});
+
+it("tells every change again on resume: the updates were missed while paused", async () => {
+  const agent = fakeAgent([1]);
+  const store = createPanelStore(agent.transport);
+  const stop = store.start();
+  await settle();
+  const heard = listen(store);
+  store.pause(true);
+  agent.push({ type: "logChanged", id: 1, end: 1 });
+  await settle();
+  expect(heard).toEqual([]);
+  store.pause(false);
+  await settle();
+  expect(heard).toEqual(["doc:1", "log:1", "config:1", "state:1"]);
   stop();
 });
