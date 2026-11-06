@@ -83,4 +83,7 @@ export const viewNode = (wg: Wordgard, path: readonly number[]): Node => {
   return node
 }
 
+/** An element's outer HTML, a text node's text. */
+export const outerHTML = (node: Node) => (node instanceof Element ? node.outerHTML : (node.textContent ?? ""))
+
 export const viewLabel = (node: Node) => (node instanceof Element ? node.tagName.toLowerCase() : "text")

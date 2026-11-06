@@ -15,15 +15,12 @@ import {useRef, useState, useSyncExternalStore, type KeyboardEvent, type Pointer
 import {PortalContainer} from "#components/portal"
 import {Button} from "#components/ui/button"
 import {
-  DropdownMenu,
   DropdownMenuCheckboxItem,
-  DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "#components/ui/dropdown-menu"
 import {Tooltip, TooltipContent, TooltipTrigger} from "#components/ui/tooltip"
 import {ChoiceMenu, IconButton, Panel, type Choice} from "./Panel.tsx"
@@ -116,8 +113,8 @@ const corners: Choice<Corner>[] = [
   {value: "bottom-right", label: "Bottom right", icon: <ArrowDownRightIcon />},
 ]
 
-/** Where the reopen button sits while the dock is closed, and whether it's only a cog. */
-const ButtonMenu = ({
+/** The Settings menu's groups for the reopen button: where it sits while the dock is closed, and whether it's only a cog. */
+const ReopenSettings = ({
   corner,
   minimized,
   onCorner,
@@ -128,42 +125,32 @@ const ButtonMenu = ({
   onCorner: (corner: Corner) => void
   onMinimized: (minimized: boolean) => void
 }) => (
-  <DropdownMenu>
-    <Tooltip>
-      <TooltipTrigger
-        render={<DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label="Reopen button settings" />} />}
+  <>
+    <DropdownMenuGroup>
+      <DropdownMenuLabel>Reopen button, while closed</DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        value={corner}
+        onValueChange={value => {
+          const found = corners.find(choice => choice.value == value)
+          if (found) onCorner(found.value)
+        }}
       >
-        <Cog6ToothIcon />
-      </TooltipTrigger>
-      <TooltipContent side="top">Reopen button</TooltipContent>
-    </Tooltip>
-    <DropdownMenuContent align="end" className="w-auto">
-      <DropdownMenuGroup>
-        <DropdownMenuLabel>Reopen button, while closed</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={corner}
-          onValueChange={value => {
-            const found = corners.find(choice => choice.value == value)
-            if (found) onCorner(found.value)
-          }}
-        >
-          {corners.map(choice => (
-            <DropdownMenuRadioItem key={choice.value} value={choice.value} closeOnClick className="text-xs">
-              {choice.icon}
-              {choice.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuGroup>
-      <DropdownMenuSeparator />
-      <DropdownMenuGroup>
-        <DropdownMenuLabel>DevTools floating button</DropdownMenuLabel>
-        <DropdownMenuCheckboxItem checked={minimized} onCheckedChange={onMinimized} closeOnClick className="text-xs">
-          Show as icon
-        </DropdownMenuCheckboxItem>
-      </DropdownMenuGroup>
-    </DropdownMenuContent>
-  </DropdownMenu>
+        {corners.map(choice => (
+          <DropdownMenuRadioItem key={choice.value} value={choice.value} closeOnClick className="text-xs">
+            {choice.icon}
+            {choice.label}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+    </DropdownMenuGroup>
+    <DropdownMenuSeparator />
+    <DropdownMenuGroup>
+      <DropdownMenuLabel>DevTools floating button</DropdownMenuLabel>
+      <DropdownMenuCheckboxItem checked={minimized} onCheckedChange={onMinimized} closeOnClick className="text-xs">
+        Show as icon
+      </DropdownMenuCheckboxItem>
+    </DropdownMenuGroup>
+  </>
 )
 
 export type DockProps = {
@@ -285,21 +272,23 @@ export const Dock = ({store, theme, initial, setActive}: DockProps) => {
         theme={theme}
         className="min-h-0 flex-1"
         titleRow={!vertical(side)}
+        settings={
+          <ReopenSettings
+            corner={corner}
+            minimized={minimized}
+            onCorner={value => {
+              setCorner(value)
+              save({corner: value})
+            }}
+            onMinimized={value => {
+              setMinimized(value)
+              save({minimized: value})
+            }}
+          />
+        }
         actions={
           <>
             <ChoiceMenu label="Dock" value={side} choices={sides} onChange={move} />
-            <ButtonMenu
-              corner={corner}
-              minimized={minimized}
-              onCorner={value => {
-                setCorner(value)
-                save({corner: value})
-              }}
-              onMinimized={value => {
-                setMinimized(value)
-                save({minimized: value})
-              }}
-            />
             <IconButton label="Close" onClick={() => collapse(true)}>
               <XMarkIcon />
             </IconButton>

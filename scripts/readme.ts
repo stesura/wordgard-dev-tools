@@ -11,13 +11,12 @@ const START = "<!-- tabs:start: written from packages/panel/src/guides.ts by `np
 const END = "<!-- tabs:end -->"
 
 const section = TAB_ORDER.map(view => {
-  const {title, summary, tips, links} = GUIDES[view]
+  const {title, summary, tips} = GUIDES[view]
   return [
     `### ${title}`,
     `![The ${title} tab](docs/screenshots/${view}.png)`,
     summary,
     tips.map(tip => `- ${tip}`).join("\n"),
-    `Reference: ${links.map(link => `[${link.label}](${link.href})`).join(" · ")}`,
   ].join("\n\n")
 }).join("\n\n")
 

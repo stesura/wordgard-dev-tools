@@ -49,3 +49,15 @@ it("flags nothing as chrome in a read-only editor", async () => {
   expect(status.editable).toBe(false)
   expect(find(dom, n => n.chrome)).toBeNull()
 })
+
+it("sends and logs a view element's outer HTML, a text node's text", async () => {
+  const wg = editor(wordgardDevtools())
+  editors.push(wg)
+  const paragraph = wg.contentDOM.children[1]
+  expect(await ask({type: "viewHTML", id: idOf(wg), path: [1]})).toBe(paragraph?.outerHTML)
+  expect(await ask({type: "viewHTML", id: idOf(wg), path: [0, 0]})).toBe("Title")
+  const log = vi.spyOn(console, "log").mockImplementation(() => {})
+  await ask({type: "viewElement", id: idOf(wg), path: [1], action: "logHTML"})
+  expect(log.mock.calls[0]).toEqual(["[wordgard-devtools] the editor's <p>, outer HTML", paragraph?.outerHTML])
+  log.mockRestore()
+})

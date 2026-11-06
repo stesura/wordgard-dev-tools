@@ -45,6 +45,8 @@ export type PanelState = {
   paused: boolean
   /** The tab shown for the selected editor. */
   view: View
+  /** Whether the shown editor's log records, as its Log tab knows it: for the tab's red dot. */
+  recording: boolean
 }
 
 export type PanelStore = {
@@ -61,6 +63,8 @@ export type PanelStore = {
   onLogChanged: (listener: (id: number) => void) => () => void
   pick: (on: boolean) => void
   setView: (view: View) => void
+  /** From the Log tab: its editor's log records or not. */
+  setRecording: (recording: boolean) => void
   /** A node to reveal in an editor's Structure (a pick): taken once, by that editor's Structure tab. */
   takeReveal: (id: number) => Path | null
   /** Shows a node type's card in the Schema tab, or a mark type's (taken once with `takeTypeReveal`). */
@@ -97,6 +101,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     picking: false,
     paused: false,
     view: saved.view,
+    recording: false,
   }
   const listeners = new Set<() => void>()
   const docListeners = new Set<(id: number) => void>()
@@ -301,6 +306,9 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     },
     pick,
     setView: view => set({view}),
+    setRecording: recording => {
+      if (recording != state.recording) set({recording})
+    },
     takeReveal: id => {
       if (reveal?.id != id) return null
       const {path} = reveal

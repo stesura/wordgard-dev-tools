@@ -1,4 +1,4 @@
-import {afterEach, expect, it} from "vitest"
+import {afterEach, expect, it, vi} from "vitest"
 import {userEvent} from "vitest/browser"
 import {Leaf} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
@@ -36,8 +36,9 @@ const shadow = () => {
   return root
 }
 
+// By its name, without the Log tab's "(recording)" for screen readers.
 const tab = (name: string) =>
-  [...shadow().querySelectorAll<HTMLElement>("[role='tab']")].find(element => element.textContent == name)
+  [...shadow().querySelectorAll<HTMLElement>("[role='tab']")].find(element => element.textContent?.replace("(recording)", "") == name)
 const button = (text: string) =>
   [...shadow().querySelectorAll<HTMLButtonElement>("button")].find(element => element.textContent?.trim() == text)
 const list = () => shadow().querySelector<HTMLElement>("[role='listbox'][aria-label='Transactions']")
@@ -146,6 +147,20 @@ it("doesn't load while another tab is shown", async () => {
   await until(() => rows().length == 1)
 })
 
+it("shows a red dot on its tab while recording, seen from any tab", async () => {
+  await setup()
+  const dot = () => tab("Log")?.querySelector("[data-slot='icon']")
+  expect(dot()).toBeFalsy()
+  ;(await until(() => button("Record"))).click()
+  await until(() => dot())
+  expect(tab("Log")?.textContent).toContain("(recording)")
+  ;(await until(() => tab("State"))).click()
+  expect(dot()).toBeTruthy()
+  ;(await until(() => tab("Log"))).click()
+  ;(await until(() => button("Pause"))).click()
+  await until(() => !dot())
+})
+
 it("starts over when the editor reconnects with a new log", async () => {
   const editor = await setup()
   ;(await until(() => button("Record"))).click()
@@ -199,7 +214,8 @@ it("filters by user event, what changed and annotation", async () => {
 
   // What changed: every flag on at first; one switched off hides the rows that only have it.
   const changed = () => [...shadow().querySelectorAll<HTMLButtonElement>("[aria-label='Filter by what changed'] button")]
-  expect(changed().map(b => b.getAttribute("aria-pressed"))).toEqual(["true", "true", "true"])
+  expect(changed().map(b => b.textContent)).toEqual(["doc", "sel", "focus", "app"])
+  expect(changed().map(b => b.getAttribute("aria-pressed"))).toEqual(["true", "true", "true", "true"])
   changed().find(b => b.textContent == "sel")?.click()
   await until(() => order().join() == "0")
   changed().find(b => b.textContent == "sel")?.click()
@@ -216,13 +232,33 @@ it("filters by user event, what changed and annotation", async () => {
   button("Clear filters")?.click()
   await until(() => rows().length == 3)
 
-  // A user event and the ones under it.
-  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Filter by user event']"))).click()
-  const option = await until(() =>
-    [...shadow().querySelectorAll<HTMLElement>("[role='option']")].find(o => !list()?.contains(o) && o.textContent == "select"),
-  )
-  option.click()
+  // User events: a checkbox each, all ticked at first.
+  const trigger = await until(() => shadow().querySelector<HTMLElement>("[aria-label='Filter by user event']"))
+  expect(trigger.textContent).toContain("all")
+  trigger.click()
+  const box = (text: string) =>
+    [...shadow().querySelectorAll("label")].find(l => l.textContent == text)?.querySelector("input")
+  const all = await until(() => box("All"))
+  expect([...shadow().querySelectorAll("[aria-label='User events'] label")].map(l => l.textContent)).toEqual([
+    "input.type",
+    "select.pointer",
+    "none",
+  ])
+  ;(await until(() => box("input.type"))).click()
+  await until(() => order().join() == "1,2")
+  expect(all.indeterminate).toBe(true)
+  expect(trigger.textContent).toContain("2 of 3")
+  // Some unticked: All ticks them all.
+  all.click()
+  await until(() => rows().length == 3)
+  expect(all.checked).toBe(true)
+  // All ticked: All unticks them all.
+  all.click()
+  await until(() => rows().length == 0)
+  expect(trigger.textContent).toContain("none")
+  ;(await until(() => box("select.pointer"))).click()
   await until(() => order().join() == "1")
+  expect(trigger.textContent).toContain("select.pointer")
 })
 
 it("sorts by a column, ascending then descending", async () => {
@@ -257,6 +293,34 @@ it("skips select.pointer transactions when its box is unticked, and remembers it
   expect(rows()[0]?.textContent).toContain("input.type")
 })
 
+it("flags focus changes, and hides them with their filter", async () => {
+  const editor = await setup()
+  await record()
+  editor.dispatch({annotations: Wordgard.isFocusChange.of(false)})
+  type(editor, "a")
+  await until(() => rows().length == 2)
+  expect(rows()[0]?.textContent).toContain("focus")
+  ;[...shadow().querySelectorAll<HTMLButtonElement>("[aria-label='Filter by what changed'] button")]
+    .find(b => b.textContent == "focus")
+    ?.click()
+  await until(() => order().join() == "1")
+})
+
+it("skips focus changes when its box is unticked, and remembers it", async () => {
+  const editor = await setup()
+  await record()
+  const box = await until(() =>
+    [...shadow().querySelectorAll("label")].find(l => l.textContent?.includes("record focus"))?.querySelector("input"),
+  )
+  expect(box.checked).toBe(true)
+  box.click()
+  await until(() => localStorage.getItem("wordgard-devtools:log-focus-changes") == "false")
+  editor.dispatch({annotations: Wordgard.isFocusChange.of(false)})
+  type(editor, "a")
+  await until(() => rows().length == 1)
+  expect(rows()[0]?.textContent).toContain("input.type")
+})
+
 it("reads the saved select.pointer setting back, and records with it", async () => {
   localStorage.setItem("wordgard-devtools:log-select-pointer", "false")
   const editor = await setup()
@@ -283,4 +347,100 @@ it("shows the what-changed toggles' tooltips", async () => {
   await until(() =>
     [...shadow().querySelectorAll("[data-slot='tooltip-content']")].some(t => t.textContent?.startsWith("Changed the document")),
   )
+})
+
+const menuItem = (text: string) =>
+  [...shadow().querySelectorAll<HTMLElement>("[role='menuitem']")].find(element => element.textContent?.trim() == text)
+
+const openMenu = async (element: HTMLElement) => {
+  await until(() => !shadow().querySelector("[role='menu']"))
+  const rect = element.getBoundingClientRect()
+  element.dispatchEvent(
+    new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: rect.left + 4, clientY: rect.top + 4, button: 2}),
+  )
+}
+
+it("logs a transaction or copies it as JSON or text from a row's menu", async () => {
+  const editor = await setup()
+  await record()
+  type(editor, "a")
+  const row = await until(() => rows()[0])
+  const logged: unknown[][] = []
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  const copied: string[] = []
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async text => {
+    copied.push(text)
+  })
+  await openMenu(row)
+  // The menu selects its row.
+  await until(() => row.getAttribute("aria-selected") == "true")
+  ;(await until(() => menuItem("Log to console"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] transaction #0" && args[1] instanceof Transaction))
+  await openMenu(row)
+  ;(await until(() => menuItem("Copy as JSON"))).click()
+  await until(() => copied.some(text => text.startsWith("{") && JSON.parse(text).userEvent == "input.type"))
+  await openMenu(row)
+  ;(await until(() => menuItem("Copy as text"))).click()
+  await until(() => copied.some(text => text.startsWith("#0\t") && text.includes("\tinput.type\t")))
+})
+
+it("logs or copies each part of an entry from its menu", async () => {
+  const editor = await setup()
+  await record()
+  type(editor, "a")
+  ;(await until(() => rows()[0])).click()
+  const part = (title: string) => pane()?.querySelector<HTMLElement>(`section[aria-label^='${title}']`)
+  const logged: unknown[][] = []
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  const copied: string[] = []
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async text => {
+    copied.push(text)
+  })
+  await openMenu(await until(() => part("Changes")))
+  ;(await until(() => menuItem("Log to console"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] transaction #0, changes"))
+  await openMenu(await until(() => part("Selection")))
+  ;(await until(() => menuItem("Copy as JSON"))).click()
+  await until(() => copied.some(text => "before" in JSON.parse(text)))
+  await openMenu(await until(() => part("Transaction")))
+  ;(await until(() => menuItem("Log to console"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] transaction #0" && args[1] instanceof Transaction))
+})
+
+it("saves the filters, but not unnamed annotations, and reads them back", async () => {
+  const editor = await setup()
+  await record()
+  type(editor, "a")
+  editor.dispatch({selection: {anchor: 1}, annotations: note.of("n")})
+  await until(() => rows().length == 2)
+  const changed = (name: string) =>
+    [...shadow().querySelectorAll<HTMLButtonElement>("[aria-label='Filter by what changed'] button")].find(b => b.textContent == name)
+  const annotation = (start: string) =>
+    [...shadow().querySelectorAll<HTMLButtonElement>("[aria-label='Filter by annotation'] button")].find(b => b.textContent?.startsWith(start))
+  changed("sel")?.click()
+  annotation("userEvent")?.click()
+  annotation("annotation #")?.click()
+  await until(() => annotation("annotation #")?.getAttribute("aria-pressed") == "true")
+  expect(JSON.parse(localStorage.getItem("wordgard-devtools:log-filters") ?? "null")).toEqual({
+    events: [],
+    hidden: ["sel"],
+    annotations: ["userEvent"],
+  })
+  mounted?.unmount()
+  wg?.dom.remove()
+
+  localStorage.setItem("wordgard-devtools:log-filters", JSON.stringify({events: ["input.type"], hidden: ["doc", "bogus"], annotations: ["remote"]}))
+  const again = await setup()
+  // Saved, though no row has it yet: listed, pressed, so it can be switched off.
+  await until(() => annotation("remote")?.getAttribute("aria-pressed") == "true")
+  expect(changed("doc")?.getAttribute("aria-pressed")).toBe("false")
+  expect(changed("sel")?.getAttribute("aria-pressed")).toBe("true")
+  // input.type unticked: a typed row is hidden.
+  await record()
+  type(again, "b")
+  await until(() => shadow().textContent?.includes("No transactions match the filters"))
 })

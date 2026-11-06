@@ -5,16 +5,21 @@ import {
   ChevronRightIcon,
   ChevronDownUpIcon,
   ChevronUpDownIcon,
+  ClipboardDocumentIcon,
+  CodeBracketIcon,
   CommandLineIcon,
   InformationCircleIcon,
   NoSymbolIcon,
+  RectangleGroupIcon,
 } from "#icons"
 import {useCallback, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent} from "react"
 import type {Path, ViewInfo, ViewNode} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
+import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger} from "#components/ui/context-menu"
 import {hue, typeColour} from "./colours.ts"
 import {SearchBox, centreRow, includes, matchClass, useSearch} from "./search.tsx"
+import {CopySelection, copy, createMenuAnchor, type MenuAnchor} from "./node-menu.tsx"
 import type {PanelStore} from "./store.ts"
 import {Tip} from "./tip.tsx"
 import {createViewSource} from "./view-source.ts"
@@ -26,6 +31,63 @@ const INDENT = 14
 type Line = {id: string; depth: number; node: ViewNode; collapsed: boolean}
 
 const pathOf = (id: string) => (id ? id.split(".").map(Number) : [])
+
+/** The document node a line's element draws, else its nearest ancestor's (a text node draws none). */
+const drawnBy = (root: ViewNode, id: string) => {
+  let node: ViewNode | undefined = root
+  let found = root.node
+  for (const index of pathOf(id)) {
+    node = node?.children[index]
+    found = node?.node ?? found
+  }
+  return found
+}
+
+type DomTarget = {id: string}
+
+/** A DOM line's context menu. */
+const DomMenu = ({
+  store,
+  editorId,
+  dom,
+  anchor,
+  tree,
+  onElement,
+}: {
+  store: PanelStore
+  editorId: number
+  dom: ViewNode | null
+  anchor: MenuAnchor<DomTarget>
+  tree: HTMLElement | null
+  onElement: (id: string, action: "log" | "logHTML") => void
+}) => {
+  const target = useSyncExternalStore(anchor.subscribe, anchor.get)
+  const node = target && dom ? drawnBy(dom, target.id) : null
+  const copyHTML = async (id: string) => copy(await store.transport.send({type: "viewHTML", id: editorId, path: pathOf(id)}))
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger className="hidden">
+        <span ref={anchor.setTrigger} />
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-52" finalFocus={() => tree ?? true}>
+        <CopySelection text={target?.selection} />
+        <ContextMenuItem className="text-xs" disabled={node == null} onClick={() => node && store.showNode(editorId, node.path)}>
+          <RectangleGroupIcon /> Show {node?.name ?? "its node"} in Structure
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem className="text-xs" onClick={() => target && onElement(target.id, "log")}>
+          <CommandLineIcon /> Log element
+        </ContextMenuItem>
+        <ContextMenuItem className="text-xs" onClick={() => target && onElement(target.id, "logHTML")}>
+          <CodeBracketIcon /> Log outer HTML
+        </ContextMenuItem>
+        <ContextMenuItem className="text-xs" onClick={() => target && void copyHTML(target.id).catch(() => {})}>
+          <ClipboardDocumentIcon /> Copy outer HTML
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+}
 
 const flatten = (root: ViewNode, collapsed: ReadonlySet<string>) => {
   const lines: Line[] = []
@@ -206,7 +268,7 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
     overscan: 20,
   })
 
-  const element = (id: string, action: "outline" | "log") =>
+  const element = (id: string, action: "outline" | "log" | "logHTML") =>
     // The element may have changed since the last load: load again.
     store.transport.send({type: "viewElement", id: editorId, path: pathOf(id), action}).catch(() => source.load())
 
@@ -303,8 +365,19 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
     scrollToLine(lines.indexOf(line))
   }
 
+  // The line a menu opens on is selected (and outlined).
+  const [menu] = useState(() =>
+    createMenuAnchor<DomTarget>(
+      "[data-dom]",
+      row => ({id: row.getAttribute("data-dom") ?? ""}),
+      (_, target) => select(target.id),
+    ),
+  )
+
   // As in a tree: Right opens a closed element or goes to its first child; Left closes or goes to the parent.
   const onKeyDown = (event: KeyboardEvent) => {
+    menu.onKeyDown(event)
+    if (event.defaultPrevented) return
     const position = lines.findIndex(line => line.id == focused)
     const line = lines[position]
     const moves: Partial<Record<string, number>> = {ArrowDown: position + 1, ArrowUp: position - 1, Home: 0, End: lines.length - 1}
@@ -393,6 +466,7 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
         tabIndex={0}
         aria-activedescendant={active == null ? undefined : `view-${active || "root"}`}
         onKeyDown={onKeyDown}
+        onContextMenu={menu.onContextMenu}
         onClick={event => {
           const id = event.target instanceof Element ? event.target.closest("[data-dom]")?.getAttribute("data-dom") : null
           if (id != null) select(id)
@@ -417,6 +491,14 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
           })}
         </div>
       </div>
+      <DomMenu
+        store={store}
+        editorId={editorId}
+        dom={info?.dom ?? null}
+        anchor={menu}
+        tree={scrollElement}
+        onElement={(id, action) => void element(id, action)}
+      />
     </div>
   )
 }

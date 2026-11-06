@@ -2,7 +2,7 @@ import {expect, it, vi} from "vitest"
 import {Wordgard} from "wordgard/editor"
 import {basicSchema} from "wordgard/schema"
 import {GardState} from "wordgard/state"
-import {wordgardDevtools} from "../src/index.ts"
+import {wordgardDevtools, type NodePart} from "../src/index.ts"
 import {preview, toSafe} from "../src/serialise.ts"
 import {ask, registry} from "./helpers.ts"
 
@@ -73,6 +73,16 @@ it("logs the state's values: live where it can, the JSON otherwise", async () =>
   expect(await logged(["count"], true)).toEqual(["[wordgard-devtools] state.toJSON().count", {count: 3}])
   await ask({type: "logNode", id, path: [0], json: true})
   expect(log.mock.calls.at(-1)).toEqual(["[wordgard-devtools] Paragraph at range 0–4", wg.state.doc.content[0]?.toJSON()])
+  // One of its values, live.
+  const part = async (path: number[], part: NodePart) => {
+    await ask({type: "logNode", id, path, part})
+    return log.mock.calls.at(-1)
+  }
+  const text = wg.state.doc.content[0]
+  expect(await part([0], "type")).toEqual(["[wordgard-devtools] Paragraph at range 0–4, type", text?.type])
+  expect(await part([0], "range")).toEqual(["[wordgard-devtools] Paragraph at range 0–4, from–to", {from: 0, to: 4}])
+  expect(await part([0, 0], "text")).toEqual(["[wordgard-devtools] Text at range 1–3, text", "Hi"])
+  await expect(ask({type: "logNode", id, path: [0, 0], part: {mark: 0}})).rejects.toThrow("No mark 0")
   log.mockRestore()
   wg.dom.remove()
 })

@@ -1,7 +1,8 @@
 import type {Wordgard} from "wordgard/editor"
+import * as wordgardEditor from "wordgard/editor"
 import type {GardState, Transaction} from "wordgard/state"
 import * as wordgardState from "wordgard/state"
-import type {ChangedRange, LogEntryDetail, LogRow, LogSlice, NamedValue, Push} from "./protocol.ts"
+import type {ChangedRange, EntryPart, LogEntryDetail, LogRow, LogSlice, NamedValue, Push} from "./protocol.ts"
 import {agentReading} from "./reads.ts"
 import type {Entry, Registry} from "./registry.ts"
 import {toSafe} from "./serialise.ts"
@@ -23,6 +24,8 @@ type Log = {
   items: Item[]
   /** Records `select.pointer` transactions. */
   selectPointer: boolean
+  /** Records focus changes (`Wordgard.isFocusChange`). */
+  focusChanges: boolean
   end: number
   size: number
   /** Recorded, not drawn yet: the next flush times them. */
@@ -162,6 +165,13 @@ const annotationNames = new Map<object, string>([
   [wordgardState.Transaction.appended, "appended"],
 ])
 
+// The annotation on the transaction Wordgard dispatches when the editor gains or loses focus.
+// Checked for: not every Wordgard in the peer range may have it.
+const focusChange: object | null = "isFocusChange" in wordgardEditor.Wordgard ? wordgardEditor.Wordgard.isFocusChange : null
+if (focusChange) annotationNames.set(focusChange, "focus")
+
+const isFocusChange = (tr: Transaction) => focusChange != null && annotationsOf(tr).some(a => a.type == focusChange)
+
 // Annotation types carry no name: those that aren't Wordgard's are numbered as first seen, page-wide.
 const customNames = new WeakMap<object, string>()
 let customCount = 0
@@ -234,13 +244,18 @@ const detail = (item: Item): LogEntryDetail => {
   }
 }
 
+/** Unset ones are left as they were. */
+export type RecordOptions = {size?: number; selectPointer?: boolean; focusChanges?: boolean}
+
 export type Recorder = {
   /** From every copy's transaction listener. */
   recorded: (entry: Entry, transactions: readonly Transaction[]) => void
-  record: (entry: Entry, on: boolean, size?: number, selectPointer?: boolean) => void
+  record: (entry: Entry, on: boolean, options?: RecordOptions) => void
   clear: (entry: Entry) => void
   slice: (entry: Entry, from: number, to: number) => LogSlice
   detail: (entry: Entry, index: number) => LogEntryDetail
+  /** Logs a transaction, or one of its parts, in the page's console. */
+  log: (entry: Entry, index: number, part?: EntryPart) => void
   /** A transaction's index, while the log holds it. */
   indexOf: (entry: Entry, tr: Transaction) => number | null
   /** Drops the logs of editors that left the registry (a disconnect), restoring their methods. */
@@ -256,6 +271,7 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
       log = {
         items: [],
         selectPointer: true,
+        focusChanges: true,
         end: 0,
         size: LOG_SIZE,
         unflushed: [],
@@ -298,6 +314,7 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
         if (log.seen.has(tr)) continue
         log.seen.add(tr)
         if (!log.selectPointer && tr.isUserEvent("select.pointer")) continue
+        if (!log.focusChanges && isFocusChange(tr)) continue
         const item: Item = {index: log.end++, tr, dispatchMs: null, flushMs: null, flush: null, agentFlush: false}
         log.items.push(item)
         // Limitation: a flush forced earlier in this dispatch (a listener ordered before ours reading
@@ -308,9 +325,10 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
       trim(log)
       changed(entry, log)
     },
-    record: (entry, on, size, selectPointer) => {
+    record: (entry, on, {size, selectPointer, focusChanges} = {}) => {
       const log = logOf(entry)
       if (selectPointer != null) log.selectPointer = selectPointer
+      if (focusChanges != null) log.focusChanges = focusChanges
       if (size != null) {
         if (!Number.isInteger(size) || size < 1) throw new Error(`Invalid log size ${size}`)
         log.size = size
@@ -342,6 +360,20 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
       }
     },
     detail: (entry, index) => detail(held(entry, index)),
+    log: (entry, index, part = "transaction") => {
+      const {tr} = held(entry, index)
+      const value =
+        part == "changes"
+          ? tr.changes
+          : part == "selection"
+            ? {set: tr.selection, before: tr.startState.selection, after: tr.newSelection}
+            : part == "effects"
+              ? tr.effects
+              : part == "annotations"
+                ? annotationsOf(tr)
+                : tr
+      console.log(`[wordgard-devtools] transaction #${index}${part == "transaction" ? "" : `, ${part}`}`, value)
+    },
     indexOf: (entry, tr) => logs.get(entry)?.items.find(item => item.tr == tr)?.index ?? null,
     prune: () => {
       for (const [entry, log] of logs) {

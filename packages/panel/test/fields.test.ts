@@ -35,8 +35,9 @@ const shadow = () => {
   return root
 }
 
+// By its name, without the Log tab's "(recording)" for screen readers.
 const tab = (name: string) =>
-  [...shadow().querySelectorAll<HTMLElement>("[role='tab']")].find(element => element.textContent == name)
+  [...shadow().querySelectorAll<HTMLElement>("[role='tab']")].find(element => element.textContent?.replace("(recording)", "") == name)
 const button = (text: string) =>
   [...shadow().querySelectorAll<HTMLButtonElement>("button")].find(element => element.textContent?.trim() == text)
 const row = (name: string) => shadow().querySelector<HTMLElement>(`[aria-label='State fields'] [data-field='${name}']`)
@@ -132,7 +133,28 @@ const rightClick = (element: HTMLElement) => {
   )
 }
 
-it("logs a field's live value and copies it, from its menu or its pane", async () => {
+it("logs and copies the value from its context menu", async () => {
+  const editor = await setup()
+  editor.dispatch({effects: bump.of(4)})
+  ;(await until(() => row("counter"))).click()
+  const logged: unknown[][] = []
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  const copied: string[] = []
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async text => {
+    copied.push(text)
+  })
+  const value = () => pane()?.querySelector<HTMLElement>("[data-field-value]")
+  rightClick(await until(() => value()?.textContent == "4" && value()))
+  ;(await until(() => item("Log to console"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] counter" && args[1] == 4))
+  rightClick(await until(() => value()))
+  ;(await until(() => item("Copy value"))).click()
+  await until(() => copied.includes("4"))
+})
+
+it("logs a field's live value and copies it from its menu", async () => {
   const editor = await setup()
   editor.dispatch({effects: bump.of(4)})
   await until(() => row("counter")?.textContent?.startsWith("counter41"))
@@ -152,11 +174,6 @@ it("logs a field's live value and copies it, from its menu or its pane", async (
   rightClick(await until(() => row("counter")))
   ;(await until(() => item("Copy value"))).click()
   await until(() => copied.includes("4"))
-  editor.dispatch({effects: bump.of(1)})
-  ;(await until(() => pane()?.textContent?.includes("Value5") && pane()?.querySelector<HTMLButtonElement>("[aria-label='Copy the value']"))).click()
-  await until(() => copied.includes("5"))
-  pane()?.querySelector<HTMLButtonElement>("[aria-label=\"Log the value to the page's console\"]")?.click()
-  await until(() => logged.some(args => args[0] == "[wordgard-devtools] counter" && args[1] == 5))
 })
 
 it("opens no menu without fields", async () => {

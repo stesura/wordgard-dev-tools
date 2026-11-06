@@ -237,7 +237,7 @@ it("puts the reopen button in the chosen corner, as an icon when chosen", async 
   mounted = mountDevtools()
   await mounted.ready
   const choose = async (text: string) => {
-    ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Reopen button settings']"))).click()
+    ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Settings']"))).click()
     const item = await until(() =>
       [...shadow().querySelectorAll<HTMLElement>("[role^='menuitem']")].find(element => element.textContent == text),
     )

@@ -8,7 +8,7 @@ import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger} fr
 import {CopyButton} from "./copy-button.tsx"
 import {createFieldsSource, type FieldsSource} from "./fields-source.ts"
 import {clock} from "./Log.tsx"
-import {copy, createMenuAnchor, type MenuAnchor} from "./node-menu.tsx"
+import {CopySelection, copy, createMenuAnchor, type MenuAnchor} from "./node-menu.tsx"
 import {Field as Line, json} from "./node-pane.tsx"
 import type {PanelStore} from "./store.ts"
 import {SplitPane, type Orientation, type SplitKind} from "./split-pane.tsx"
@@ -114,6 +114,7 @@ const HistoryMenu = ({source, index, anchor}: {source: FieldsSource; index: numb
         <span ref={anchor.setTrigger} />
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52" finalFocus={() => anchor.get()?.row.querySelector("button") ?? true}>
+        <CopySelection text={target?.selection} />
         <ContextMenuItem className="text-xs" onClick={() => target && source.logChange(index, target.seq)}>
           <CommandLineIcon /> Log to console
         </ContextMenuItem>
@@ -125,8 +126,29 @@ const HistoryMenu = ({source, index, anchor}: {source: FieldsSource; index: numb
   )
 }
 
+/** The value's context menu. */
+const ValueMenu = ({anchor, onLog, text}: {anchor: MenuAnchor<object>; onLog: () => void; text: () => string}) => {
+  const target = useSyncExternalStore(anchor.subscribe, anchor.get)
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger className="hidden">
+        <span ref={anchor.setTrigger} />
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-52">
+        <CopySelection text={target?.selection} />
+        <ContextMenuItem className="text-xs" onClick={onLog}>
+          <CommandLineIcon /> Log to console
+        </ContextMenuItem>
+        <ContextMenuItem className="text-xs" onClick={() => void copy(text())}>
+          <ClipboardDocumentIcon /> Copy value
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+}
+
 /** A part of the field pane: a heading with its buttons, its content scrolling. */
-const Part = ({title, actions, children}: {title: string; actions: ReactNode; children: ReactNode}) => (
+const Part = ({title, actions, children}: {title: string; actions?: ReactNode; children: ReactNode}) => (
   <div className="flex h-full min-h-0 flex-col">
     <div className="flex min-h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 font-sans">
       <h3 className="text-muted-foreground">{title}</h3>
@@ -158,6 +180,7 @@ const FieldView = ({
       () => {},
     ),
   )
+  const [valueMenu] = useState(() => createMenuAnchor("[data-field-value]", () => ({}), () => {}))
   const result = use(source.detail(index, version))
   if (result.error != null) return <p className="p-2 text-destructive">{result.error}</p>
   const {field} = result
@@ -220,28 +243,16 @@ const FieldView = ({
         <Line label="changes">{field.changes}</Line>
       </div>
       <SplitPane kind={FIELD_SPLIT} orientation={orientation} pane={history}>
-        <Part
-          title="Value"
-          actions={
-            <>
-              <Tip label="Log the value to the page's console">
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Log the value to the page's console"
-                  onClick={() => source.logValue(field.index)}
-                >
-                  <CommandLineIcon />
-                </Button>
-              </Tip>
-              <CopyButton label="Copy the value" text={() => json(field.value)} />
-            </>
-          }
-        >
-          <pre className="whitespace-pre-wrap">{json(field.value)}</pre>
+        <Part title="Value">
+          <div onContextMenu={valueMenu.onContextMenu}>
+            <pre data-field-value className="whitespace-pre-wrap">
+              {json(field.value)}
+            </pre>
+          </div>
         </Part>
       </SplitPane>
       <HistoryMenu source={source} index={field.index} anchor={menu} />
+      <ValueMenu anchor={valueMenu} onLog={() => source.logValue(field.index)} text={() => json(field.value)} />
     </div>
   )
 }
@@ -270,6 +281,7 @@ const FieldMenu = ({
         <span ref={anchor.setTrigger} />
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52" finalFocus={() => list ?? true}>
+        <CopySelection text={target?.selection} />
         <ContextMenuItem
           className="text-xs"
           onClick={() => index != null && source.logValue(index)}

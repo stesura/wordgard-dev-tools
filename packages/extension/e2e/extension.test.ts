@@ -62,14 +62,14 @@ it("lists every frame's editors and attaches the first", async () => {
   await panel.getByText("5 editors").waitFor()
   await panel.getByText("Plain Wordgard").first().waitFor()
   expect(await attached(demo)).toEqual(["plain"])
-  await panel.getByLabel("Editor").click()
+  await panel.getByLabel("Editor", {exact: true}).click()
   await panel.getByRole("option", {name: /left/}).click()
   await panel.getByText("Left editor.").waitFor()
   expect(await attached(demo)).toEqual(["plain", "left"])
 })
 
 it("shows the document's structure, live", async () => {
-  await panel.getByLabel("Editor").click()
+  await panel.getByLabel("Editor", {exact: true}).click()
   await panel.getByRole("option", {name: /plain/}).click()
   // basicSchema has no code mark: one text leaf up to the strong one.
   await panel.locator("[data-path='1.0']").getByText('"Created with Wordgard.create, named "').waitFor()
@@ -107,7 +107,7 @@ it("shows the state fields, a named one among them", async () => {
 })
 
 it("switches to an editor in an iframe and follows it", async () => {
-  await panel.getByLabel("Editor").click()
+  await panel.getByLabel("Editor", {exact: true}).click()
   await panel.getByRole("option", {name: /framed/}).click()
   await panel.getByText("An editor in an iframe.").waitFor()
   expect(await attached(demo)).toEqual(["plain"])
@@ -120,7 +120,7 @@ it("switches to an editor in an iframe and follows it", async () => {
 })
 
 it("outlines a clicked row's node in the page", async () => {
-  await panel.getByLabel("Editor").click()
+  await panel.getByLabel("Editor", {exact: true}).click()
   await panel.getByRole("option", {name: /right/}).click()
   await panel.locator("[data-path='0']").click()
   await demo.locator("[data-wordgard-devtools-overlay]").getByText("Paragraph").waitFor()
@@ -140,7 +140,7 @@ it("picks a node in an iframe's editor without moving its caret", async () => {
   const before = await caret()
   await panel.getByLabel("Pick a node in the page").click()
   await demo.frameLocator("iframe").getByText("An editor in an iframe.").click()
-  await expect.poll(() => panel.getByLabel("Editor").textContent()).toContain("framed")
+  await expect.poll(() => panel.getByLabel("Editor", {exact: true}).textContent()).toContain("framed")
   // Playwright clicks the paragraph's centre, past its text: the paragraph is picked, and focused.
   await panel.locator("[data-path='0'][aria-selected='true']").waitFor()
   expect(await panel.getByLabel("Pick a node in the page").getAttribute("aria-pressed")).toBe("false")
@@ -148,7 +148,7 @@ it("picks a node in an iframe's editor without moving its caret", async () => {
 })
 
 it("records the transaction log, with timing", async () => {
-  await panel.getByLabel("Editor").click()
+  await panel.getByLabel("Editor", {exact: true}).click()
   await panel.getByRole("option", {name: /left/}).click()
   await panel.getByText("Left editor.").waitFor()
   await panel.getByRole("tab", {name: "Log"}).click()
@@ -167,7 +167,7 @@ it("records the transaction log, with timing", async () => {
 })
 
 it("keeps the picked editor across a reload", async () => {
-  await panel.getByLabel("Editor").click()
+  await panel.getByLabel("Editor", {exact: true}).click()
   await panel.getByRole("option", {name: /right/}).click()
   await panel.getByText("Right editor.").waitFor()
   await demo.reload()

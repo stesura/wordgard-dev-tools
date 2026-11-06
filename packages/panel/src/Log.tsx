@@ -1,17 +1,29 @@
 import {useVirtualizer} from "@tanstack/react-virtual"
 import {cn} from "cn"
-import {ChevronDownIcon, ChevronUpIcon, NoSymbolIcon, RecordIcon, PauseIcon} from "#icons"
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ClipboardDocumentIcon,
+  CodeBracketIcon,
+  CommandLineIcon,
+  NoSymbolIcon,
+  RecordIcon,
+  PauseIcon,
+} from "#icons"
 import {Suspense, use, useCallback, useDeferredValue, useRef, useState, useSyncExternalStore, type ComponentProps, type KeyboardEvent, type ReactNode} from "react"
-import {SLOW_MS, type LogEntryDetail, type LogRow} from "@stesura/wordgard-dev-tools"
+import {SLOW_MS, type EntryPart, type LogEntryDetail, type LogRow} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
+import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger} from "#components/ui/context-menu"
 import {ClearFilters} from "./clear-filters.tsx"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "#components/ui/select"
-import {createLogSource, type LogSource} from "./log-source.ts"
+import {Popover, PopoverContent, PopoverTrigger} from "#components/ui/popover"
+import {createLogSource, type LogSource, type RecordSetting} from "./log-source.ts"
+import {CopySelection, copy, createMenuAnchor, useMenuSelection, type MenuAnchor} from "./node-menu.tsx"
 import {Field, json} from "./node-pane.tsx"
 import type {PanelStore} from "./store.ts"
 import {Tip} from "./tip.tsx"
 import {SplitPane} from "./split-pane.tsx"
+import {isRecord, stored, stringSet} from "./stored.ts"
 
 const ROW = 20
 const COLUMNS = "grid grid-cols-[3rem_6.5rem_minmax(5rem,1fr)_4.5rem_2rem_2rem_3.5rem_3.5rem] gap-x-2"
@@ -27,11 +39,22 @@ const slow = (value: number | null) => value != null && value > SLOW_MS
 const slowText = "text-red-700 dark:text-red-300"
 export const isSlow = (row: LogRow) => slow(row.dispatchMs) || slow(row.flushMs)
 
-type Flag = "doc" | "sel" | "app"
-const FLAGS: readonly Flag[] = ["doc", "sel", "app"]
-const FLAG_TIPS: Record<Flag, string> = {doc: "Changed the document", sel: "Set the selection", app: "Added by a transaction appender"}
+type Flag = "doc" | "sel" | "focus" | "app"
+const FLAGS: readonly Flag[] = ["doc", "sel", "focus", "app"]
+const FLAG_TIPS: Record<Flag, string> = {
+  doc: "Changed the document",
+  sel: "Set the selection",
+  focus: "The editor gained or lost focus",
+  app: "Added by a transaction appender",
+}
 
-const flagOf: Record<Flag, (row: LogRow) => boolean> = {doc: row => row.docChanged, sel: row => row.selectionSet, app: row => row.appended}
+const flagOf: Record<Flag, (row: LogRow) => boolean> = {
+  doc: row => row.docChanged,
+  sel: row => row.selectionSet,
+  // Named by the page side from `Wordgard.isFocusChange`.
+  focus: row => row.annotations.includes("focus"),
+  app: row => row.appended,
+}
 const flags = (row: LogRow) => FLAGS.filter(flag => flagOf[flag](row))
 
 const flushTitle = (row: LogRow) =>
@@ -152,29 +175,109 @@ const sorted = (rows: LogRow[], {key, descending}: Sort) =>
         return (descending ? y - x : x - y) || a.index - b.index
       })
 
-// The user event filter: any, none, or an event with the ones under it (Wordgard's `isUserEvent`).
-const ANY = "(any)"
+// Rows without a user event, in the user event filter.
 const NONE = "(none)"
+const eventOf = (row: LogRow) => row.userEvent ?? NONE
 
-/** `hidden`: what-changed flags switched off; a row shows while it has one still on, or none at all. */
-type Filters = {userEvent: string; hidden: ReadonlySet<Flag>; annotations: ReadonlySet<string>}
-const noFilters: Filters = {userEvent: ANY, hidden: new Set(), annotations: new Set()}
-const filtering = (filters: Filters) => filters.userEvent != ANY || filters.hidden.size > 0 || filters.annotations.size > 0
+/**
+ * Hidden user events (unticked, so ones first seen later show) and what-changed flags (a row shows
+ * while it has one still on, or none at all); the annotations a row must have.
+ */
+type Filters = {events: ReadonlySet<string>; hidden: ReadonlySet<Flag>; annotations: ReadonlySet<string>}
+const noFilters: Filters = {events: new Set(), hidden: new Set(), annotations: new Set()}
+const filtering = (filters: Filters) => filters.events.size > 0 || filters.hidden.size > 0 || filters.annotations.size > 0
 
-const matches = (row: LogRow, {userEvent, hidden, annotations}: Filters) =>
-  (userEvent == ANY ||
-    (userEvent == NONE ? row.userEvent == null : row.userEvent == userEvent || !!row.userEvent?.startsWith(`${userEvent}.`))) &&
+// Numbered as first seen, page-wide: "annotation #1" may be another annotation after a reload.
+const unnamed = /^annotation #\d+$/
+
+// Saved, shared by every editor. Unnamed annotations last only until reload.
+const logFilters = stored<Filters>(
+  "wordgard-devtools:log-filters",
+  noFilters,
+  json => {
+    if (!isRecord(json)) return noFilters
+    const hidden = stringSet(json.hidden)
+    return {
+      events: stringSet(json.events),
+      hidden: new Set(FLAGS.filter(flag => hidden.has(flag))),
+      annotations: stringSet(json.annotations),
+    }
+  },
+  filters => ({
+    events: [...filters.events],
+    hidden: [...filters.hidden],
+    annotations: [...filters.annotations].filter(name => !unnamed.test(name)),
+  }),
+)
+
+const matches = (row: LogRow, {events, hidden, annotations}: Filters) =>
+  !events.has(eventOf(row)) &&
   (!flags(row).length || flags(row).some(flag => !hidden.has(flag))) &&
   [...annotations].every(name => row.annotations.includes(name))
 
-/** Every user event in the rows, with the ones above it ("select" for "select.pointer"), sorted. */
+/** The rows' user events, sorted, "none" last for rows without one. */
 const userEvents = (rows: LogRow[]) => {
-  const found = new Set<string>()
-  for (const {userEvent} of rows) {
-    const parts = userEvent?.split(".") ?? []
-    for (let i = 1; i <= parts.length; i++) found.add(parts.slice(0, i).join("."))
-  }
-  return [...found].sort()
+  const found = new Set(rows.map(eventOf))
+  const none = found.delete(NONE)
+  return [...[...found].sort(), ...(none ? [NONE] : [])]
+}
+
+const eventLabel = (event: string) => (event == NONE ? "none" : event)
+
+/** Ticked: shown. "All" ticks every one, or, when all are ticked, unticks them. */
+const UserEventFilter = ({
+  events,
+  hidden,
+  disabled,
+  onChange,
+}: {
+  events: string[]
+  hidden: ReadonlySet<string>
+  disabled: boolean
+  onChange: (hidden: ReadonlySet<string>) => void
+}) => {
+  const shown = events.filter(event => !hidden.has(event))
+  const all = shown.length == events.length
+  const [only] = shown
+  const summary = all ? "all" : only == null ? "none" : shown.length == 1 ? eventLabel(only) : `${shown.length} of ${events.length}`
+  const check = "size-3 cursor-pointer accent-primary"
+  const row = "flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-accent"
+  return (
+    <Popover>
+      <PopoverTrigger
+        disabled={disabled}
+        render={
+          <Button variant="outline" size="xs" aria-label="Filter by user event" className="h-5 min-w-24 justify-between font-mono" />
+        }
+      >
+        {summary}
+        <ChevronDownIcon className="text-muted-foreground" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="max-h-80 w-auto min-w-40 gap-0 overflow-auto p-1 font-mono text-xs">
+        <label className={cn(row, "border-b pb-1 font-sans font-medium")}>
+          <input
+            type="checkbox"
+            checked={all}
+            // Some ticked: shown as a dash.
+            ref={box => {
+              if (box) box.indeterminate = !all && shown.length > 0
+            }}
+            onChange={() => onChange(all ? new Set(events) : new Set())}
+            className={check}
+          />
+          All
+        </label>
+        <div role="group" aria-label="User events" className="pt-1">
+          {events.map(event => (
+            <label key={event} className={cn(row, event == NONE && "text-muted-foreground")}>
+              <input type="checkbox" checked={!hidden.has(event)} onChange={() => onChange(toggled(hidden, event))} className={check} />
+              {eventLabel(event)}
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 /** Every annotation in the rows but the time stamp, which all have. */
@@ -205,15 +308,8 @@ const label = (disabled: boolean) => cn("font-semibold", disabled && "text-muted
 type FilterUpdate = (update: (filters: Filters) => Filters) => void
 
 const FilterBar = ({rows, filters, onChange}: {rows: LogRow[]; filters: Filters; onChange: FilterUpdate}) => {
-  const found = userEvents(rows)
-  const chosen = filters.userEvent
-  const events = chosen == ANY || chosen == NONE || found.includes(chosen) ? found : [...found, chosen].sort()
-  const annotations = annotationTypes(rows)
-  const items = [
-    {value: ANY, label: "any"},
-    ...events.map(event => ({value: event, label: event})),
-    {value: NONE, label: "none"},
-  ]
+  // A saved one stays listed, pressed, until a row has it: it can be switched off.
+  const annotations = [...new Set([...annotationTypes(rows), ...filters.annotations])].sort()
   // Nothing to filter yet.
   const disabled = !rows.length
   return (
@@ -225,25 +321,12 @@ const FilterBar = ({rows, filters, onChange}: {rows: LogRow[]; filters: Filters;
       <span className={label(disabled)}>Filters</span>
       <span className="flex items-center gap-1">
         <span className={label(disabled)}>userEvent:</span>
-        <Select
-          items={items}
+        <UserEventFilter
+          events={userEvents(rows)}
+          hidden={filters.events}
           disabled={disabled}
-          value={filters.userEvent}
-          onValueChange={value => {
-            if (typeof value == "string") onChange(f => ({...f, userEvent: value}))
-          }}
-        >
-          <SelectTrigger size="sm" aria-label="Filter by user event" className="h-5 min-w-24 font-mono text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent alignItemWithTrigger={false} align="start">
-            {items.map(item => (
-              <SelectItem key={item.value} value={item.value} className="font-mono text-xs">
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onChange={events => onChange(f => ({...f, events}))}
+        />
       </span>
       <span role="group" aria-label="Filter by what changed" className="flex items-center gap-1">
         <span className={label(disabled)}>changed:</span>
@@ -280,6 +363,33 @@ const FilterBar = ({rows, filters, onChange}: {rows: LogRow[]; filters: Filters;
     </div>
   )
 }
+
+/** A recording setting's checkbox: what the log leaves out, unticked. */
+const SettingBox = ({
+  source,
+  setting,
+  on,
+  label,
+  tip,
+}: {
+  source: LogSource
+  setting: RecordSetting
+  on: boolean
+  label: string
+  tip: string
+}) => (
+  <Tip label={<span className="block max-w-72">{tip}</span>}>
+    <label className="flex cursor-pointer items-center gap-1 font-mono text-muted-foreground hover:text-foreground">
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={event => void source.setSetting(setting, event.target.checked)}
+        className="size-3 cursor-pointer accent-primary"
+      />
+      {label}
+    </label>
+  </Tip>
+)
 
 /** A column heading that sorts the rows: ascending first, then descending. */
 const SortHeading = ({
@@ -319,12 +429,90 @@ const SortHeading = ({
   )
 }
 
-const Section = ({title, children}: {title: string; children: ReactNode}) => (
-  <>
-    <h3 className="mt-2 mb-1 font-sans text-muted-foreground">{title}</h3>
-    {children}
-  </>
-)
+/** A part of the entry pane, with its menu: log the part live, copy its JSON. Focusable: Shift+F10 opens it too. */
+const Section = ({
+  title,
+  onLog,
+  copied,
+  children,
+}: {
+  title: string
+  onLog: () => void
+  copied: () => string
+  children: ReactNode
+}) => {
+  const {selection, onContextMenu} = useMenuSelection()
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger
+        onContextMenu={onContextMenu}
+        render={<section aria-label={title} tabIndex={0} className="rounded outline-none focus-visible:ring-1 focus-visible:ring-ring" />}
+      >
+        <h3 className="mt-2 mb-1 font-sans text-muted-foreground">{title}</h3>
+        {children}
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <CopySelection text={selection} />
+        <ContextMenuItem className="text-xs" onClick={onLog}>
+          <CommandLineIcon /> Log to console
+        </ContextMenuItem>
+        <ContextMenuItem className="text-xs" onClick={() => void copy(copied())}>
+          <CodeBracketIcon /> Copy as JSON
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+}
+
+/** A row as a line of text, its columns tab-separated. */
+const rowText = (row: LogRow) =>
+  [
+    `#${row.index}`,
+    clock(row.time),
+    row.userEvent ?? "–",
+    flags(row).join(" ") || "–",
+    `effects ${row.effects}`,
+    `annotations ${row.annotations.join(", ")}`,
+    `dispatch ${ms(row.dispatchMs)} ms`,
+    `flush ${ms(row.flushMs)} ms${row.agentFlush ? " (forced by DevTools)" : ""}`,
+  ].join("\t")
+
+type RowTarget = {index: number}
+
+/** A row's context menu. */
+const RowMenu = ({source, rows, anchor}: {source: LogSource; rows: LogRow[]; anchor: MenuAnchor<RowTarget>}) => {
+  const target = useSyncExternalStore(anchor.subscribe, anchor.get)
+  const row = target ? rows.find(r => r.index == target.index) : undefined
+  const copyJSON = async (row: LogRow) => {
+    const detail = await source.detail(row.index, row.flush)
+    if (detail.entry) await copy(json(detail.entry))
+  }
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger className="hidden">
+        <span ref={anchor.setTrigger} />
+      </ContextMenuTrigger>
+      <ContextMenuContent
+        className="w-48"
+        finalFocus={() => {
+          const list = anchor.get()?.row.closest("[role='listbox']")
+          return list instanceof HTMLElement ? list : true
+        }}
+      >
+        <CopySelection text={target?.selection} />
+        <ContextMenuItem className="text-xs" onClick={() => row && source.logEntry(row.index)}>
+          <CommandLineIcon /> Log to console
+        </ContextMenuItem>
+        <ContextMenuItem className="text-xs" onClick={() => row && void copyJSON(row)}>
+          <CodeBracketIcon /> Copy as JSON
+        </ContextMenuItem>
+        <ContextMenuItem className="text-xs" onClick={() => row && void copy(rowText(row))}>
+          <ClipboardDocumentIcon /> Copy as text
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+}
 
 const Ranges = ({entry}: {entry: LogEntryDetail}) =>
   entry.ranges.length ? (
@@ -390,39 +578,46 @@ const EntryView = ({
     )
   }
   const {entry} = detail
+  const log = (part: EntryPart) => () => source.logEntry(entry.index, part)
   return (
     <div className="font-mono text-xs">
-      <Field label="index">{entry.index}</Field>
-      <Field label="time">{clock(entry.time)}</Field>
-      <Field label="userEvent">{entry.userEvent ?? "–"}</Field>
-      <Field label="flags">
-        {[...flags(entry), ...(entry.scrollIntoView ? ["scroll"] : []), ...(entry.reconfigured ? ["reconfig"] : [])].join(" ") ||
-          "–"}
-      </Field>
-      <Field label="dispatch">
-        <span className={cn(slow(entry.dispatchMs) && slowText)}>{ms(entry.dispatchMs)} ms</span>
-      </Field>
-      <Field label="flush">
-        <span className={cn(slow(entry.flushMs) && slowText)}>{ms(entry.flushMs)} ms</span>
-        {entry.flush != null && <span className="text-muted-foreground"> #{entry.flush}</span>}
-        {entry.agentFlush && <span className="text-muted-foreground"> forced by DevTools</span>}
-      </Field>
-      <Section title="Changes">
+      <Section title="Transaction" onLog={log("transaction")} copied={() => json(entry)}>
+        <Field label="index">{entry.index}</Field>
+        <Field label="time">{clock(entry.time)}</Field>
+        <Field label="userEvent">{entry.userEvent ?? "–"}</Field>
+        <Field label="flags">
+          {[...flags(entry), ...(entry.scrollIntoView ? ["scroll"] : []), ...(entry.reconfigured ? ["reconfig"] : [])].join(" ") ||
+            "–"}
+        </Field>
+        <Field label="dispatch">
+          <span className={cn(slow(entry.dispatchMs) && slowText)}>{ms(entry.dispatchMs)} ms</span>
+        </Field>
+        <Field label="flush">
+          <span className={cn(slow(entry.flushMs) && slowText)}>{ms(entry.flushMs)} ms</span>
+          {entry.flush != null && <span className="text-muted-foreground"> #{entry.flush}</span>}
+          {entry.agentFlush && <span className="text-muted-foreground"> forced by DevTools</span>}
+        </Field>
+      </Section>
+      <Section title="Changes" onLog={log("changes")} copied={() => json({changes: entry.changes, ranges: entry.ranges})}>
         <Ranges entry={entry} />
         <details>
           <summary className="cursor-default text-muted-foreground">ChangeSet JSON</summary>
           <pre className="whitespace-pre-wrap">{json(entry.changes)}</pre>
         </details>
       </Section>
-      <Section title="Selection">
+      <Section title="Selection" onLog={log("selection")} copied={() => json(entry.selection)}>
         <Field label="set">{entry.selection.set == null ? "– (mapped)" : json(entry.selection.set)}</Field>
         <Field label="before">{json(entry.selection.before)}</Field>
         <Field label="after">{json(entry.selection.after)}</Field>
       </Section>
-      <Section title={`Effects (${entry.effectValues.length})`}>
+      <Section title={`Effects (${entry.effectValues.length})`} onLog={log("effects")} copied={() => json(entry.effectValues)}>
         <Values values={entry.effectValues} />
       </Section>
-      <Section title={`Annotations (${entry.annotationValues.length})`}>
+      <Section
+        title={`Annotations (${entry.annotationValues.length})`}
+        onLog={log("annotations")}
+        copied={() => json(entry.annotationValues)}
+      >
         <Values values={entry.annotationValues} />
       </Section>
     </div>
@@ -468,7 +663,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
   const {rows} = view
   const rowCount = rows.length
   const [sort, setSort] = useState<Sort>({key: "index", descending: false})
-  const [filters, setFilters] = useState(noFilters)
+  const filters = useSyncExternalStore(logFilters.subscribe, logFilters.get)
   const filtered = filtering(filters) ? rows.filter(row => matches(row, filters)) : rows
   const shown = sorted(filtered, sort)
   // The newest rows come last: new ones are followed.
@@ -537,7 +732,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
         const index = store.takeLogReveal(editorId)
         if (index == null) return
         // The entry may be filtered out.
-        setFilters(noFilters)
+        logFilters.update(() => noFilters)
         setSelected(index)
         void source.load().then(() => requestAnimationFrame(() => select(index)))
       }
@@ -556,6 +751,10 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
         }
         if (shown() && stale) load()
       })
+      // The tab's red dot: kept mounted while hidden, this tab knows whether its editor records.
+      const report = () => store.setRecording(source.get().recording)
+      const stopSource = source.subscribe(report)
+      report()
       if (shown()) load()
       takeReveal()
       return () => {
@@ -563,13 +762,26 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
         element.removeEventListener("scroll", onScroll)
         stopLog()
         stopStore()
+        stopSource()
+        store.setRecording(false)
         scroller.current = null
       }
     },
     [store, editorId, source],
   )
 
+  // The row a menu opens on is selected.
+  const [menu] = useState(() =>
+    createMenuAnchor<RowTarget>(
+      "[data-index]",
+      row => ({index: Number(row.getAttribute("data-index"))}),
+      (_, target) => setSelected(target.index),
+    ),
+  )
+
   const onKeyDown = (event: KeyboardEvent) => {
+    menu.onKeyDown(event)
+    if (event.defaultPrevented) return
     if (!shown.length) return
     const position = shown.findIndex(row => row.index == selected)
     const step: Record<string, number> = {ArrowDown: 1, ArrowUp: -1, PageDown: 10, PageUp: -10}
@@ -605,6 +817,12 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
           {view.recording ? <PauseIcon /> : <RecordIcon className="text-destructive" />}
           {view.recording ? "Pause" : "Record"}
         </Button>
+        <span className="text-muted-foreground" aria-live="polite">
+          {filtered.length != rows.length && `${filtered.length} of `}
+          {rows.length} transaction{rows.length == 1 ? "" : "s"}
+          {view.size > 0 && rows.length >= view.size && ` (the last ${view.size} kept)`}
+          {slowCount > 0 && <span className={slowText}> · {slowCount} over {SLOW_MS} ms</span>}
+        </span>
         <Button
           variant="ghost"
           size="xs"
@@ -616,22 +834,21 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
         >
           <NoSymbolIcon /> Clear
         </Button>
-        <Tip label="Record selections made with the pointer (clicks and drags in the editor)">
-          <label className="flex cursor-pointer items-center gap-1 font-mono text-muted-foreground hover:text-foreground">
-            <input
-              type="checkbox"
-              checked={view.selectPointer}
-              onChange={event => void source.setSelectPointer(event.target.checked)}
-              className="size-3 cursor-pointer accent-primary"
-            />
-            record select.pointer
-          </label>
-        </Tip>
-        <span className="text-muted-foreground" aria-live="polite">
-          {filtered.length != rows.length && `${filtered.length} of `}
-          {rows.length} transaction{rows.length == 1 ? "" : "s"}
-          {view.size > 0 && rows.length >= view.size && ` (the last ${view.size} kept)`}
-          {slowCount > 0 && <span className={slowText}> · {slowCount} over {SLOW_MS} ms</span>}
+        <span className="ml-auto flex items-center gap-2">
+          <SettingBox
+            source={source}
+            setting="selectPointer"
+            on={view.selectPointer}
+            label="record select.pointer"
+            tip="Record selections made with the pointer (clicks and drags in the editor)"
+          />
+          <SettingBox
+            source={source}
+            setting="focusChanges"
+            on={view.focusChanges}
+            label="record focus"
+            tip="Record focus changes: the empty transactions Wordgard dispatches when the editor gains or loses focus (clicking in the in-page panel takes it)"
+          />
         </span>
       </div>
       {view.error != null && (
@@ -642,7 +859,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
           </Button>
         </p>
       )}
-      <FilterBar rows={rows} filters={filters} onChange={setFilters} />
+      <FilterBar rows={rows} filters={filters} onChange={logFilters.update} />
       <Timeline rows={filtered} selected={selected} onSelect={select} />
       <SplitPane pane={<EntryPane source={source} row={selectedRow} />}>
         {/* The header sits outside the listbox, which holds only rows. */}
@@ -673,6 +890,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
               tabIndex={0}
               aria-activedescendant={activeRow ? `log-row-${activeRow.index}` : undefined}
               onKeyDown={onKeyDown}
+              onContextMenu={menu.onContextMenu}
               onClick={event => {
                 const index = event.target instanceof Element ? event.target.closest("[data-index]")?.getAttribute("data-index") : null
                 if (index != null) setSelected(Number(index))
@@ -690,6 +908,7 @@ export const Log = ({store, editorId}: {store: PanelStore; editorId: number}) =>
           </div>
         </div>
       </SplitPane>
+      <RowMenu source={source} rows={rows} anchor={menu} />
     </div>
   )
 }

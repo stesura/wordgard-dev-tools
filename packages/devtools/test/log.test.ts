@@ -75,6 +75,18 @@ it("skips select.pointer transactions when told to", async () => {
   expect((await log(wg)).rows.map(r => r.userEvent)).toEqual(["input.type", "select.pointer"])
 })
 
+it("names focus changes, and skips them when told to", async () => {
+  const wg = open()
+  await ask({type: "select", id: idOf(wg)})
+  await ask({type: "record", id: idOf(wg), on: true})
+  wg.dispatch({annotations: Wordgard.isFocusChange.of(false)})
+  expect((await log(wg)).rows[0]?.annotations.toSorted()).toEqual(["focus", "time"])
+  await ask({type: "record", id: idOf(wg), on: true, focusChanges: false})
+  wg.dispatch({annotations: Wordgard.isFocusChange.of(true)})
+  type(wg, "a")
+  expect((await log(wg)).rows.map(r => r.userEvent)).toEqual([null, "input.type"])
+})
+
 it("logs appended transactions as their own entries", async () => {
   const appender = Transaction.appender.of(trs =>
     trs.some(tr => tr.isUserEvent("input")) ? {changes: {from: 1, insert: [Leaf.text("!")]}} : null,
@@ -274,4 +286,19 @@ it("pauses when no panel shows the editor, and drops the log when it disconnects
   parent?.append(wg.dom)
   expect(Object.hasOwn(wg, "flush")).toBe(false)
   expect(await log(wg)).toMatchObject({rows: [], end: 0, recording: false})
+})
+
+it("logs a transaction, or one of its parts, live", async () => {
+  const wg = open()
+  await recording(wg)
+  type(wg, "a")
+  const log = vi.spyOn(console, "log").mockImplementation(() => {})
+  await ask({type: "logEntry", id: idOf(wg), index: 0})
+  expect(log.mock.calls[0]?.[0]).toBe("[wordgard-devtools] transaction #0")
+  expect(log.mock.calls[0]?.[1]).toBeInstanceOf(Transaction)
+  await ask({type: "logEntry", id: idOf(wg), index: 0, part: "selection"})
+  expect(log.mock.calls[1]?.[0]).toBe("[wordgard-devtools] transaction #0, selection")
+  expect(log.mock.calls[1]?.[1]).toHaveProperty("before")
+  log.mockRestore()
+  await expect(ask({type: "logEntry", id: idOf(wg), index: 9})).rejects.toThrow("no longer in the log")
 })

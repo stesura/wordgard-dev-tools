@@ -45,6 +45,16 @@ const card = (name: string, pos?: number) => {
   return pos == null || found?.querySelector("h3")?.textContent?.endsWith(`Pos at ${pos}`) ? found : null
 }
 
+const item = (text: string) =>
+  [...shadow().querySelectorAll<HTMLElement>("[role='menuitem']")].find(element => element.textContent?.trim() == text)
+
+const rightClick = (element: HTMLElement) => {
+  const rect = element.getBoundingClientRect()
+  element.dispatchEvent(
+    new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: rect.left + 4, clientY: rect.top + 4, button: 2}),
+  )
+}
+
 const setup = async () => {
   const editor = Wordgard.create({parent: document.body, doc, config: [basicSchema(), wordgardDevtools()]})
   wg = editor
@@ -65,6 +75,17 @@ it("resolves the cursor, live", async () => {
   expect(cursor.textContent).toContain('"b"')
   expect(cursor.textContent).toContain('"c"')
   expect(card("Selection")?.textContent).toContain("typingStrong")
+})
+
+it("shows the active marks in the bar, and whether the cursor stores them", async () => {
+  const editor = await setup()
+  const marks = () => shadow().querySelector<HTMLElement>("[aria-label='Selection'] [data-active-marks]")
+  await until(() => card("Cursor", 1))
+  expect(marks()).toBeNull()
+  editor.dispatch({selection: {anchor: 3}})
+  await until(() => marks()?.textContent == "marks:Strong")
+  editor.dispatch({selection: {anchor: 1, marks: []}})
+  await until(() => marks()?.textContent == "marks:none(stored)")
 })
 
 it("resolves the anchor and head of a range, and any position", async () => {
@@ -111,11 +132,50 @@ it("shows the selection's slice, and logs and copies the positions", async () =>
   expect(slice.textContent).toContain('text"cd"')
   expect(slice.textContent).toContain('Text"c"Strong')
   expect(slice.textContent).toContain("contextParagraph")
-  const button = (section: HTMLElement | null | undefined, label: string) => section?.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)
-  ;(await until(() => button(card("Slice"), "Log the slice to the page's console"))).click()
+  // From each card's context menu.
+  const choose = async (section: HTMLElement, text: string) => {
+    await until(() => !shadow().querySelector("[role='menu']"))
+    rightClick(section)
+    ;(await until(() => item(text))).click()
+  }
+  await choose(await until(() => card("Slice")), "Log to console")
   await until(() => logged.some(args => args[0] == "[wordgard-devtools] state.selection.toSlice(state.doc)"))
-  ;(await until(() => button(card("Anchor", 3), "Log the anchor to the page's console"))).click()
+  await choose(await until(() => card("Anchor", 3)), "Log to console")
   await until(() => logged.some(args => args[0] == "[wordgard-devtools] doc.resolve(3)"))
-  ;(await until(() => button(card("Head", 5), "Copy the head as JSON"))).click()
+  await choose(await until(() => card("Head", 5)), "Copy JSON")
   await until(() => copied.some(text => JSON.parse(text).pos == 5))
+  // The cards show no buttons of their own.
+  expect(card("Head", 5)?.querySelector("button[aria-label^='Log'], button[aria-label^='Copy']")).toBeNull()
+})
+
+it("clears the typed position from its card's menu", async () => {
+  await setup()
+  const input = await until(() => panel()?.querySelector<HTMLInputElement>("[aria-label='Position to resolve']"))
+  await userEvent.fill(input, "2")
+  const position = await until(() => card("Position", 2))
+  rightClick(position)
+  ;(await until(() => item("Clear"))).click()
+  await until(() => !card("Position", 2))
+  expect(input.value).toBe("")
+})
+
+it("explains resolved positions in a guide, linking to Wordgard's reference", async () => {
+  await setup()
+  ;(await until(() => panel()?.querySelector<HTMLElement>("[aria-label='About Resolved positions']"))).click()
+  const popup = await until(() => shadow().querySelector<HTMLElement>("[data-slot='popover-content']"))
+  expect(popup.textContent).toContain("doc.resolve(pos)")
+  expect(popup.querySelector("a[href='https://wordgard.net/docs/ref/#h-resolved-positions']")).not.toBeNull()
+})
+
+
+it("heads the selection's part with a bar, its guide explaining selections", async () => {
+  await setup()
+  const guide = await until(() => shadow().querySelector<HTMLButtonElement>("[aria-label='About Selection']"))
+  expect(guide.closest("div")?.textContent).toBe("Selection")
+  // Dimmed until open, unlike the tab bar's guide.
+  expect(guide.classList.contains("opacity-50")).toBe(true)
+  expect(shadow().querySelector("[aria-label='About the Selection tab']")?.classList.contains("opacity-50")).toBe(false)
+  guide.click()
+  await until(() => shadow().querySelector("[data-slot='popover-content']")?.textContent?.includes("the side that doesn't move when you extend it"))
+  expect(guide.hasAttribute("data-popup-open")).toBe(true)
 })

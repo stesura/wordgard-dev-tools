@@ -1,4 +1,4 @@
-import type {LogEntryDetail, LogRow} from "@stesura/wordgard-dev-tools"
+import type {EntryPart, LogEntryDetail, LogRow} from "@stesura/wordgard-dev-tools"
 import {errorMessage} from "./store.ts"
 import type {Transport} from "./transport.ts"
 
@@ -14,7 +14,12 @@ export type LogView = {
   error: string | null
   /** `select.pointer` transactions are recorded: the panel's setting, saved. */
   selectPointer: boolean
+  /** Focus changes (`Wordgard.isFocusChange`) are recorded: the panel's setting, saved. */
+  focusChanges: boolean
 }
+
+/** What the log leaves out, unticked. */
+export type RecordSetting = "selectPointer" | "focusChanges"
 
 export type EntryDetail = {entry: LogEntryDetail; error?: undefined} | {entry?: undefined; error: string}
 
@@ -24,28 +29,34 @@ export type LogSource = {
   /** Fetches the rows appended or changed since the last load. Never rejects. */
   load: () => Promise<void>
   record: (on: boolean) => Promise<void>
-  /** Whether to record `select.pointer` transactions; applies at once while recording. */
-  setSelectPointer: (on: boolean) => Promise<void>
+  /** Whether to record `select.pointer` transactions, or focus changes; applies at once while recording. */
+  setSetting: (setting: RecordSetting, on: boolean) => Promise<void>
   clear: () => Promise<void>
   /** A promise per entry and flush (its timing arrives with the flush), cached: for `use()`. */
   detail: (index: number, flush: number | null) => Promise<EntryDetail>
+  /** Logs a transaction, or one of its parts, live in the page's console. */
+  logEntry: (index: number, part?: EntryPart) => void
   /** Drops a cached detail (a failed one, to retry). */
   forget: (index: number, flush: number | null) => void
 }
 
-const POINTER_KEY = "wordgard-devtools:log-select-pointer"
+const SETTING_KEYS: Record<RecordSetting, string> = {
+  selectPointer: "wordgard-devtools:log-select-pointer",
+  focusChanges: "wordgard-devtools:log-focus-changes",
+}
 
-const readSelectPointer = () => {
+// On unless saved off.
+const readSetting = (setting: RecordSetting) => {
   try {
-    return localStorage.getItem(POINTER_KEY) != "false"
+    return localStorage.getItem(SETTING_KEYS[setting]) != "false"
   } catch {
     return true
   }
 }
 
-const saveSelectPointer = (on: boolean) => {
+const saveSetting = (setting: RecordSetting, on: boolean) => {
   try {
-    localStorage.setItem(POINTER_KEY, String(on))
+    localStorage.setItem(SETTING_KEYS[setting], String(on))
   } catch {
     // Storage blocked: the setting lasts until reload.
   }
@@ -60,7 +71,8 @@ const empty = (): LogView => ({
   size: 0,
   loaded: false,
   error: null,
-  selectPointer: readSelectPointer(),
+  selectPointer: readSetting("selectPointer"),
+  focusChanges: readSetting("focusChanges"),
 })
 const KEPT = 32
 
@@ -84,7 +96,7 @@ export const createLogSource = (transport: Transport, id: number): LogSource => 
       if (at != version) return
       // A new log (the editor reconnected): start over.
       if (slice.end < view.end) {
-        view = {...empty(), selectPointer: view.selectPointer}
+        view = {...empty(), selectPointer: view.selectPointer, focusChanges: view.focusChanges}
         details.clear()
         return load()
       }
@@ -115,13 +127,19 @@ export const createLogSource = (transport: Transport, id: number): LogSource => 
       }
     },
     load,
-    record: on => act(() => transport.send({type: "record", id, on, selectPointer: view.selectPointer})),
-    setSelectPointer: async on => {
-      saveSelectPointer(on)
-      set({selectPointer: on})
-      if (view.recording) await act(() => transport.send({type: "record", id, on: true, selectPointer: on}))
+    record: on =>
+      act(() =>
+        transport.send({type: "record", id, on, selectPointer: view.selectPointer, focusChanges: view.focusChanges}),
+      ),
+    setSetting: async (setting, on) => {
+      saveSetting(setting, on)
+      set({[setting]: on})
+      if (view.recording) await act(() => transport.send({type: "record", id, on: true, [setting]: on}))
     },
     clear: () => act(() => transport.send({type: "clear", id})),
+    logEntry: (index, part) => {
+      transport.send({type: "logEntry", id, index, part}).catch(() => {})
+    },
     forget: (index, flush) => {
       details.delete(`${index}|${flush}`)
     },

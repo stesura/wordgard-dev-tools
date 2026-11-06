@@ -286,6 +286,44 @@ it("switches a type's JSON between its spec and what applies", async () => {
   vi.restoreAllMocks()
 })
 
+it("explains each section from its bar", async () => {
+  await setup()
+  const popup = () => shadow().querySelector<HTMLElement>("[data-slot='popover-content']")
+  const sections = [
+    {label: "About the nodes", text: "Each node type in the schema", link: "#doc.Plot.Spec.defining"},
+    {label: "About the marks", text: "Each mark type", link: "#doc.Mark.Spec.inclusive"},
+    {label: "About the node groups", text: "Groups are used to specify parent-child relationships between nodes", link: "#doc.Node.Group.Textblock"},
+  ]
+  for (const {label, text, link} of sections) {
+    ;(await until(() => shadow().querySelector<HTMLButtonElement>(`[aria-label='${label}']`))).click()
+    await until(() => popup()?.textContent?.includes(text))
+    // Terms link to their entry in Wordgard's reference.
+    expect(popup()?.querySelector(`a[href$='${link}']`)).not.toBeNull()
+    await userEvent.keyboard("{Escape}")
+    await until(() => !popup())
+  }
+})
+
+it("explains spec and effective, for a node type or a mark type, and not for a group", async () => {
+  const paragraph = await setup()
+  const spec = () => shadow().querySelector<HTMLElement>("[aria-label='Spec']")
+  const guide = () => spec()?.querySelector<HTMLButtonElement>("[aria-label='About spec and effective']")
+  const popup = () => shadow().querySelector<HTMLElement>("[data-slot='popover-content']")
+  paragraph.click()
+  ;(await until(() => guide())).click()
+  await until(() => popup()?.textContent?.includes("Spec is the node type as defined"))
+  await userEvent.keyboard("{Escape}")
+  await until(() => !popup())
+  ;(await until(() => card("mark-Strong"))).click()
+  ;(await until(() => guide())).click()
+  await until(() => popup()?.textContent?.includes("Spec is the mark type as defined"))
+  await userEvent.keyboard("{Escape}")
+  await until(() => !popup())
+  ;(await until(() => card("group-Content"))).click()
+  await until(() => spec()?.textContent?.includes("Contentnode group"))
+  expect(guide()).toBeNull()
+})
+
 it("flags a type an override changes: an amber switch and a note", async () => {
   // A type of this file's (here, wordgard/types can be another copy than basicSchema's), and a group
   // Wordgard names (one only an override mentions isn't seen).
@@ -316,4 +354,33 @@ it("flags a type an override changes: an amber switch and a note", async () => {
   await until(() => spec()?.textContent?.includes("Headingnode type"))
   expect(note()).toBeNull()
   expect(effectiveButton()?.className).not.toContain("amber")
+})
+
+it("saves the filters, and reads them back, leaving out tags this schema doesn't have", async () => {
+  await setup()
+  const nodes = await until(() => section("Nodes"))
+  toggle(nodes, "textblock")?.click()
+  toggle(shadow(), "3 marks")?.click()
+  await until(() => !card("node-Text") && !card("mark-Strong"))
+  expect(JSON.parse(localStorage.getItem("wordgard-devtools:schema-filters") ?? "null")).toEqual({
+    query: "",
+    open: {node: true, mark: false, group: true},
+    nodes: ["textblock"],
+    marks: [],
+    groups: [],
+  })
+  mounted?.unmount()
+  wg?.dom.remove()
+
+  localStorage.setItem(
+    "wordgard-devtools:schema-filters",
+    JSON.stringify({query: "Para", open: {node: true}, nodes: ["textblock", "no-such-tag"], marks: [], groups: []}),
+  )
+  await setup()
+  await until(() => card("node-Paragraph") && !card("node-Heading"))
+  expect(toggle(section("Nodes") ?? shadow(), "textblock")?.getAttribute("aria-pressed")).toBe("true")
+  expect(shadow().querySelector<HTMLInputElement>("[aria-label='Filter the types']")?.value).toBe("Para")
+  ;[...shadow().querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent == "Clear filters")?.click()
+  await until(() => card("node-Heading") && card("node-Text"))
+  expect(JSON.parse(localStorage.getItem("wordgard-devtools:schema-filters") ?? "null")?.nodes).toEqual([])
 })

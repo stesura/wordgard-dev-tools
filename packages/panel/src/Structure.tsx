@@ -424,7 +424,11 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
             source={source}
             focused={focused == ROOT ? null : focused}
             onShowType={(kind, name) => store.showType(editorId, name, kind)}
-            onLogJSON={path => store.transport.send({type: "logNode", id: editorId, path, json: true}).catch(() => {})}
+            onLog={(path, part) =>
+              store.transport
+                .send(part == "json" ? {type: "logNode", id: editorId, path, json: true} : {type: "logNode", id: editorId, path, part})
+                .catch(() => {})
+            }
           />
         }
       >

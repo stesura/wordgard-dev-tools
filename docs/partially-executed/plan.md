@@ -1110,7 +1110,9 @@ Parked by the user (2026-11-06). To do before the first store release:
 - **Selection bar**: moved from the top of the Structure to the bottom of the panel, under every
   tab (`SelectionBar`, from the store's selection). An eye button (was "Reveal") shows the head's node in the Structure
   (`showNode`) from any tab; buttons log the live selection (`logState` on `selection`) and copy its
-  JSON.
+  JSON. Active marks (`state.sel.activeMarks`) follow head, as Schema-coloured links, with
+  "(stored)" when they're the cursor's own (`GardSelection.Text.marks`, "none" when it stores an
+  empty set); hidden when there are none. `SelectionInfo` carries `activeMarks` and `storedMarks`.
 - **Structure's node pane**: "type" (was "name") and each mark are badges in their Schema colours
   (`TypeLink`), links to their card in the Schema (`showType` takes a kind now: node or mark). The
   JSON, under a divider, has buttons on the right to log it (`logNode` with `json`, even for a node
@@ -1143,6 +1145,7 @@ Parked by the user (2026-11-06). To do before the first store release:
   resizable. The tab's pane is wider by default than the others' (its own saved sizes);
   `SplitPane` takes a kind (storage key, width threshold, sizes) and a fixed orientation. Each
   field's history can be cleared (new `clearFieldHistory` request); the list's count goes too.
+- **Log tab, recording dot**: while the log records, its tab shows a red dot (and "(recording)" for screen readers), seen from any tab. The Log tab, kept mounted, reports its source's `recording` to the store (`setRecording`), which the tab bar reads.
 - **Header**: the editor picker, "n editors", Pick, Pause and the panel's buttons (theme, dock,
   close) are one group: on the title's line when it fits, else under the title, the buttons at its
   end, wrapping onto a third line at the narrowest.
@@ -1172,6 +1175,7 @@ disagree when only one request fails. The error banner says so, and Retry reload
   Leaf, Plot) come last, tagged "automatic" (a tooltip says why node cards don't list them); Wordgard's groups this schema neither fills nor names
   are left out. A node card's groups link to their cards, a group card's types and marks to theirs.
   Page side: `SchemaInfo.groups`.
+- **Schema, section guides**: a guide (?) in the Nodes, Marks and Node groups bars, after the count, as the tabs' guides: what the section lists and what each line of its cards means (`SCHEMA_NODES`, `SCHEMA_MARKS`, `SCHEMA_GROUPS` in `guides.ts`). Each tag (plot, leaf, block, inline, textblock, doc, defining, neutral, isolating, canBeEmpty, preserveWhitespace, row, selectable; inclusive, spanning, element, rank, keepOnSplit, keepOnTypeChange) is explained in the reference's own words and linked to its entry there (anchors checked on wordgard.net/docs/ref). Guide text takes markdown links (`[label](href)`), drawn with a dotted underline; the README renders them as written.
 - **Schema, spec pane** (a split: on the right, at the bottom when narrow): the selected card's
   JSON. A node or mark type's spec as written (`spec`, sent with the schema: groups, roles and
   content/target queries by the names the cards use, a structure shape as its HTML, functions as
@@ -1185,7 +1189,7 @@ disagree when only one request fails. The error banner says so, and Retry reload
   schema" (worked out from the whole schema). Copy copies the values, without the comments. When
   an override changes what applies (only overrides: defaults don't contradict the spec), the
   "Effective" button is amber and a note under the header says so, naming what it changes, with a
-  link to the effective view (there, it says the highlighted values are the override's). Not
+  link to the effective view (there, it says the highlighted values are the override's). A guide (?) beside the switch, as the tabs' guides, explains spec and effective and the three notes, one for node types and one for mark types (its defaults, its targets); none for a group, which has no switch. Not
   available: overrides themselves and a mark's resolved rank (Wordgard internals), `defaultBlock`,
   `cursorBarrier` (resolved where they're used). Fixed with it: Textblock is one of the groups
   Wordgard assigns itself (to block plots with inline content), now "automatic" like All, Inline,

@@ -23,7 +23,8 @@ const fakeAgent = (ids: number[], delay = 20) => {
       return null
     },
     stateJSON: unsupported,
-    selection: () => ({anchor: 0, head: 0, from: 0, to: 0, empty: true, json: null, headPath: [], anchorPath: [], nodePath: null}),
+    replaceState: unsupported,
+    selection: () => ({anchor: 0, head: 0, from: 0, to: 0, empty: true, json: null, headPath: [], anchorPath: [], nodePath: null, activeMarks: [], storedMarks: false}),
     node: unsupported,
     structure: unsupported,
     schema: unsupported,
@@ -45,10 +46,12 @@ const fakeAgent = (ids: number[], delay = 20) => {
     logSlice: unsupported,
     logEditor: unsupported,
     logNodeDOM: unsupported,
+    viewHTML: unsupported,
     record: unsupported,
     clear: unsupported,
     log: unsupported,
     entry: unsupported,
+    logEntry: unsupported,
     highlight: () => null,
     pick: ({on}) => {
       sent.push(`pick:${on}`)

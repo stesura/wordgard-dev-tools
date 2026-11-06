@@ -123,11 +123,13 @@ export const createFramesTransport = (send: (frameId: number, message: ToBridge)
       return null
     },
     stateJSON: ({id}) => routed<"stateJSON">(id, page => ({type: "stateJSON", id: page})),
+    replaceState: ({id, json}) => routed<"replaceState">(id, page => ({type: "replaceState", id: page, json})),
     node: ({id, path}) => routed<"node">(id, page => ({type: "node", id: page, path})),
     structure: ({id}) => routed<"structure">(id, page => ({type: "structure", id: page})),
     schema: ({id}) => routed<"schema">(id, page => ({type: "schema", id: page})),
     view: ({id}) => routed<"view">(id, page => ({type: "view", id: page})),
     viewElement: ({id, path, action}) => routed<"viewElement">(id, page => ({type: "viewElement", id: page, path, action})),
+    viewHTML: ({id, path}) => routed<"viewHTML">(id, page => ({type: "viewHTML", id: page, path})),
     selection: ({id}) => routed<"selection">(id, page => ({type: "selection", id: page})),
     selectionDetail: ({id}) => routed<"selectionDetail">(id, page => ({type: "selectionDetail", id: page})),
     resolve: ({id, pos}) => routed<"resolve">(id, page => ({type: "resolve", id: page, pos})),
@@ -142,11 +144,12 @@ export const createFramesTransport = (send: (frameId: number, message: ToBridge)
     clearFieldHistory: ({id, index}) => routed<"clearFieldHistory">(id, page => ({type: "clearFieldHistory", id: page, index})),
     logType: ({id, kind, name, json}) => routed<"logType">(id, page => ({type: "logType", id: page, kind, name, json})),
     watchFields: ({id, on}) => routed<"watchFields">(id, page => ({type: "watchFields", id: page, on})),
-    record: ({id, on, size, selectPointer}) =>
-      routed<"record">(id, page => ({type: "record", id: page, on, size, selectPointer})),
+    record: ({id, on, size, selectPointer, focusChanges}) =>
+      routed<"record">(id, page => ({type: "record", id: page, on, size, selectPointer, focusChanges})),
     clear: ({id}) => routed<"clear">(id, page => ({type: "clear", id: page})),
     log: ({id, from, to}) => routed<"log">(id, page => ({type: "log", id: page, from, to})),
     entry: ({id, index}) => routed<"entry">(id, page => ({type: "entry", id: page, index})),
+    logEntry: ({id, index, part}) => routed<"logEntry">(id, page => ({type: "logEntry", id: page, index, part})),
     // Hiding needs no editor: every frame hides its outline.
     highlight: async ({id, path}) => {
       if (path) return routed<"highlight">(id, page => ({type: "highlight", id: page, path}))
@@ -154,7 +157,7 @@ export const createFramesTransport = (send: (frameId: number, message: ToBridge)
       return null
     },
     scrollIntoView: ({id, path}) => routed<"scrollIntoView">(id, page => ({type: "scrollIntoView", id: page, path})),
-    logNode: ({id, path, json}) => routed<"logNode">(id, page => ({type: "logNode", id: page, path, json})),
+    logNode: ({id, path, json, part}) => routed<"logNode">(id, page => ({type: "logNode", id: page, path, json, part})),
     logState: ({id, keys, json}) => routed<"logState">(id, page => ({type: "logState", id: page, keys, json})),
     setConsole: ({id, index}) => routed<"setConsole">(id, page => ({type: "setConsole", id: page, index})),
     repro: ({id}) => routed<"repro">(id, page => ({type: "repro", id: page})),

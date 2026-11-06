@@ -1,11 +1,14 @@
 import { cn } from "cn";
 import {
+  ArrowUpRightIcon,
+  Cog6ToothIcon,
   CommandLineIcon,
   ComputerDesktopIcon,
   MoonIcon,
   CursorArrowRaysIcon,
   PauseIcon,
   PlayIcon,
+  RecordIcon,
   SunIcon,
 } from "#icons";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
@@ -14,11 +17,14 @@ import { PortalContainer } from "#components/portal";
 import { Button } from "#components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "#components/ui/dropdown-menu";
 import {
@@ -35,7 +41,7 @@ import { Fields } from "./Fields.tsx";
 import { Schema } from "./Schema.tsx";
 import { State } from "./State.tsx";
 import { View as ViewTab } from "./View.tsx";
-import { GuideButton } from "./guide.tsx";
+import { GuideButton, guidesShown } from "./guide.tsx";
 import { isView, type PanelStore } from "./store.ts";
 import { SelectionBar } from "./node-pane.tsx";
 import { SelectionTab } from "./Selection.tsx";
@@ -188,6 +194,53 @@ const ThemeMenu = ({ theme }: { theme: ThemeStore }) => {
   return <ChoiceMenu label="Theme" value={choice} choices={themes} onChange={theme.set} />;
 };
 
+const REPOSITORY = "https://github.com/stesura/wordgard-devtools";
+
+/** The panel's settings; `extra`: more groups, first (the in-page dock's reopen button). */
+const SettingsMenu = ({ extra }: { extra?: ReactNode }) => {
+  const shown = useSyncExternalStore(guidesShown.subscribe, guidesShown.get);
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-xs" aria-label="Settings" />}
+            />
+          }
+        >
+          <Cog6ToothIcon />
+        </TooltipTrigger>
+        <TooltipContent side="top">Settings</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" className="w-auto">
+        {extra && (
+          <>
+            {extra}
+            <DropdownMenuSeparator />
+          </>
+        )}
+        <DropdownMenuCheckboxItem
+          checked={shown}
+          onCheckedChange={(on) => guidesShown.update(() => on)}
+          closeOnClick
+          className="text-xs"
+        >
+          Display guidances
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          render={<a href={REPOSITORY} target="_blank" rel="noreferrer" />}
+          className="text-xs"
+        >
+          GitHub repository
+          <ArrowUpRightIcon className="ml-auto size-3 text-muted-foreground" />
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
 export const IconButton = ({
   label,
   onClick,
@@ -236,7 +289,7 @@ const tabClass =
   "-mb-px h-7 flex-none rounded-none border-0 border-r border-r-border px-3 text-xs text-muted-foreground hover:text-foreground focus-visible:border-r-border focus-visible:ring-2 focus-visible:ring-inset data-active:bg-strip data-active:text-foreground dark:data-active:bg-strip dark:data-active:border-r-border group-data-[variant=default]/tabs-list:data-active:shadow-none";
 
 const Body = ({ store }: { store: PanelStore }) => {
-  const { editors, selected, view } = useSyncExternalStore(store.subscribe, store.get);
+  const { editors, selected, view, recording } = useSyncExternalStore(store.subscribe, store.get);
   if (!editors.length) {
     return (
       <p className="p-2 text-muted-foreground">
@@ -278,6 +331,13 @@ const Body = ({ store }: { store: PanelStore }) => {
           </TabsTrigger>
           <TabsTrigger value="log" className={tabClass}>
             Log
+            {/* Seen from any tab: the log is recording. */}
+            {recording && (
+              <>
+                <RecordIcon aria-hidden className="size-2 text-destructive" />
+                <span className="sr-only">(recording)</span>
+              </>
+            )}
           </TabsTrigger>
         </TabsList>
         <span className="flex h-7 shrink-0 items-center gap-0.5 px-1">
@@ -325,6 +385,8 @@ export type PanelProps = {
   theme: ThemeStore;
   /** Extra toolbar buttons, at its end (the dock's collapse button). */
   actions?: ReactNode;
+  /** Extra groups in the Settings menu (the dock's reopen button). */
+  settings?: ReactNode;
   /** The title on a row of its own (the dock on the left or right, where the toolbar is narrow). */
   titleRow?: boolean;
   className?: string;
@@ -332,7 +394,7 @@ export type PanelProps = {
 
 const TITLE = "Wordgard DevTools";
 
-export const Panel = ({ store, theme, actions, titleRow, className }: PanelProps) => {
+export const Panel = ({ store, theme, actions, settings, titleRow, className }: PanelProps) => {
   const { dark } = useSyncExternalStore(theme.subscribe, theme.get);
   const { editors, paused } = useSyncExternalStore(store.subscribe, store.get);
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
@@ -363,6 +425,7 @@ export const Panel = ({ store, theme, actions, titleRow, className }: PanelProps
             <PauseButton store={store} />
             <div className="ml-auto flex items-center gap-1">
               <ThemeMenu theme={theme} />
+              <SettingsMenu extra={settings} />
               {actions}
             </div>
           </div>

@@ -37,6 +37,9 @@ export type NodeDetail = TreeNode & {
   json: unknown
 }
 
+/** One of a node's values, as the node pane lists them: logged live (its type, param, mark). */
+export type NodePart = "type" | "path" | "range" | "param" | "text" | {mark: number}
+
 export type SelectionInfo = {
   anchor: number
   head: number
@@ -50,6 +53,10 @@ export type SelectionInfo = {
   anchorPath: Path
   /** A node selection's node; null for other selections. */
   nodePath: Path | null
+  /** What typed text gets: `state.sel.activeMarks`. */
+  activeMarks: MarkPreview[]
+  /** They're the cursor's own (`GardSelection.Text.marks`), not those around it. */
+  storedMarks: boolean
 }
 
 export type MarkPreview = {name: string; preview: string | null}
@@ -178,6 +185,9 @@ export type ChangedRange = {
   beforeText: string
   afterText: string
 }
+
+/** A transaction in the log, or one of its parts, to log live. */
+export type EntryPart = "transaction" | "changes" | "selection" | "effects" | "annotations"
 
 export type LogEntryDetail = LogRow & {
   /** `changes.toJSON()`. */
@@ -341,6 +351,11 @@ export type Requests = {
   select: {id: number | null}
   /** `GardState.toJSON`: the document and the selection, plus the named fields that serialise. */
   stateJSON: {id: number}
+  /**
+   * Replaces the editor's document and selection with a state's JSON (`stateJSON`'s), after
+   * checking it against the schema; one transaction, so it can be undone. Fields aren't restored.
+   */
+  replaceState: {id: number; json: unknown}
   node: {id: number; path: Path}
   structure: {id: number}
   /** The state's schema: node and mark types. */
@@ -351,8 +366,10 @@ export type Requests = {
   logEditor: {id: number}
   /** Logs the DOM element drawing a node, or its nearest ancestor's, in the page's console. */
   logNodeDOM: {id: number; path: Path}
-  /** Outlines (in the page) or logs (in the page's console) a DOM node of `view`, by its child indices. */
-  viewElement: {id: number; path: readonly number[]; action: "outline" | "log"}
+  /** Outlines (in the page) or logs (in the page's console: the node, or its outer HTML) a DOM node of `view`, by its child indices. */
+  viewElement: {id: number; path: readonly number[]; action: "outline" | "log" | "logHTML"}
+  /** A DOM node of `view`'s outer HTML (a text node's text). */
+  viewHTML: {id: number; path: readonly number[]}
   selection: {id: number}
   selectionDetail: {id: number}
   /** Resolves any position in the document. */
@@ -384,18 +401,22 @@ export type Requests = {
     size?: number
     /** Records `select.pointer` transactions (a pointer selecting); true by default. */
     selectPointer?: boolean
+    /** Records focus changes (`Wordgard.isFocusChange`: the editor gaining or losing focus); true by default. */
+    focusChanges?: boolean
   }
   clear: {id: number}
   /** Rows with `from <= index < to`, of those still held. */
   log: {id: number; from: number; to: number}
   entry: {id: number; index: number}
+  /** Logs a transaction in the log (by default), or one of its parts, live in the page's console. */
+  logEntry: {id: number; index: number; part?: EntryPart}
   /** Outlines the node in the page; `path: null` hides the outline (any `id`). */
   highlight: {id: number; path: Path | null}
   pick: {on: boolean}
   /** Scrolls the node into view in the page (its editor and the page around). */
   scrollIntoView: {id: number; path: Path}
-  /** Logs the node itself in the page's console, or its `toJSON()` with `json`. */
-  logNode: {id: number; path: Path; json?: boolean}
+  /** Logs the node itself in the page's console, its `toJSON()` with `json`, or with `part` one of its values. */
+  logNode: {id: number; path: Path; json?: boolean; part?: NodePart}
   /** Logs a value of `stateJSON` in the page's console, by its keys: the live state, selection or
    * named field where it is one of those (unless `json`), its JSON otherwise. */
   logState: {id: number; keys: readonly string[]; json?: boolean}
@@ -413,11 +434,14 @@ export type Results = {
   }
   select: null
   stateJSON: unknown
+  /** `exact`: the editor's document came out as the JSON's (an appender may change it). */
+  replaceState: {exact: boolean}
   node: NodeDetail
   structure: StructureNode
   schema: SchemaInfo
   view: ViewInfo
   viewElement: null
+  viewHTML: string
   selection: SelectionInfo
   selectionDetail: SelectionDetail
   resolve: ResolvedPos
@@ -436,6 +460,7 @@ export type Results = {
   clear: null
   log: LogSlice
   entry: LogEntryDetail
+  logEntry: null
   highlight: null
   pick: null
   scrollIntoView: null

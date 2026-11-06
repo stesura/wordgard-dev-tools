@@ -115,3 +115,49 @@ it("searches text, tags and node names, opening and outlining the match", async 
   await until(() => line("1")?.className.includes("bg-yellow-500/40"))
   await until(() => overlay()?.textContent == "p")
 })
+
+const item = (text: string) =>
+  [...shadow().querySelectorAll<HTMLElement>("[role='menuitem']")].find(element => element.textContent?.trim() == text)
+
+const rightClick = (element: HTMLElement) => {
+  const rect = element.getBoundingClientRect()
+  element.dispatchEvent(
+    new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: rect.left + 4, clientY: rect.top + 4, button: 2}),
+  )
+}
+
+const closed = () => until(() => !shadow().querySelector("[role='menu']"))
+
+it("logs or copies an element's outer HTML from its menu, and shows its node in the Structure", async () => {
+  const editor = await setup()
+  const paragraph = editor.contentDOM.children[1]
+  const logged: unknown[][] = []
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  const copied: string[] = []
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async text => {
+    copied.push(text)
+  })
+
+  rightClick(await until(() => line("1")))
+  // The menu selects its line.
+  await until(() => line("1")?.getAttribute("aria-selected") == "true")
+  ;(await until(() => item("Log element"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] the editor's <p>" && args[1] == paragraph))
+  await closed()
+  rightClick(await until(() => line("1")))
+  ;(await until(() => item("Log outer HTML"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] the editor's <p>, outer HTML" && args[1] == paragraph?.outerHTML))
+  await closed()
+  rightClick(await until(() => line("1")))
+  ;(await until(() => item("Copy outer HTML"))).click()
+  await until(() => copied.includes(paragraph?.outerHTML ?? "-"))
+  await closed()
+
+  // A text node draws no node: its paragraph's.
+  rightClick(await until(() => line("1.0")))
+  ;(await until(() => item("Show Paragraph in Structure"))).click()
+  await until(() => tab("Structure")?.getAttribute("aria-selected") == "true")
+  await until(() => shadow().querySelector("[aria-label='Document structure'] [data-path='1'][aria-selected='true']"))
+})

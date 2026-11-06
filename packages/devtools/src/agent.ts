@@ -65,6 +65,7 @@ const createHandlers = (
       return null
     },
     stateJSON: ({id}) => s.stateJSON(entry(id)),
+    replaceState: ({id, json}) => s.replaceState(entry(id), json),
     node: ({id, path}) => s.node(entry(id).wg.state.doc, path),
     structure: ({id}) => s.structure(entry(id).wg.state.doc),
     schema: ({id}) => schema.schemaInfo(entry(id).wg.state.schema),
@@ -72,9 +73,11 @@ const createHandlers = (
     viewElement: ({id, path, action}) => {
       const target = view.viewNode(entry(id).wg, path)
       if (action == "outline") inspector.outlineDOM(target, view.viewLabel(target))
+      else if (action == "logHTML") console.log(`[wordgard-devtools] the editor's <${view.viewLabel(target)}>, outer HTML`, view.outerHTML(target))
       else console.log(`[wordgard-devtools] the editor's <${view.viewLabel(target)}>`, target)
       return null
     },
+    viewHTML: ({id, path}) => view.outerHTML(view.viewNode(entry(id).wg, path)),
     selection: ({id}) => s.selection(entry(id).wg.state),
     selectionDetail: ({id}) => s.selectionDetail(entry(id).wg.state),
     resolve: ({id, pos}) => s.resolve(entry(id).wg.state.doc, pos),
@@ -136,11 +139,11 @@ const createHandlers = (
       tracker.watch(e, client, on)
       return null
     },
-    record: ({id, on, size, selectPointer}) => {
+    record: ({id, on, size, selectPointer, focusChanges}) => {
       const e = entry(id)
       // The log records only what a panel shows (see `sync`).
       if (on && !e.attached) throw new Error("Select the editor before recording")
-      recorder.record(e, on, size, selectPointer)
+      recorder.record(e, on, {size, selectPointer, focusChanges})
       return null
     },
     clear: ({id}) => {
@@ -149,6 +152,10 @@ const createHandlers = (
     },
     log: ({id, from, to}) => recorder.slice(entry(id), from, to),
     entry: ({id, index}) => recorder.detail(entry(id), index),
+    logEntry: ({id, index, part}) => {
+      recorder.log(entry(id), index, part)
+      return null
+    },
     highlight: ({id, path}) => {
       inspector.highlight(path ? entry(id) : null, path)
       return null
@@ -161,11 +168,26 @@ const createHandlers = (
       inspector.scrollIntoView(entry(id), path)
       return null
     },
-    logNode: ({id, path, json}) => {
+    logNode: ({id, path, json, part}) => {
       const found = s.locate(entry(id).wg.state.doc, path)
       if (!found) throw new Error(`No node at path [${path.join(", ")}]`)
       const {node, from} = found
-      console.log(`[wordgard-devtools] ${node.name} at range ${from}–${from + node.length}`, json ? node.toJSON() : node)
+      const to = from + node.length
+      const at = `${node.name} at range ${from}–${to}`
+      if (part == null) {
+        console.log(`[wordgard-devtools] ${at}`, json ? node.toJSON() : node)
+        return null
+      }
+      const mark = typeof part == "object" ? node.marks[part.mark] : undefined
+      if (typeof part == "object" && !mark) throw new Error(`No mark ${part.mark} on ${at}`)
+      const [label, value]: [string, unknown] =
+        typeof part == "object" ? [`mark ${mark?.name}`, mark]
+        : part == "type" ? ["type", node.type]
+        : part == "path" ? ["path", path]
+        : part == "range" ? ["from–to", {from, to}]
+        : part == "param" ? ["param", node.tag.param]
+        : ["text", node.isText ? node.param : null]
+      console.log(`[wordgard-devtools] ${at}, ${label}`, value)
       return null
     },
     logState: ({id, keys, json}) => {

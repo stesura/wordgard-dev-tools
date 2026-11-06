@@ -272,3 +272,67 @@ it("searches keys and values, opening what holds the match", async () => {
   await userEvent.keyboard("{Escape}");
   await until(() => !line("$/selection")?.className.includes("bg-yellow-500"));
 });
+
+const panelOf = () => shadow().querySelector("[aria-label='State']")?.closest("[role='tabpanel']");
+const fileInput = () => panelOf()?.querySelector<HTMLInputElement>("input[type='file']");
+const pick = (file: File) => {
+  const input = fileInput();
+  if (!input) throw new Error("No file input");
+  const files = new DataTransfer();
+  files.items.add(file);
+  input.files = files.files;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+};
+const banner = () => panelOf()?.querySelector<HTMLElement>("p[role='status'], p[role='alert']");
+
+it("downloads the state as a JSON file", async () => {
+  const editor = await setup();
+  const blobs: Blob[] = [];
+  vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => {
+    if (blob instanceof Blob) blobs.push(blob);
+    return "blob:state";
+  });
+  const clicked = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  const created = vi.spyOn(document, "createElement");
+  (await until(() => button("Download the state as a JSON file"))).click();
+  await until(() => blobs.length == 1);
+  expect(clicked).toHaveBeenCalledOnce();
+  const link = created.mock.results.map((result) => result.value).find((value) => value instanceof HTMLAnchorElement);
+  expect(link?.download).toMatch(/^wordgard-state-.*\.json$/);
+  expect(JSON.parse(await (blobs[0] ?? new Blob()).text()).doc).toEqual(editor.state.doc.toJSON());
+});
+
+it("replaces the state from a file, with a banner that goes after 5 s", async () => {
+  const editor = await setup();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const doc = { type: "Doc", content: [{ type: "Paragraph", content: [{ type: "Text", param: "Replaced" }] }] };
+    pick(new File([JSON.stringify({ doc, selection: { type: "text", anchor: 1 } })], "state.json"));
+    await vi.waitUntil(() => banner()?.getAttribute("role") == "status");
+    expect(banner()?.textContent).toContain("State replaced from state.json");
+    expect(banner()?.className).toContain("green");
+    expect(editor.state.doc.textContent()).toBe("Replaced");
+    vi.advanceTimersByTime(5000);
+    // Closing: its height eases to nothing, then it goes.
+    const closing = await vi.waitUntil(() => banner()?.closest<HTMLElement>("[data-closing]"));
+    expect(getComputedStyle(closing).transitionProperty).toContain("grid-template-rows");
+    await vi.waitUntil(() => closing.getBoundingClientRect().height < 1, { timeout: 1000 });
+    vi.advanceTimersByTime(300);
+    await vi.waitUntil(() => !banner());
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("refuses a file that isn't a state of the schema, with a red banner", async () => {
+  const editor = await setup();
+  const before = editor.state.doc;
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  pick(new File(["{not json"], "broken.json"));
+  await until(() => banner()?.textContent?.includes("broken.json isn't JSON"));
+  expect(banner()?.getAttribute("role")).toBe("alert");
+  const doc = { type: "Doc", content: [{ type: "Paragraph", content: [{ type: "Paragraph", content: [] }] }] };
+  pick(new File([JSON.stringify({ doc, selection: { type: "text", anchor: 1 } })], "nested.json"));
+  await until(() => banner()?.textContent?.includes("Couldn't replace the state"));
+  expect(editor.state.doc).toBe(before);
+});

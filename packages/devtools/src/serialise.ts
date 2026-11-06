@@ -75,6 +75,51 @@ export const preview = (value: unknown): string | null => {
  * `GardState.toJSON`, with the fields named by `wordgardDevtools({fields})` added one at a time:
  * Wordgard's throws for a field whose spec has no `toJSON`, which is left out.
  */
+/** Where a node breaks its schema's content or mark rules, or null. Parsing checks content too;
+ * this also covers marks, and Wordgard versions whose parsing checks less. */
+const broken = (schema: GardState["schema"], node: DocNode, path: Path): string | null => {
+  const at = path.length ? ` at [${path.join(", ")}]` : ""
+  for (const mark of node.marks) {
+    if (!schema.markAllowed(mark.type, node.type)) return `${node.name}${at} can't have the ${mark.type.name} mark`
+  }
+  if (!node.isPlot) return null
+  for (const [index, child] of node.content.entries()) {
+    if (!schema.canContain(node.type, child.type)) return `${node.name}${at} can't contain ${child.name}`
+    const found = broken(schema, child, [...path, index])
+    if (found) return found
+  }
+  return null
+}
+
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+/** Replaces the document and selection with a state's JSON, checked against the editor's schema first. */
+export const replaceState = ({wg}: Entry, json: unknown): {exact: boolean} => {
+  const fail = (why: string): never => {
+    console.error(`[wordgard-devtools] Couldn't replace the state: ${why}`, json)
+    throw new Error(why)
+  }
+  let parsed: GardState | null = null
+  try {
+    parsed = wordgardState.GardState.fromJSON(json, wg.state.config.base)
+  } catch (e) {
+    fail(`not a state of this editor's schema: ${message(e)}`)
+  }
+  if (!parsed) return fail("not a state")
+  const {schema} = wg.state
+  // Node types are compared by identity: the JSON's must be this schema's.
+  if (parsed.schema != schema) fail("its schema isn't the editor's")
+  const problem = broken(schema, parsed.doc, [])
+  if (problem) fail(problem)
+  const {doc} = parsed
+  wg.dispatch({
+    changes: {from: 0, to: wg.state.doc.contentLength, insert: doc.slice(0, doc.contentLength)},
+    selection: parsed.selection,
+    userEvent: "devtools.replace",
+  })
+  return {exact: wg.state.doc.eq(doc)}
+}
+
 export const stateJSON = ({wg, fields = {}}: Entry): unknown => {
   const {state} = wg
   const json: Record<string, unknown> = {...state.toJSON()}
@@ -190,6 +235,8 @@ export const selection = (state: GardState): SelectionInfo => {
     headPath: pathAt(state.doc, head),
     anchorPath: pathAt(state.doc, anchor),
     nodePath: state.selection instanceof wordgardState.GardSelection.Node ? pathFrom(state.doc, from) : null,
+    activeMarks: markPreviews(state.sel.activeMarks),
+    storedMarks: state.selection instanceof wordgardState.GardSelection.Text && state.selection.marks != null,
   }
 }
 

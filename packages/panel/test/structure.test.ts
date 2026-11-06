@@ -322,3 +322,35 @@ it("links the node's type and marks to the Schema, and copies its JSON", async (
   ;(await until(() => link("Text"))).click()
   await until(() => shadow().querySelector("[data-type='node-Text'][aria-current='true']"))
 })
+
+it("logs and copies the pane's values from their context menu", async () => {
+  await setup()
+  const strong = await showStructure()
+  strong.click()
+  const row = (part: string) => pane()?.querySelector<HTMLElement>(`[data-part='${part}']`)
+  const item = (text: string) =>
+    [...shadow().querySelectorAll<HTMLElement>("[role='menuitem']")].find(element => element.textContent?.trim() == text)
+  const rightClick = (element: HTMLElement) => {
+    const rect = element.getBoundingClientRect()
+    element.dispatchEvent(
+      new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: rect.left + 4, clientY: rect.top + 4, button: 2}),
+    )
+  }
+  const logged: unknown[][] = []
+  vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    logged.push(args)
+  })
+  const copied: string[] = []
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async text => {
+    copied.push(text)
+  })
+  rightClick(await until(() => row("mark:0")))
+  ;(await until(() => item("Log to console"))).click()
+  await until(() => logged.some(args => args[0] == "[wordgard-devtools] Text at range 14–18, mark Strong"))
+  rightClick(await until(() => row("text")))
+  ;(await until(() => item("Copy value"))).click()
+  await until(() => copied.includes('"bold"'))
+  rightClick(await until(() => row("json")))
+  ;(await until(() => item("Copy JSON"))).click()
+  await until(() => copied.some(text => text.includes('"Strong"')))
+})

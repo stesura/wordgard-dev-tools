@@ -1,6 +1,8 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "cn";
 import {
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
   ChevronDownIcon,
   ChevronDownUpIcon,
   ChevronRightIcon,
@@ -31,13 +33,34 @@ import {
   ContextMenuTrigger,
 } from "#components/ui/context-menu";
 import { CopyButton } from "./copy-button.tsx";
-import { copy, createMenuAnchor, type MenuAnchor } from "./node-menu.tsx";
+import { CopySelection, copy, createMenuAnchor, type MenuAnchor } from "./node-menu.tsx";
 import { SearchBox, centreRow, includes, matchClass, useSearch } from "./search.tsx";
 import { createStateSource } from "./state-source.ts";
 import type { PanelStore } from "./store.ts";
 import { Tip } from "./tip.tsx";
 
 const ROW = 20;
+
+/** A file name from the editor's: letters, digits, dashes. */
+const fileName = (editor: string) =>
+  `wordgard-state-${editor.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "editor"}.json`;
+
+/** Saves the JSON as a file, through a link. */
+const download = (json: unknown, name: string) => {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(json, null, 2)], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  // After the click has started the download.
+  setTimeout(() => URL.revokeObjectURL(url));
+};
+
+type Notice = { ok: boolean; text: string; closing?: boolean };
+
+// The banner's close: its height eases to nothing, then it unmounts.
+const SHOWN_MS = 5000;
+const CLOSING_MS = 300;
 const INDENT = 14;
 const ROOT = "$";
 
@@ -278,6 +301,7 @@ const StateMenu = ({
         <span ref={anchor.setTrigger} />
       </ContextMenuTrigger>
       <ContextMenuContent className="w-52" finalFocus={() => tree ?? true}>
+        <CopySelection text={target?.selection} />
         {path && (
           <>
             <ContextMenuItem className="text-xs" onClick={() => onHighlight(path)}>
@@ -319,6 +343,38 @@ const StateMenu = ({
 export const State = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
   const [source] = useState(() => createStateSource(store.transport, editorId));
   const { json, loaded, error } = useSyncExternalStore(source.subscribe, source.get);
+
+  // The outcome of a replace: shown for 5 s, then closed. Timers, not transitionend: it doesn't
+  // fire with reduced motion.
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const noticeTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const notify = (next: Notice) => {
+    for (const timer of noticeTimers.current) clearTimeout(timer);
+    setNotice(next);
+    noticeTimers.current = [
+      setTimeout(() => setNotice((shown) => shown && { ...shown, closing: true }), SHOWN_MS),
+      setTimeout(() => setNotice(null), SHOWN_MS + CLOSING_MS),
+    ];
+  };
+  const editorName = () => store.get().editors.find((editor) => editor.id == editorId)?.name ?? "editor";
+  const replaceFrom = async (file: File) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch (e) {
+      notify({ ok: false, text: `${file.name} isn't JSON: ${e instanceof Error ? e.message : String(e)}` });
+      return;
+    }
+    try {
+      const { exact } = await store.transport.send({ type: "replaceState", id: editorId, json: parsed });
+      notify({
+        ok: true,
+        text: `State replaced from ${file.name}${exact ? "" : ", then changed by the editor (an appender or a filter)"}. Undo reverts it.`,
+      });
+    } catch (e) {
+      notify({ ok: false, text: `Couldn't replace the state: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  };
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   // Nothing until the user picks a line.
   const [focused, setFocused] = useState<string | null>(null);
@@ -562,8 +618,65 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
             label="Copy the JSON"
             text={() => JSON.stringify(json, null, 2)}
           />
+          <Tip label="Download the state as a JSON file">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Download the state as a JSON file"
+              disabled={!loaded}
+              onClick={() => download(json, fileName(editorName()))}
+            >
+              <ArrowDownTrayIcon />
+            </Button>
+          </Tip>
+          <Tip label="Replace the state from a JSON file">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Replace the state from a JSON file"
+              render={<label />}
+              nativeButton={false}
+            >
+              <ArrowUpTrayIcon />
+              <input
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  // The same file can be picked again.
+                  event.target.value = "";
+                  if (file) void replaceFrom(file);
+                }}
+              />
+            </Button>
+          </Tip>
         </span>
       </div>
+      {notice && (
+        // Grid rows ease between 0fr and 1fr: a height transition to and from the content's own.
+        <div
+          data-closing={notice.closing || undefined}
+          className={cn(
+            "grid shrink-0 transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none starting:grid-rows-[0fr]",
+            notice.closing ? "grid-rows-[0fr]" : "grid-rows-[1fr]",
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <p
+              role={notice.ok ? "status" : "alert"}
+              className={cn(
+                "flex items-center gap-2 border-b px-2 py-1 text-xs",
+                notice.ok
+                  ? "bg-green-500/15 text-green-800 dark:text-green-300"
+                  : "bg-destructive/10 text-destructive",
+              )}
+            >
+              {notice.text}
+            </p>
+          </div>
+        </div>
+      )}
       <div
         ref={container}
         role="tree"
