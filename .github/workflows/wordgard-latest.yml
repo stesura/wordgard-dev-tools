@@ -1,0 +1,31 @@
+name: Latest Wordgard
+
+# The page side accepts any wordgard below 1. This runs its and the panel's tests against the
+# newest one every day, so a release that breaks the devtools shows up before users report it.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: wordgard-devtools
+      - uses: ./wordgard-devtools/.github/actions/setup
+        with:
+          wordgard: "<1"
+          locked: "false"
+      - name: Wordgard version
+        run: node -p '"wordgard " + require("./wordgard/package.json").version'
+      - name: Playwright
+        working-directory: wordgard-devtools
+        run: npx playwright install --with-deps chromium
+      - name: Typecheck
+        working-directory: wordgard-devtools
+        run: npm run typecheck -w packages/devtools -w packages/panel
+      - name: Test
+        working-directory: wordgard-devtools
+        run: npm test -w packages/devtools -w packages/panel

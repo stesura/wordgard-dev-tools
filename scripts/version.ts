@@ -1,7 +1,8 @@
 // Lockstep versions for the published packages: they're always released together, at one
 // version, and every workspace refers to them at exactly that version.
 //   node scripts/version.ts 0.2.0        set it everywhere and refresh the lockfile
-//   node scripts/version.ts --check [v0.2.0]   fail if they drift (or don't match the tag)
+//   node scripts/version.ts --check [v0.2.0]   fail if they drift (or don't match the tag), or if
+//                                              CI doesn't test the oldest wordgard we accept
 import {execSync} from "node:child_process"
 import {readFileSync, writeFileSync} from "node:fs"
 import {fileURLToPath} from "node:url"
@@ -38,14 +39,27 @@ const versions = () =>
     return [...own, ...refs]
   }).concat([["packages/devtools/src/version.ts VERSION", readFileSync(constant, "utf8").match(constantPattern)?.[2] ?? ""]])
 
+// CI tests against the oldest wordgard the page side accepts, so a newer API used without raising
+// the floor fails there (a local ../wordgard may be newer).
+const action = `${root}.github/actions/setup/action.yml`
+const wordgardFloor = (): string[] => {
+  const range = read("packages/devtools").peerDependencies
+  const floor = (isRecord(range) ? range.wordgard : "").match(/^(?:>=|~|\^)?\s*(\d+\.\d+\.\d+)/)?.[1]
+  const tested = readFileSync(action, "utf8").match(/^  wordgard:\n(?:    .*\n)*?    default: "?([^"\n]+)"?$/m)?.[1]
+  if (floor && floor == tested) return []
+  return [`CI's wordgard (${tested ?? "not found"}, .github/actions/setup) isn't the floor of the page side's peer range (${floor ?? "not found"})`]
+}
+
 const check = (tag?: string) => {
   const found = versions()
   const expected = found[0][1]
   const wrong = found.filter(([, version]) => version != expected)
   if (tag != null && tag != `v${expected}`) wrong.push([`tag ${tag}`, `v${expected} expected`])
-  if (!wrong.length) return console.log(`Lockstep at ${expected}.`)
-  console.error(`Not in lockstep with ${found[0][0]} (${expected}):`)
+  const floor = wordgardFloor()
+  if (!wrong.length && !floor.length) return console.log(`Lockstep at ${expected}; CI tests the wordgard floor.`)
+  if (wrong.length) console.error(`Not in lockstep with ${found[0][0]} (${expected}):`)
   for (const [where, version] of wrong) console.error(`  ${where}: ${version}`)
+  for (const problem of floor) console.error(problem)
   process.exit(1)
 }
 

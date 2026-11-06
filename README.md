@@ -113,7 +113,9 @@ Wordgard.create({
 
 With react-wordgard, add the plugin to the `config` you pass to `<WordgardEditor>`.
 
-`wordgard` (`~0.6.2`) is a peer dependency.
+`wordgard` (`>=0.6.2 <1`) is a peer dependency.
+If a newer Wordgard breaks the devtools, they turn themselves off
+with one console warning; your editor keeps working.
 
 ### 2. Mount the panel
 

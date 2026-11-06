@@ -61,6 +61,11 @@ together, at one version.
 
 CI fails if the versions drift (`npm run release:check`).
 
+The page side accepts `wordgard` from a floor up to 1. CI tests that floor; a daily workflow tests
+the newest 0.x. When the page side starts using a newer Wordgard API, raise the floor in
+`packages/devtools/package.json` and the `wordgard` default in `.github/actions/setup/action.yml`
+together. `release:check` fails if they differ.
+
 ## Security
 
 Don't open public issues for vulnerabilities: see [SECURITY.md](SECURITY.md).

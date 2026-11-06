@@ -20,7 +20,9 @@ Then inspect your editors with the DevTools extension, or dock the panel in the 
 [`@stesura/wordgard-dev-tools-panel`](https://www.npmjs.com/package/@stesura/wordgard-dev-tools-panel).
 The plugin adds nothing to production builds.
 
-`wordgard` (`~0.6.2`) is a peer dependency.
+`wordgard` (`>=0.6.2 <1`) is a peer dependency.
+If a newer Wordgard breaks the devtools, they turn themselves off
+with one console warning; your editor keeps working.
 
 Options and details are in the
 [project README](https://github.com/stesura/wordgard-devtools#usage).

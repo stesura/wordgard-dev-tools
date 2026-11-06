@@ -6,6 +6,14 @@ inputs:
     description: Passed to setup-node, for publishing.
     required: false
     default: ""
+  wordgard:
+    description: The wordgard version or range to test against.
+    required: false
+    default: 0.6.2
+  locked:
+    description: Install from the lockfile (npm ci). Off for a wordgard other than the locked one.
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -19,7 +27,7 @@ runs:
     - name: Sibling packages
       shell: bash
       env:
-        WORDGARD_VERSION: 0.6.2
+        WORDGARD_VERSION: ${{ inputs.wordgard }}
         REACT_WORDGARD_VERSION: 0.1.0
       run: |
         fetch() {
@@ -35,4 +43,7 @@ runs:
     - name: Install
       shell: bash
       working-directory: wordgard-devtools
-      run: npm ci
+      run: |
+        if [ "${{ inputs.locked }}" = true ]; then npm ci
+        # react-wordgard may not accept that wordgard yet; this checks the devtools, not peer ranges.
+        else npm install --no-package-lock --legacy-peer-deps --no-audit --no-fund; fi
