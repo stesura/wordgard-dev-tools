@@ -12,6 +12,8 @@ export type LogView = {
   size: number
   loaded: boolean
   error: string | null
+  /** `select.pointer` transactions are recorded: the panel's setting, saved. */
+  selectPointer: boolean
 }
 
 export type EntryDetail = {entry: LogEntryDetail; error?: undefined} | {entry?: undefined; error: string}
@@ -22,6 +24,8 @@ export type LogSource = {
   /** Fetches the rows appended or changed since the last load. Never rejects. */
   load: () => Promise<void>
   record: (on: boolean) => Promise<void>
+  /** Whether to record `select.pointer` transactions; applies at once while recording. */
+  setSelectPointer: (on: boolean) => Promise<void>
   clear: () => Promise<void>
   /** A promise per entry and flush (its timing arrives with the flush), cached: for `use()`. */
   detail: (index: number, flush: number | null) => Promise<EntryDetail>
@@ -29,11 +33,39 @@ export type LogSource = {
   forget: (index: number, flush: number | null) => void
 }
 
-const empty: LogView = {rows: [], start: 0, end: 0, pending: 0, recording: false, size: 0, loaded: false, error: null}
+const POINTER_KEY = "wordgard-devtools:log-select-pointer"
+
+const readSelectPointer = () => {
+  try {
+    return localStorage.getItem(POINTER_KEY) != "false"
+  } catch {
+    return true
+  }
+}
+
+const saveSelectPointer = (on: boolean) => {
+  try {
+    localStorage.setItem(POINTER_KEY, String(on))
+  } catch {
+    // Storage blocked: the setting lasts until reload.
+  }
+}
+
+const empty = (): LogView => ({
+  rows: [],
+  start: 0,
+  end: 0,
+  pending: 0,
+  recording: false,
+  size: 0,
+  loaded: false,
+  error: null,
+  selectPointer: readSelectPointer(),
+})
 const KEPT = 32
 
 export const createLogSource = (transport: Transport, id: number): LogSource => {
-  let view = empty
+  let view = empty()
   let version = 0
   const listeners = new Set<() => void>()
   const set = (patch: Partial<LogView>) => {
@@ -52,7 +84,7 @@ export const createLogSource = (transport: Transport, id: number): LogSource => 
       if (at != version) return
       // A new log (the editor reconnected): start over.
       if (slice.end < view.end) {
-        view = empty
+        view = {...empty(), selectPointer: view.selectPointer}
         details.clear()
         return load()
       }
@@ -83,7 +115,12 @@ export const createLogSource = (transport: Transport, id: number): LogSource => 
       }
     },
     load,
-    record: on => act(() => transport.send({type: "record", id, on})),
+    record: on => act(() => transport.send({type: "record", id, on, selectPointer: view.selectPointer})),
+    setSelectPointer: async on => {
+      saveSelectPointer(on)
+      set({selectPointer: on})
+      if (view.recording) await act(() => transport.send({type: "record", id, on: true, selectPointer: on}))
+    },
     clear: () => act(() => transport.send({type: "clear", id})),
     forget: (index, flush) => {
       details.delete(`${index}|${flush}`)

@@ -1,10 +1,10 @@
 import {cn} from "cn"
-import {ClipboardDocumentIcon, CommandLineIcon, XMarkIcon} from "#icons"
+import {CommandLineIcon, XMarkIcon} from "#icons"
 import {useCallback, useState, useSyncExternalStore, type ReactNode} from "react"
 import type {MarkPreview, Path, ResolvedPos, SliceInfo, SliceToken, TreeNode} from "@stesura/wordgard-dev-tools"
 import {Button} from "#components/ui/button"
 import type {ColourKind} from "./colours.ts"
-import {copy} from "./node-menu.tsx"
+import {CopyButton} from "./copy-button.tsx"
 import {Field, json, selectionType} from "./node-pane.tsx"
 import {createSelectionSource} from "./selection-source.ts"
 import type {PanelStore} from "./store.ts"
@@ -48,20 +48,14 @@ const Marks = ({marks, links}: {marks: MarkPreview[]; links: Links}) =>
   )
 
 /** Log (the live object, in the page's console) and copy (its JSON) buttons. */
-const Actions = ({what, onLog, onCopy}: {what: string; onLog: () => void; onCopy: (() => void) | null}) => (
+const Actions = ({what, onLog, copied}: {what: string; onLog: () => void; copied: (() => string) | null}) => (
   <>
     <Tip label={`Log ${what} to the page's console`}>
       <Button variant="ghost" size="icon-xs" aria-label={`Log ${what} to the page's console`} onClick={onLog}>
         <CommandLineIcon />
       </Button>
     </Tip>
-    {onCopy && (
-      <Tip label={`Copy ${what} as JSON`}>
-        <Button variant="ghost" size="icon-xs" aria-label={`Copy ${what} as JSON`} onClick={onCopy}>
-          <ClipboardDocumentIcon />
-        </Button>
-      </Tip>
-    )}
+    {copied && <CopyButton label={`Copy ${what} as JSON`} text={copied} />}
   </>
 )
 
@@ -123,7 +117,7 @@ const Position = ({
     code={code}
     actions={
       <>
-        <Actions what={`the ${name.toLowerCase()}`} onLog={() => onLog(pos.pos)} onCopy={() => void copy(json(pos))} />
+        <Actions what={`the ${name.toLowerCase()}`} onLog={() => onLog(pos.pos)} copied={() => json(pos)} />
         {extra}
       </>
     }
@@ -188,7 +182,7 @@ const SliceCard = ({slice, links, onLog}: {slice: SliceInfo; links: Links; onLog
     }
     code="state.selection.toSlice(state.doc)"
     actions={
-      <Actions what="the slice" onLog={onLog} onCopy={slice.json == null ? null : () => void copy(json(slice.json))} />
+      <Actions what="the slice" onLog={onLog} copied={slice.json == null ? null : () => json(slice.json)} />
     }
   >
     {slice.length > 0 && (
@@ -316,7 +310,7 @@ export const SelectionTab = ({store, editorId}: {store: PanelStore; editorId: nu
                   <Actions
                     what="the selection"
                     onLog={() => void store.transport.send({type: "logState", id: editorId, keys: ["selection"]}).catch(() => {})}
-                    onCopy={() => void copy(json(info.json))}
+                    copied={() => json(info.json)}
                   />
                 }
               >

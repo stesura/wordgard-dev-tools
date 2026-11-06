@@ -1176,8 +1176,20 @@ disagree when only one request fails. The error banner says so, and Retry reload
   JSON. A node or mark type's spec as written (`spec`, sent with the schema: groups, roles and
   content/target queries by the names the cards use, a structure shape as its HTML, functions as
   `ƒ name(params)` from their source, nesting limited), with log (new `logType`: the live type) and
-  copy; a group's card data. Not shown: what defaults and overrides make of the spec (the cards'
-  summary shows that). The pane closes (×); a double click on a card, or "Show JSON" in a card's
+  copy; a group's card data. A **Spec | Effective** switch (types only; kept from card to card):
+  the effective view is what applies, from Wordgard's public API (`EffectiveSpec`, sent with the
+  schema): inline, groups, roles, what a plot holds, its flags with their defaults (canBeEmpty,
+  isolating, defining, neutral, preserveWhitespace, orientation), selectable, the marks allowed; a
+  mark's inclusive, spanning and targets. Each value that isn't the spec's has a comment: "default"
+  (the spec doesn't set it), "override" (it differs from the spec's, highlighted), "from the
+  schema" (worked out from the whole schema). Copy copies the values, without the comments. When
+  an override changes what applies (only overrides: defaults don't contradict the spec), the
+  "Effective" button is amber and a note under the header says so, naming what it changes, with a
+  link to the effective view (there, it says the highlighted values are the override's). Not
+  available: overrides themselves and a mark's resolved rank (Wordgard internals), `defaultBlock`,
+  `cursorBarrier` (resolved where they're used). Fixed with it: Textblock is one of the groups
+  Wordgard assigns itself (to block plots with inline content), now "automatic" like All, Inline,
+  Block, Leaf and Plot, and no longer listed on node cards. The pane closes (×); a double click on a card, or "Show JSON" in a card's
   context menu (there only while the pane is closed: opening the menu selects the card, which an
   open pane already shows), shows it again on that card. The menu also logs the type (live) or its JSON
   (`logType` with `json`; a group, its data) and copies the JSON. `SplitPane` takes a null pane:

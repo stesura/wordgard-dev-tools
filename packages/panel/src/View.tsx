@@ -1,11 +1,20 @@
 import {useVirtualizer} from "@tanstack/react-virtual"
 import {cn} from "cn"
-import {ChevronDownIcon, ChevronRightIcon, ChevronDownUpIcon, ChevronUpDownIcon, CommandLineIcon, NoSymbolIcon} from "#icons"
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ChevronDownUpIcon,
+  ChevronUpDownIcon,
+  CommandLineIcon,
+  InformationCircleIcon,
+  NoSymbolIcon,
+} from "#icons"
 import {useCallback, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent} from "react"
 import type {Path, ViewInfo, ViewNode} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
 import {hue, typeColour} from "./colours.ts"
+import {SearchBox, centreRow, includes, matchClass, useSearch} from "./search.tsx"
 import type {PanelStore} from "./store.ts"
 import {Tip} from "./tip.tsx"
 import {createViewSource} from "./view-source.ts"
@@ -46,6 +55,23 @@ const lineOf = (root: ViewNode, path: Path) => {
   return ""
 }
 
+/** Ids of the nodes matching a query, in display order: text by its text, elements by tag, attribute or node name. */
+const search = (root: ViewNode, query: string) => {
+  const found: string[] = []
+  const walk = (node: ViewNode, id: string) => {
+    const hit =
+      node.kind == "text"
+        ? includes(node.text ?? "", query)
+        : includes(node.tag ?? "", query) ||
+          node.attrs.some(([name, value]) => includes(`${name}="${value}"`, query)) ||
+          (node.node != null && includes(node.node.name, query))
+    if (hit) found.push(id)
+    node.children.forEach((child, index) => walk(child, id ? `${id}.${index}` : String(index)))
+  }
+  walk(root, "")
+  return found
+}
+
 const folders = (node: ViewNode, id = "", out: string[] = []) => {
   if (!node.children.length) return out
   out.push(id)
@@ -53,7 +79,20 @@ const folders = (node: ViewNode, id = "", out: string[] = []) => {
   return out
 }
 
-const Row = ({line, start, focused, onToggle}: {line: Line; start: number; focused: boolean; onToggle: (id: string) => void}) => {
+const Row = ({
+  line,
+  start,
+  focused,
+  match,
+  onToggle,
+}: {
+  line: Line
+  start: number
+  focused: boolean
+  /** A search match's tint, in place of the focus's. */
+  match: string
+  onToggle: (id: string) => void
+}) => {
   const {node} = line
   const folder = node.children.length > 0
   return (
@@ -65,8 +104,8 @@ const Row = ({line, start, focused, onToggle}: {line: Line; start: number; focus
       aria-selected={focused}
       data-dom={line.id}
       className={cn(
-        "absolute inset-x-0 top-0 flex cursor-default items-center gap-1 pr-2 font-mono text-xs whitespace-nowrap",
-        focused && "bg-accent",
+        "absolute inset-x-0 top-0 flex cursor-default items-center gap-1 pr-2 font-mono text-xs whitespace-nowrap ring-inset",
+        match || (focused && "bg-accent"),
       )}
       style={{height: ROW, transform: `translateY(${start}px)`, paddingLeft: line.depth * INDENT + 4}}
     >
@@ -184,6 +223,19 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
     void element(id, "outline")
   }
 
+  // A line opened up to, selected and scrolled to. Takes the scroller: the reveal calls it from its first render's closure.
+  const showLine = (dom: ViewNode, id: string, scroller: HTMLElement | null) => {
+    const next = new Set(collapsedNow.current)
+    const parts = id ? id.split(".") : []
+    for (let depth = 0; depth < parts.length; depth++) next.delete(parts.slice(0, depth).join("."))
+    setCollapsed(next)
+    select(id)
+    centreRow(scroller, flatten(dom, next).findIndex(line => line.id == id), ROW)
+  }
+
+  const find = useMemo(() => (info ? (query: string) => search(info.dom, query) : null), [info])
+  const searching = useSearch(find, id => info && showLine(info.dom, id, scrollElement))
+
   const toggle = (id: string) => {
     const closing = !collapsed.has(id)
     const next = new Set(collapsedNow.current)
@@ -215,17 +267,7 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
       // A "show in DOM" from the Structure: its element (or nearest ancestor's) opened up to, selected and scrolled to.
       const reveal = (path: Path) => {
         const info = source.get().info
-        if (!info) return
-        const id = lineOf(info.dom, path)
-        const next = new Set(collapsedNow.current)
-        const parts = id ? id.split(".") : []
-        for (let depth = 0; depth < parts.length; depth++) next.delete(parts.slice(0, depth).join("."))
-        setCollapsed(next)
-        select(id)
-        const position = flatten(info.dom, next).findIndex(line => line.id == id)
-        requestAnimationFrame(() => {
-          scroller.scrollTop = Math.max(0, position * ROW - scroller.clientHeight / 2)
-        })
+        if (info) showLine(info.dom, lineOf(info.dom, path), scroller)
       }
       const takeReveal = () => {
         if (!shown()) return
@@ -297,8 +339,13 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
       )}
       {info && <Status status={info.status} />}
       <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
-        <span className="text-muted-foreground">The content's DOM, each element with the node it draws</span>
-        <span className="ml-auto flex items-center gap-1">
+        <SearchBox search={searching} label="Search the DOM" placeholder="Search text, tags, attributes, node names" />
+        <Tip label="The content's DOM, each element with the node it draws">
+          <button type="button" aria-label="About the DOM" className="flex text-muted-foreground hover:text-foreground [&_svg]:size-3.5">
+            <InformationCircleIcon />
+          </button>
+        </Tip>
+        <span className="flex items-center gap-1">
           <Tip label="Clear the selection and its outline in the page">
             <Button
               variant="ghost"
@@ -355,7 +402,18 @@ export const View = ({store, editorId}: {store: PanelStore; editorId: number}) =
         <div style={{height: virtualizer.getTotalSize()}}>
           {rendered.map(item => {
             const line = lines[item.index]
-            return line && <Row key={line.id} line={line} start={item.start} focused={line.id == focused} onToggle={toggle} />
+            return (
+              line && (
+                <Row
+                  key={line.id}
+                  line={line}
+                  start={item.start}
+                  focused={line.id == focused}
+                  match={matchClass(line.id, searching)}
+                  onToggle={toggle}
+                />
+              )
+            )
           })}
         </div>
       </div>

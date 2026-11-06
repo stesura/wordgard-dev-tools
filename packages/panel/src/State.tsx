@@ -8,6 +8,7 @@ import {
   ClipboardDocumentIcon,
   CodeBracketIcon,
   CommandLineIcon,
+  InformationCircleIcon,
   MapPinIcon,
   RectangleGroupIcon,
   ViewfinderCircleIcon,
@@ -29,7 +30,9 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "#components/ui/context-menu";
+import { CopyButton } from "./copy-button.tsx";
 import { copy, createMenuAnchor, type MenuAnchor } from "./node-menu.tsx";
+import { SearchBox, centreRow, includes, matchClass, useSearch } from "./search.tsx";
 import { createStateSource } from "./state-source.ts";
 import type { PanelStore } from "./store.ts";
 import { Tip } from "./tip.tsx";
@@ -151,6 +154,24 @@ const flatten = (value: unknown, collapsed: ReadonlySet<string>) => {
   return lines;
 };
 
+/** Ids of the lines whose key or value holds the query, in display order, collapsed or not. */
+const search = (value: unknown, query: string) => {
+  const found: string[] = [];
+  const walk = (value: unknown, id: string, key: string | null) => {
+    const entries: [string | number, unknown][] | null = Array.isArray(value)
+      ? [...value.entries()]
+      : isRecord(value)
+        ? Object.entries(value)
+        : null;
+    if ((key != null && includes(key, query)) || (!entries && includes(String(value), query)))
+      found.push(id);
+    for (const [k, child] of entries ?? [])
+      walk(child, childId(id, k), Array.isArray(value) ? null : String(k));
+  };
+  walk(value, ROOT, null);
+  return found;
+};
+
 const valueColour: Record<Line["type"], string> = {
   string: "text-green-700 dark:text-green-400",
   number: "text-amber-700 dark:text-amber-400",
@@ -164,12 +185,15 @@ const Row = ({
   start,
   selected,
   focused,
+  match,
   onToggle,
 }: {
   line: Line;
   start: number;
   selected: boolean;
   focused: boolean;
+  /** A search match's tint, in place of the selection's. */
+  match: string;
   onToggle: (id: string) => void;
 }) => {
   const folder = line.kind == "open" && line.size > 0;
@@ -182,8 +206,8 @@ const Row = ({
       aria-selected={selected}
       data-line={line.id}
       className={cn(
-        "absolute inset-x-0 top-0 flex cursor-default items-center gap-1 pr-2 font-mono text-xs whitespace-nowrap",
-        selected && "bg-accent",
+        "absolute inset-x-0 top-0 flex cursor-default items-center gap-1 pr-2 font-mono text-xs whitespace-nowrap ring-inset",
+        match || (selected && "bg-accent"),
         // The cursor, inside a selected object too.
         focused && "shadow-[inset_2px_0_0_var(--color-ring)]",
       )}
@@ -435,6 +459,18 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
     }
   };
 
+  // A match opens the objects holding it, takes focus and scrolls into view.
+  const reveal = (id: string) => {
+    const parts = id.split("/");
+    const ancestors = parts.slice(1).map((_, depth) => parts.slice(0, depth + 1).join("/"));
+    const next = new Set([...collapsed].filter((other) => !ancestors.includes(other)));
+    setCollapsed(next);
+    setFocused(id);
+    centreRow(scrollElement, flatten(json, next).findIndex((line) => line.id == id), ROW);
+  };
+  const find = useMemo(() => (loaded ? (query: string) => search(json, query) : null), [json, loaded]);
+  const searching = useSearch(find, reveal);
+
   const rendered = virtualizer.getVirtualItems();
   const active = rendered.some((item) => lines[item.index]?.id == focused) ? focused : null;
   // A focused bracket selects its whole object or array, from its opening to its closing.
@@ -457,11 +493,24 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
         </p>
       )}
       <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
-        <span className="text-muted-foreground">
-          <code className="font-mono">GardState.toJSON()</code>, with the named fields that
-          serialise
-        </span>
-        <span className="ml-auto flex items-center gap-1">
+        <SearchBox search={searching} label="Search the state" placeholder="Search keys and values" />
+        <Tip
+          label={
+            <span className="block max-w-72">
+              <code className="font-mono">GardState.toJSON()</code>, with the named fields that
+              serialise
+            </span>
+          }
+        >
+          <button
+            type="button"
+            aria-label="About the state"
+            className="flex text-muted-foreground hover:text-foreground [&_svg]:size-3.5"
+          >
+            <InformationCircleIcon />
+          </button>
+        </Tip>
+        <span className="flex items-center gap-1">
           <Tip label="Expand all">
             <Button
               variant="ghost"
@@ -509,16 +558,10 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
               <CodeBracketIcon />
             </Button>
           </Tip>
-          <Tip label="Copy the JSON">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Copy the JSON"
-              onClick={() => void copy(JSON.stringify(json, null, 2))}
-            >
-              <ClipboardDocumentIcon />
-            </Button>
-          </Tip>
+          <CopyButton
+            label="Copy the JSON"
+            text={() => JSON.stringify(json, null, 2)}
+          />
         </span>
       </div>
       <div
@@ -550,6 +593,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
                   start={item.start}
                   selected={selected(line)}
                   focused={line.id == focused}
+                  match={matchClass(line.id, searching)}
                   onToggle={toggle}
                 />
               )

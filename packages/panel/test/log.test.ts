@@ -1,6 +1,8 @@
 import {afterEach, expect, it} from "vitest"
+import {userEvent} from "vitest/browser"
 import {Leaf} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
+import {Transaction} from "wordgard/state"
 import {basicSchema} from "wordgard/schema"
 import {wordgardDevtools, type RequestType} from "@stesura/wordgard-dev-tools"
 import {inPageTransport, mountDevtools, type MountedDevtools, type Transport} from "../src/index.ts"
@@ -64,7 +66,7 @@ const setup = async (transport?: Transport) => {
   mounted = mountDevtools({transport})
   await mounted.ready
   ;(await until(() => tab("Log"))).click()
-  await until(() => list()?.textContent?.includes("Not recording"))
+  await until(() => shadow().textContent?.includes("Not recording"))
   return editor
 }
 
@@ -154,4 +156,131 @@ it("starts over when the editor reconnects with a new log", async () => {
   editor.dom.remove()
   document.body.append(editor.dom)
   await until(() => button("Record") && rows().length == 0)
+})
+
+const note = Transaction.Annotation.define<string>()
+
+const record = async () => {
+  ;(await until(() => button("Record"))).click()
+  await until(() => button("Pause"))
+}
+
+/** The rows' indices, in the order shown. */
+const order = () => rows().map(row => Number(row.getAttribute("data-index")))
+
+it("disables the filters while there are no transactions", async () => {
+  const editor = await setup()
+  const bar = await until(() => shadow().querySelector<HTMLElement>("[role='group'][aria-label='Filters']"))
+  expect([...bar.querySelectorAll("button")].every(b => b.disabled || b.hasAttribute("data-disabled"))).toBe(true)
+  await record()
+  type(editor, "a")
+  await until(() => rows().length == 1)
+  await until(() => [...bar.querySelectorAll("button")].every(b => !b.disabled))
+})
+
+it("counts every annotation in the table, as the entry does", async () => {
+  const editor = await setup()
+  await record()
+  type(editor, "a")
+  const row = await until(() => rows()[0])
+  // The time stamp and the user event.
+  expect(row.children[5]?.textContent).toBe("2")
+  row.click()
+  await until(() => pane()?.textContent?.includes("Annotations (2)"))
+})
+
+it("filters by user event, what changed and annotation", async () => {
+  const editor = await setup()
+  await record()
+  type(editor, "a")
+  editor.dispatch({selection: {anchor: 2}, userEvent: "select.pointer"})
+  editor.dispatch({selection: {anchor: 1}, annotations: note.of("n")})
+  await until(() => rows().length == 3)
+
+  // What changed: every flag on at first; one switched off hides the rows that only have it.
+  const changed = () => [...shadow().querySelectorAll<HTMLButtonElement>("[aria-label='Filter by what changed'] button")]
+  expect(changed().map(b => b.getAttribute("aria-pressed"))).toEqual(["true", "true", "true"])
+  changed().find(b => b.textContent == "sel")?.click()
+  await until(() => order().join() == "0")
+  changed().find(b => b.textContent == "sel")?.click()
+  changed().find(b => b.textContent == "doc")?.click()
+  await until(() => order().join() == "1,2")
+
+  // A custom annotation, listed by its number.
+  const annotation = await until(() =>
+    [...shadow().querySelectorAll<HTMLButtonElement>("[aria-label='Filter by annotation'] button")].find(b => b.textContent?.startsWith("annotation #")),
+  )
+  annotation.click()
+  await until(() => order().join() == "2")
+  expect(shadow().textContent).toContain("1 of 3 transactions")
+  button("Clear filters")?.click()
+  await until(() => rows().length == 3)
+
+  // A user event and the ones under it.
+  ;(await until(() => shadow().querySelector<HTMLElement>("[aria-label='Filter by user event']"))).click()
+  const option = await until(() =>
+    [...shadow().querySelectorAll<HTMLElement>("[role='option']")].find(o => !list()?.contains(o) && o.textContent == "select"),
+  )
+  option.click()
+  await until(() => order().join() == "1")
+})
+
+it("sorts by a column, ascending then descending", async () => {
+  const editor = await setup()
+  await record()
+  type(editor, "a")
+  editor.dispatch({selection: {anchor: 2}, annotations: note.of("n")})
+  editor.dispatch({selection: {anchor: 1}})
+  await until(() => rows().length == 3)
+  const sortBy = (label: string) => shadow().querySelector<HTMLButtonElement>(`[aria-label='Sort by ${label}']`)
+  sortBy("index")?.click()
+  await until(() => order().join() == "2,1,0")
+  sortBy("annotations")?.click()
+  // Ascending, ties in log order: 2 has only the time stamp.
+  await until(() => order().join() == "2,0,1")
+  sortBy("annotations")?.click()
+  await until(() => order().join() == "0,1,2")
+})
+
+it("skips select.pointer transactions when its box is unticked, and remembers it", async () => {
+  const editor = await setup()
+  await record()
+  const box = await until(() =>
+    [...shadow().querySelectorAll("label")].find(l => l.textContent?.includes("record select.pointer"))?.querySelector("input"),
+  )
+  expect(box.checked).toBe(true)
+  box.click()
+  await until(() => localStorage.getItem("wordgard-devtools:log-select-pointer") == "false")
+  editor.dispatch({selection: {anchor: 2}, userEvent: "select.pointer"})
+  type(editor, "a")
+  await until(() => rows().length == 1)
+  expect(rows()[0]?.textContent).toContain("input.type")
+})
+
+it("reads the saved select.pointer setting back, and records with it", async () => {
+  localStorage.setItem("wordgard-devtools:log-select-pointer", "false")
+  const editor = await setup()
+  const box = await until(() =>
+    [...shadow().querySelectorAll("label")].find(l => l.textContent?.includes("record select.pointer"))?.querySelector("input"),
+  )
+  expect(box.checked).toBe(false)
+  await record()
+  editor.dispatch({selection: {anchor: 2}, userEvent: "select.pointer"})
+  type(editor, "a")
+  await until(() => rows().length == 1)
+  expect(rows()[0]?.textContent).toContain("input.type")
+})
+
+it("shows the what-changed toggles' tooltips", async () => {
+  const editor = await setup()
+  await record()
+  type(editor, "a")
+  await until(() => rows().length == 1)
+  const doc = await until(() =>
+    [...shadow().querySelectorAll<HTMLButtonElement>("[aria-label='Filter by what changed'] button")].find(b => b.textContent == "doc"),
+  )
+  await userEvent.hover(doc)
+  await until(() =>
+    [...shadow().querySelectorAll("[data-slot='tooltip-content']")].some(t => t.textContent?.startsWith("Changed the document")),
+  )
 })

@@ -60,7 +60,7 @@ export type FieldTracker = {
   /** Logs the field's live value in the page's console, the value a change set, or its whole history. */
   log: (entry: Entry, index: number, seq?: number, history?: boolean) => void
   /** Forgets the changes seen to one field. */
-  clearHistory: (entry: Entry, index: number) => void
+  clearHistory: (entry: Entry, index?: number) => void
   /** Drops the history of editors that left the registry. */
   prune: () => void
 }
@@ -176,6 +176,10 @@ export const createFieldTracker = (
       console.log(`[wordgard-devtools] ${name}, as set by ${at == null ? "a transaction" : `transaction #${at}`}`, found.value)
     },
     clearHistory: (entry, index) => {
+      if (index == null) {
+        tracked.get(entry)?.history.clear()
+        return
+      }
       const field = fieldsOf(entry.wg.state)[index]
       if (!field) throw new Error(`No field ${index}`)
       tracked.get(entry)?.history.delete(field)

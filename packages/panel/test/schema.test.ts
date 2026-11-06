@@ -1,6 +1,6 @@
 import {afterEach, expect, it, vi} from "vitest"
 import {userEvent} from "vitest/browser"
-import {Node, Plot} from "wordgard/doc"
+import {Node, Plot, Schema} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
 import {basicSchema} from "wordgard/schema"
 import {GardState} from "wordgard/state"
@@ -116,7 +116,7 @@ it("rings the card a link or a click lands on", async () => {
 
 it("clears every filter at once, and a section's tags with their ×", async () => {
   await setup()
-  const clearAll = () => [...shadow().querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent == "Clear all filters")
+  const clearAll = () => [...shadow().querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent == "Clear filters")
   expect(clearAll()).toBeUndefined()
   toggle(shadow(), "3 marks")?.click()
   await until(() => !card("mark-Strong"))
@@ -178,9 +178,12 @@ it("lists the node groups, linked both ways", async () => {
   // The document's content names Content.
   expect(card("group-Content")?.textContent).toMatch(/content of.*Doc/)
   expect(card("group-Block")?.textContent).toContain("automatic")
-  // From a node's groups to the group's card.
-  ;[...paragraph.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent == "Textblock")?.click()
-  await until(() => card("group-Textblock")?.getAttribute("aria-current") == "true")
+  // Wordgard assigns Textblock itself.
+  expect(textblock.textContent).toContain("automatic")
+  // From a node's groups (Textblock not among them) to the group's card.
+  expect([...paragraph.querySelectorAll("button")].some(button => button.textContent == "Textblock")).toBe(false)
+  ;[...paragraph.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent == "Content")?.click()
+  await until(() => card("group-Content")?.getAttribute("aria-current") == "true")
   // From the group's card to a node's.
   ;[...textblock.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent == "Heading")?.click()
   await until(() => card("node-Heading")?.getAttribute("aria-current") == "true")
@@ -191,10 +194,10 @@ it("shows the selected type's spec as JSON beside the list", async () => {
   const spec = () => shadow().querySelector<HTMLElement>("[aria-label='Spec']")
   expect(spec()?.textContent).toContain("Select a node type")
   paragraph.click()
-  await until(() => spec()?.textContent?.includes("Paragraphnode type spec"))
+  await until(() => spec()?.textContent?.includes("Paragraphnode type"))
   expect(spec()?.querySelector("pre")?.textContent).toContain('"inlineContent": true')
   ;(await until(() => card("mark-Strong"))).click()
-  await until(() => spec()?.textContent?.includes("Strongmark type spec"))
+  await until(() => spec()?.textContent?.includes("Strongmark type"))
   const logged: unknown[][] = []
   const log = vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
     logged.push(args)
@@ -222,7 +225,7 @@ it("closes the JSON pane, and shows it again on a double click or from a card's 
   ;(await until(() => spec()?.querySelector<HTMLButtonElement>("[aria-label='Close the JSON']"))).click()
   await until(() => !spec())
   paragraph.dispatchEvent(new MouseEvent("dblclick", {bubbles: true}))
-  await until(() => spec()?.textContent?.includes("Paragraphnode type spec"))
+  await until(() => spec()?.textContent?.includes("Paragraphnode type"))
   spec()?.querySelector<HTMLButtonElement>("[aria-label='Close the JSON']")?.click()
   await until(() => !spec())
 
@@ -237,7 +240,7 @@ it("closes the JSON pane, and shows it again on a double click or from a card's 
   const strong = await until(() => card("mark-Strong"))
   rightClick(strong)
   ;(await until(() => item("Show JSON"))).click()
-  await until(() => spec()?.textContent?.includes("Strongmark type spec"))
+  await until(() => spec()?.textContent?.includes("Strongmark type"))
   // The pane is open: no "Show JSON".
   rightClick(strong)
   await until(() => item("Log JSON"))
@@ -255,4 +258,62 @@ it("closes the JSON pane, and shows it again on a double click or from a card's 
   ;(await until(() => item("Log JSON"))).click()
   await until(() => logged.some(args => args[0] == "[wordgard-devtools] the Content node group"))
   vi.restoreAllMocks()
+})
+
+it("switches a type's JSON between its spec and what applies", async () => {
+  const paragraph = await setup()
+  const spec = () => shadow().querySelector<HTMLElement>("[aria-label='Spec']")
+  const toggle = (name: string) =>
+    [...(spec()?.querySelectorAll<HTMLButtonElement>("button[aria-pressed]") ?? [])].find(button => button.textContent == name)
+  paragraph.click()
+  ;(await until(() => toggle("Effective"))).click()
+  // Not in Paragraph's spec: noted.
+  await until(() => spec()?.textContent?.includes('"isolating": false,  // default'))
+  expect(spec()?.textContent).toContain("// from the schema")
+  const copied: string[] = []
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async text => {
+    copied.push(text)
+  })
+  spec()?.querySelector<HTMLButtonElement>("[aria-label='Copy the JSON']")?.click()
+  // The values, without the comments.
+  await until(() => copied.some(text => JSON.parse(text).isolating === false))
+  // The view stays with the next type; a group has only one.
+  ;(await until(() => card("mark-Strong"))).click()
+  await until(() => spec()?.textContent?.includes('"spanning"'))
+  ;(await until(() => card("group-Content"))).click()
+  await until(() => spec()?.textContent?.includes("Contentnode group"))
+  expect(toggle("Effective")).toBeUndefined()
+  vi.restoreAllMocks()
+})
+
+it("flags a type an override changes: an amber switch and a note", async () => {
+  // A type of this file's (here, wordgard/types can be another copy than basicSchema's), and a group
+  // Wordgard names (one only an override mentions isn't seen).
+  wg = Wordgard.create({
+    parent: document.body,
+    doc: "<p>Hi</p>",
+    config: [
+      basicSchema(),
+      GardState.schemaElement.of([Callout, Schema.Override.nodeGroup(Callout, [Node.Group.Content, Node.Group.ListItem])]),
+      wordgardDevtools({name: "s"}),
+    ],
+  })
+  mounted = mountDevtools()
+  await mounted.ready
+  ;(await until(() => tab("Schema"))).click()
+  const spec = () => shadow().querySelector<HTMLElement>("[aria-label='Spec']")
+  const note = () => spec()?.querySelector<HTMLElement>("[role='note']")
+  const effectiveButton = () =>
+    [...(spec()?.querySelectorAll<HTMLButtonElement>("button[aria-pressed]") ?? [])].find(button => button.textContent == "Effective")
+  ;(await until(() => card("node-Callout"))).click()
+  await until(() => note()?.textContent?.includes("An override changes what applies: group"))
+  expect(effectiveButton()?.className).toContain("amber")
+  ;[...(note()?.querySelectorAll("button") ?? [])].find(button => button.textContent == "See the effective view")?.click()
+  await until(() => note()?.textContent?.includes("Highlighted"))
+  expect(effectiveButton()?.getAttribute("aria-pressed")).toBe("true")
+  // A type no override touches: neither.
+  ;(await until(() => card("node-Heading"))).click()
+  await until(() => spec()?.textContent?.includes("Headingnode type"))
+  expect(note()).toBeNull()
+  expect(effectiveButton()?.className).not.toContain("amber")
 })

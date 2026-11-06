@@ -142,7 +142,8 @@ export const createFramesTransport = (send: (frameId: number, message: ToBridge)
     clearFieldHistory: ({id, index}) => routed<"clearFieldHistory">(id, page => ({type: "clearFieldHistory", id: page, index})),
     logType: ({id, kind, name, json}) => routed<"logType">(id, page => ({type: "logType", id: page, kind, name, json})),
     watchFields: ({id, on}) => routed<"watchFields">(id, page => ({type: "watchFields", id: page, on})),
-    record: ({id, on, size}) => routed<"record">(id, page => ({type: "record", id: page, on, size})),
+    record: ({id, on, size, selectPointer}) =>
+      routed<"record">(id, page => ({type: "record", id: page, on, size, selectPointer})),
     clear: ({id}) => routed<"clear">(id, page => ({type: "clear", id: page})),
     log: ({id, from, to}) => routed<"log">(id, page => ({type: "log", id: page, from, to})),
     entry: ({id, index}) => routed<"entry">(id, page => ({type: "entry", id: page, index})),

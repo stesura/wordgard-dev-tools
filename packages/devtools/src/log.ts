@@ -21,6 +21,8 @@ type Item = {
 
 type Log = {
   items: Item[]
+  /** Records `select.pointer` transactions. */
+  selectPointer: boolean
   end: number
   size: number
   /** Recorded, not drawn yet: the next flush times them. */
@@ -160,6 +162,17 @@ const annotationNames = new Map<object, string>([
   [wordgardState.Transaction.appended, "appended"],
 ])
 
+// Annotation types carry no name: those that aren't Wordgard's are numbered as first seen, page-wide.
+const customNames = new WeakMap<object, string>()
+let customCount = 0
+const annotationName = (type: object) => {
+  const own = annotationNames.get(type)
+  if (own) return own
+  let name = customNames.get(type)
+  if (!name) customNames.set(type, (name = `annotation #${++customCount}`))
+  return name
+}
+
 // `annotations` is internal to Wordgard (`annotation(type)` is the public reader): counted when present.
 const annotationsOf = (tr: Transaction): Transaction.Annotation<unknown>[] =>
   "annotations" in tr && Array.isArray(tr.annotations)
@@ -177,7 +190,7 @@ const row = ({index, tr, dispatchMs, flushMs, flush, agentFlush}: Item): LogRow 
   docChanged: tr.docChanged,
   selectionSet: tr.selection != null,
   effects: tr.effects.length,
-  annotations: annotationsOf(tr).filter(a => a.type != wordgardState.Transaction.time).length,
+  annotations: annotationsOf(tr).map(a => annotationName(a.type)),
   dispatchMs,
   flushMs,
   flush,
@@ -214,7 +227,7 @@ const detail = (item: Item): LogEntryDetail => {
     },
     effectValues: tr.effects.map((effect): NamedValue => ({type: effectName(effect), value: toSafe(effect.value)})),
     annotationValues: annotationsOf(tr).map(
-      (a): NamedValue => ({type: annotationNames.get(a.type) ?? "annotation", value: toSafe(a.value)}),
+      (a): NamedValue => ({type: annotationName(a.type), value: toSafe(a.value)}),
     ),
     scrollIntoView: tr.scrollIntoView,
     reconfigured: tr.reconfigured,
@@ -224,7 +237,7 @@ const detail = (item: Item): LogEntryDetail => {
 export type Recorder = {
   /** From every copy's transaction listener. */
   recorded: (entry: Entry, transactions: readonly Transaction[]) => void
-  record: (entry: Entry, on: boolean, size?: number) => void
+  record: (entry: Entry, on: boolean, size?: number, selectPointer?: boolean) => void
   clear: (entry: Entry) => void
   slice: (entry: Entry, from: number, to: number) => LogSlice
   detail: (entry: Entry, index: number) => LogEntryDetail
@@ -242,6 +255,7 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
     if (!log) {
       log = {
         items: [],
+        selectPointer: true,
         end: 0,
         size: LOG_SIZE,
         unflushed: [],
@@ -283,6 +297,7 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
       for (const tr of transactions) {
         if (log.seen.has(tr)) continue
         log.seen.add(tr)
+        if (!log.selectPointer && tr.isUserEvent("select.pointer")) continue
         const item: Item = {index: log.end++, tr, dispatchMs: null, flushMs: null, flush: null, agentFlush: false}
         log.items.push(item)
         // Limitation: a flush forced earlier in this dispatch (a listener ordered before ours reading
@@ -293,8 +308,9 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
       trim(log)
       changed(entry, log)
     },
-    record: (entry, on, size) => {
+    record: (entry, on, size, selectPointer) => {
       const log = logOf(entry)
+      if (selectPointer != null) log.selectPointer = selectPointer
       if (size != null) {
         if (!Number.isInteger(size) || size < 1) throw new Error(`Invalid log size ${size}`)
         log.size = size

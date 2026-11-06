@@ -1,6 +1,6 @@
 import type {Mark, Node, Schema} from "wordgard/doc"
 import * as wordgardDoc from "wordgard/doc"
-import type {SchemaGroup, SchemaInfo, SchemaMarkType, SchemaNodeType, SchemaParam} from "./protocol.ts"
+import type {EffectiveSpec, SchemaGroup, SchemaInfo, SchemaMarkType, SchemaNodeType, SchemaParam} from "./protocol.ts"
 import {toSafe} from "./serialise.ts"
 
 // Loaded with the serialisers, on the first panel request.
@@ -19,8 +19,9 @@ const knownGroups = new Map<Node.Group, string>([
   [Group.TableCell, "TableCell"],
   [Group.ListItem, "ListItem"],
 ])
-// Implied by a type's kind and inline flag: not listed among its groups.
-const implied = new Set([Group.All, Group.Inline, Group.Block, Group.Leaf, Group.Plot])
+// Wordgard assigns these itself, by a type's kind, inline flag and content (its `Group.builtin`, which
+// is internal): not listed among a type's groups, whatever its spec says.
+const implied = new Set([Group.All, Group.Inline, Group.Block, Group.Leaf, Group.Plot, Group.Textblock])
 
 const roles = new Map<Node.Role, string>([
   [Role.Code, "Code"],
@@ -112,7 +113,7 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
     query instanceof Group ? [query] : isList(query) ? query.flatMap(groupsIn) : "and" in query ? query.and.flatMap(groupsIn) : []
 
   /** A spec as JSON: what a developer wrote, readable. */
-  const specJSON = (name: string, spec: object): unknown => {
+  const specJSON = (name: string, spec: object): Record<string, unknown> => {
     const one = (value: unknown) => (value instanceof Group ? groupName(value) : plain(value))
     const roleName = (role: unknown) => [...roles].find(([r]) => r == role)?.[1] ?? "a role"
     const entries = Object.entries(spec).map(([key, value]): [string, unknown] => [
@@ -126,6 +127,33 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
             : plain(value),
     ])
     return {name, ...Object.fromEntries(entries)}
+  }
+
+  /** Resolved values, each noted where it isn't the spec's: `from` marks one the schema works out. */
+  const effectiveOf = (spec: Record<string, unknown>, values: [key: string, value: unknown, from?: "schema"][]): EffectiveSpec => {
+    const value: Record<string, unknown> = {}
+    const notes: EffectiveSpec["notes"] = {}
+    const list = (v: unknown) => (Array.isArray(v) ? v : v === undefined ? [] : [v])
+    for (const [key, v, from] of values) {
+      value[key] = v
+      if (from) notes[key] = from
+      else if (!(key in spec)) notes[key] = "default"
+      else if (JSON.stringify(Array.isArray(v) ? list(spec[key]) : spec[key]) != JSON.stringify(v)) notes[key] = "override"
+    }
+    return {value, notes}
+  }
+
+  /**
+   * A type's group list against its spec's, the automatic groups left out of both: none when they
+   * match; "schema" when the extra ones are parents of the spec's (being in a group puts a type in
+   * its parents); "override" otherwise (only an override changes a type's groups).
+   */
+  const groupNote = (inGroups: Node.Group[], group: Node.Group | readonly Node.Group[] | undefined) => {
+    const declared = (group instanceof Group ? [group] : (group ?? [])).filter(g => !implied.has(g))
+    const withParents = new Set<Node.Group>()
+    for (const g of declared) for (let at: Node.Group | undefined = g; at; at = at.parent) withParents.add(at)
+    if (inGroups.length == declared.length && declared.every(g => inGroups.includes(g))) return undefined
+    return declared.every(g => inGroups.includes(g)) && inGroups.every(g => withParents.has(g)) ? "schema" : "override"
   }
 
   const describe = (query: Node.Query): string => {
@@ -164,19 +192,47 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
         : type.isPlot && type.spec.inlineContent
           ? `inline: ${type.spec.inlineContent === true ? "any" : describe(type.spec.inlineContent)}`
           : null
+    const inGroups = listed().filter(group => schema.matchNode(type, group))
+    const groups = inGroups.map(groupName)
+    const typeRoles = [...roles].filter(([role]) => type.hasRole(role)).map(([, name]) => name)
+    const holds = type.isPlot ? schema.nodes.filter(child => schema.canContain(type, child)).map(child => child.name) : []
+    const allowedMarks = schema.marks.filter(mark => schema.markAllowed(mark, type)).map(mark => mark.name)
+    const spec = specJSON(type.name, type.spec)
+    const effective = effectiveOf(spec, [
+      ["inline", type.isInline],
+      ["group", groups],
+      ["role", typeRoles],
+      ...(type.isPlot
+        ? ([
+            ["holds", holds, "schema"],
+            ["canBeEmpty", type.canBeEmpty],
+            ["isolating", type.isolating],
+            ["defining", type.defining],
+            ["neutral", type.neutral],
+            ["preserveWhitespace", type.preserveWhitespace],
+            ["orientation", type.orientation],
+          ] satisfies Parameters<typeof effectiveOf>[1])
+        : []),
+      ["selectable", type.isSelectable],
+      ["marks", allowedMarks, "schema"],
+    ])
+    const note = groupNote(inGroups, type.spec.group)
+    if (note) effective.notes.group = note
+    else delete effective.notes.group
     return {
       name: type.name,
       kind: type.isPlot ? "plot" : "leaf",
       inline: type.isInline,
-      groups: listed().filter(group => schema.matchNode(type, group)).map(groupName),
-      roles: [...roles].filter(([role]) => type.hasRole(role)).map(([, name]) => name),
+      groups,
+      roles: typeRoles,
       content,
-      holds: type.isPlot ? schema.nodes.filter(child => schema.canContain(type, child)).map(child => child.name) : [],
-      marks: schema.marks.filter(mark => schema.markAllowed(mark, type)).map(mark => mark.name),
+      holds,
+      marks: allowedMarks,
       param: param(type.spec),
       flags,
       shape: shape(type.spec),
-      spec: specJSON(type.name, type.spec),
+      spec,
+      effective,
     }
   })
 
@@ -187,15 +243,23 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
     if (type.isElement) flags.push("element")
     if (type.spec.keepOnSplit) flags.push("keepOnSplit")
     if (type.spec.keepOnTypeChange) flags.push("keepOnTypeChange")
+    const targets = schema.nodes.filter(node => schema.markAllowed(type, node)).map(node => node.name)
+    const spec = specJSON(type.name, type.spec)
     return {
       name: type.name,
       target: type.spec.target ? describe(type.spec.target) : null,
-      targets: schema.nodes.filter(node => schema.markAllowed(type, node)).map(node => node.name),
+      targets,
       rank: type.spec.rank ?? null,
       param: param(type.spec),
       flags,
       shape: shape(type.spec),
-      spec: specJSON(type.name, type.spec),
+      spec,
+      // A mark's resolved rank is internal: not shown.
+      effective: effectiveOf(spec, [
+        ["inclusive", type.inclusive],
+        ["spanning", type.spanning],
+        ["targets", targets, "schema"],
+      ]),
     }
   })
 

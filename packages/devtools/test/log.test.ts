@@ -50,14 +50,29 @@ it("records transactions only while recording, with their rows", async () => {
     docChanged: true,
     selectionSet: false,
     effects: 0,
-    annotations: 1,
   })
-  expect(rows[1]).toMatchObject({index: 1, userEvent: null, docChanged: false, selectionSet: true, effects: 1, annotations: 1})
+  expect(rows[0]?.annotations.toSorted()).toEqual(["time", "userEvent"])
+  expect(rows[1]).toMatchObject({index: 1, userEvent: null, docChanged: false, selectionSet: true, effects: 1})
+  expect(rows[1]?.annotations).toHaveLength(2)
+  expect(rows[1]?.annotations).toContain("time")
+  expect(rows[1]?.annotations.some(name => /^annotation #\d+$/.test(name))).toBe(true)
   expect(rows[0]?.time).toBeGreaterThan(0)
 
   await ask({type: "record", id: idOf(wg), on: false})
   type(wg, "c")
   expect((await log(wg)).end).toBe(2)
+})
+
+it("skips select.pointer transactions when told to", async () => {
+  const wg = open()
+  await ask({type: "select", id: idOf(wg)})
+  await ask({type: "record", id: idOf(wg), on: true, selectPointer: false})
+  wg.dispatch({selection: {anchor: 2}, userEvent: "select.pointer"})
+  type(wg, "a")
+  expect((await log(wg)).rows.map(r => r.userEvent)).toEqual(["input.type"])
+  await ask({type: "record", id: idOf(wg), on: true, selectPointer: true})
+  wg.dispatch({selection: {anchor: 2}, userEvent: "select.pointer"})
+  expect((await log(wg)).rows.map(r => r.userEvent)).toEqual(["input.type", "select.pointer"])
 })
 
 it("logs appended transactions as their own entries", async () => {
@@ -108,7 +123,7 @@ it("serialises an entry on request: changes, ranges, selection, effects, annotat
   expect(entry.selection.set).toEqual({type: "text", anchor: 4})
   expect(entry.selection.after).toEqual({type: "text", anchor: 4})
   expect(entry.effectValues).toEqual([{type: "effect", value: {note: "x"}}])
-  expect(entry.annotationValues.map(a => a.type)).toEqual(["annotation", "userEvent", "time"])
+  expect(entry.annotationValues.map(a => a.type)).toEqual([expect.stringMatching(/^annotation #\d+$/), "userEvent", "time"])
   expect(entry.annotationValues[0]?.value).toBe("n")
   expect(entry.reconfigured).toBe(false)
 })

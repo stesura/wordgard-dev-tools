@@ -6,7 +6,6 @@ import {
   ChevronRightIcon,
   ChevronDownUpIcon,
   ChevronUpDownIcon,
-  ChevronUpIcon,
   NodeSelectionIcon,
   TextCursorIcon,
 } from "#icons"
@@ -25,6 +24,7 @@ import {Button} from "#components/ui/button"
 import {ROOT, itemId, pathOf} from "./detail-cache.ts"
 import {NodeMenu, createNodeMenuAnchor} from "./node-menu.tsx"
 import {NodePane, isPrefix, json} from "./node-pane.tsx"
+import {SearchBox, matchClass, useSearch} from "./search.tsx"
 import {SplitPane} from "./split-pane.tsx"
 import {hue, markColour, typeColour} from "./colours.ts"
 import type {PanelStore} from "./store.ts"
@@ -35,7 +35,8 @@ import {createStructureSource} from "./structure-source.ts"
 type Marks = {
   selection: SelectionInfo | null
   focused: string
-  matches: ReadonlySet<string>
+  /** Search matches, and the one stepped to. */
+  all: ReadonlySet<string>
   current: string | null
   /** Boxes whose content is hidden. */
   collapsed: ReadonlySet<string>
@@ -54,14 +55,6 @@ const search = (doc: StructureNode, query: string) => {
   walk(doc)
   return found
 }
-
-// In dark, a yellow tint strong enough to see drowns the text: a ring marks the match instead.
-const matchClass = (id: string, marks: Marks) =>
-  marks.current == id
-    ? "bg-yellow-500/40 dark:bg-yellow-500/15 dark:ring-2 dark:ring-yellow-500"
-    : marks.matches.has(id)
-      ? "bg-yellow-500/20 dark:bg-yellow-500/10 dark:ring-1 dark:ring-yellow-500/60"
-      : ""
 
 const selectionMark = (path: Path, selection: SelectionInfo | null) => {
   if (!selection || !path.length) return undefined
@@ -391,27 +384,10 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
     focusItem(target)
   }
 
-  const [query, setQuery] = useState("")
-  const [current, setCurrent] = useState(0)
-  const matches = useMemo(() => (doc && query ? search(doc, query) : []), [doc, query])
-  const index = Math.min(current, matches.length - 1)
-  const currentMatch = matches[index] ?? null
+  const find = useMemo(() => (doc ? (query: string) => search(doc, query) : null), [doc])
+  const searching = useSearch(find, id => void reveal(pathOf(id)))
 
-  const go = (next: number) => {
-    const id = matches[(next + matches.length) % matches.length]
-    if (id == null) return
-    setCurrent(matches.indexOf(id))
-    void reveal(pathOf(id))
-  }
-
-  const onSearch = (value: string) => {
-    setQuery(value)
-    setCurrent(0)
-    const first = doc && value ? search(doc, value)[0] : undefined
-    if (first) void reveal(pathOf(first))
-  }
-
-  const marks = {selection: info, focused, matches: new Set(matches), current: currentMatch, collapsed, toggle}
+  const marks = {selection: info, focused, all: searching.all, current: searching.current, collapsed, toggle}
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
@@ -424,31 +400,7 @@ export const Structure = ({store, editorId}: {store: PanelStore; editorId: numbe
         </p>
       )}
       <div className="flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs">
-        <input
-          type="search"
-          value={query}
-          onChange={event => onSearch(event.target.value)}
-          onKeyDown={event => {
-            if (event.key == "Enter") {
-              event.preventDefault()
-              go(index + (event.shiftKey ? -1 : 1))
-            } else if (event.key == "Escape") onSearch("")
-          }}
-          aria-label="Search the structure"
-          placeholder="Search text, node names, params"
-          className="h-6 min-w-0 flex-1 bg-transparent outline-none"
-        />
-        {query && (
-          <span className="shrink-0 text-muted-foreground" aria-live="polite">
-            {matches.length ? `${index + 1}/${matches.length}` : "No matches"}
-          </span>
-        )}
-        <Button variant="ghost" size="icon-xs" aria-label="Previous match" disabled={!matches.length} onClick={() => go(index - 1)}>
-          <ChevronUpIcon />
-        </Button>
-        <Button variant="ghost" size="icon-xs" aria-label="Next match" disabled={!matches.length} onClick={() => go(index + 1)}>
-          <ChevronDownIcon />
-        </Button>
+        <SearchBox search={searching} label="Search the structure" placeholder="Search text, node names, params" />
         <Tip label="Expand all">
           <Button variant="ghost" size="icon-xs" aria-label="Expand all" onClick={() => setCollapsed(new Set())}>
             <ChevronUpDownIcon />

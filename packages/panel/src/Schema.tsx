@@ -1,10 +1,12 @@
 import {cn} from "cn"
 import {ClipboardDocumentIcon, CodeBracketIcon, CommandLineIcon, EyeIcon, XMarkIcon} from "#icons"
 import {useCallback, useRef, useState, useSyncExternalStore, type ReactNode} from "react"
-import type {SchemaGroup, SchemaInfo, SchemaMarkType, SchemaNodeType, SchemaParam} from "@stesura/wordgard-dev-tools"
+import type {EffectiveSpec, SchemaGroup, SchemaInfo, SchemaMarkType, SchemaNodeType, SchemaParam} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
+import {ClearFilters} from "./clear-filters.tsx"
 import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger} from "#components/ui/context-menu"
+import {CopyButton} from "./copy-button.tsx"
 import {copy, createMenuAnchor, type MenuAnchor} from "./node-menu.tsx"
 import {json} from "./node-pane.tsx"
 import {createSchemaSource} from "./schema-source.ts"
@@ -162,7 +164,8 @@ const GroupTags = ({group}: {group: SchemaGroup}) =>
         key={tag}
         label={
           <span className="block max-w-72">
-            Not declared: a type is in it by being a leaf or a plot, inline or block. Node cards don't list it.
+            Not declared: Wordgard puts a type in it by what it is (a leaf or a plot, inline or block, a
+            textblock). Node cards don't list it.
           </span>
         }
       >
@@ -208,34 +211,108 @@ const parseCard = (card: string) => {
   return {kind: kind == "node" || kind == "mark" || kind == "group" ? kind : null, name: card.slice(dash + 1)}
 }
 
-type CardJSON = {kind: Kind; name: string; label: string; value: unknown}
+/** A card's JSON: a type's spec (and what applies, resolved), or a group's data. */
+type CardJSON = {kind: Kind; name: string; label: string; value: unknown; effective: EffectiveSpec | null}
 
-/** A card's JSON: a type's spec, or a group's data. */
 const jsonOf = (schema: SchemaInfo | null, card: string | null): CardJSON | null => {
   const {kind, name} = parseCard(card ?? "")
   if (kind == "node") {
     const type = schema?.nodes.find(t => t.name == name)
-    return type ? {kind, name, label: "node type spec", value: type.spec} : null
+    return type ? {kind, name, label: "node type", value: type.spec, effective: type.effective} : null
   }
   if (kind == "mark") {
     const type = schema?.marks.find(t => t.name == name)
-    return type ? {kind, name, label: "mark type spec", value: type.spec} : null
+    return type ? {kind, name, label: "mark type", value: type.spec, effective: type.effective} : null
   }
   const group = kind == "group" ? schema?.groups.find(g => g.name == name) : undefined
-  return group ? {kind: "group", name, label: "node group", value: group} : null
+  return group ? {kind: "group", name, label: "node group", value: group, effective: null} : null
+}
+
+type JSONView = "spec" | "effective"
+
+const noteText: Record<EffectiveSpec["notes"][string], string> = {
+  default: "default",
+  override: "override",
+  schema: "from the schema",
+}
+
+/** What applies to a type, as JSON, each value that isn't the spec's with a comment saying why. */
+const EffectiveJSON = ({effective}: {effective: EffectiveSpec}) => {
+  const entries = Object.entries(effective.value)
+  return (
+    <pre className="min-h-0 flex-1 overflow-auto p-2 font-mono text-xs whitespace-pre-wrap">
+      <span className="block">{"{"}</span>
+      {entries.map(([key, value], index) => {
+        const note = effective.notes[key]
+        return (
+          <span key={key} className={cn("block", note == "override" && "bg-amber-500/15")}>
+            {`  ${JSON.stringify(key)}: ${(JSON.stringify(value, null, 2) ?? "undefined").replace(/\n/g, "\n  ")}${index < entries.length - 1 ? "," : ""}`}
+            {note && <span className="text-muted-foreground">{`  // ${noteText[note]}`}</span>}
+          </span>
+        )
+      })}
+      <span className="block">{"}"}</span>
+    </pre>
+  )
 }
 
 /** Logs a type (the live object), or with `json` its JSON; a group always as JSON. */
 type Log = (kind: Kind, name: string, json: boolean) => void
 
-/** The selected card's JSON, with log, copy and close buttons. */
-const SpecPane = ({shown, onLog, onClose}: {shown: CardJSON | null; onLog: Log; onClose: () => void}) => (
+/** The selected card's JSON (a type's spec, or what applies), with log, copy and close buttons. */
+const SpecPane = ({
+  shown,
+  view,
+  onView,
+  onLog,
+  onClose,
+}: {
+  shown: CardJSON | null
+  view: JSONView
+  onView: (view: JSONView) => void
+  onLog: Log
+  onClose: () => void
+}) => {
+  const effective = view == "effective" ? shown?.effective : null
+  // Overrides, not defaults, make what applies contradict the spec: they're what's flagged.
+  const notes = shown?.effective?.notes ?? {}
+  const overridden = Object.keys(notes).filter(key => notes[key] == "override")
+  return (
   <aside aria-label="Spec" className="flex h-full min-h-0 flex-col">
-    <div className="flex min-h-7 shrink-0 items-center gap-2 border-b bg-strip px-2 font-sans">
+    <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-2 border-b bg-strip px-2 font-sans">
       {shown ? (
         <>
           <h3 className="font-medium">{shown.name}</h3>
           <span className="text-muted-foreground">{shown.label}</span>
+          {shown.effective && (
+            <span className="flex gap-1">
+              <Tip label="The spec, as written">
+                <Toggle pressed={view == "spec"} onClick={() => onView("spec")}>
+                  Spec
+                </Toggle>
+              </Tip>
+              <Tip
+                label={
+                  overridden.length
+                    ? "What applies differs from the spec: an override changes it"
+                    : "What applies: defaults filled in, overrides applied, what the schema works out"
+                }
+              >
+                <Toggle
+                  pressed={view == "effective"}
+                  onClick={() => onView("effective")}
+                  className={cn(
+                    overridden.length > 0 &&
+                      (view == "effective"
+                        ? "bg-amber-700 text-white"
+                        : "bg-amber-500/20 text-amber-800 hover:text-amber-950 dark:text-amber-300 dark:hover:text-amber-100"),
+                  )}
+                >
+                  Effective
+                </Toggle>
+              </Tip>
+            </span>
+          )}
         </>
       ) : (
         <h3 className="text-muted-foreground">JSON</h3>
@@ -254,11 +331,8 @@ const SpecPane = ({shown, onLog, onClose}: {shown: CardJSON | null; onLog: Log; 
           </Tip>
         )}
         {shown && (
-          <Tip label="Copy the JSON">
-            <Button variant="ghost" size="icon-xs" aria-label="Copy the JSON" onClick={() => void copy(json(shown.value))}>
-              <ClipboardDocumentIcon />
-            </Button>
-          </Tip>
+          // The effective view copies its values, without the comments.
+          <CopyButton label="Copy the JSON" text={() => json(effective ? effective.value : shown.value)} />
         )}
         <Tip label="Close">
           <Button variant="ghost" size="icon-xs" aria-label="Close the JSON" onClick={onClose}>
@@ -267,13 +341,32 @@ const SpecPane = ({shown, onLog, onClose}: {shown: CardJSON | null; onLog: Log; 
         </Tip>
       </span>
     </div>
-    {shown ? (
+    {overridden.length > 0 && (
+      <p role="note" className="flex shrink-0 flex-wrap items-center gap-x-2 border-b bg-amber-500/10 px-2 py-1 font-sans text-amber-900 dark:text-amber-200">
+        {view == "spec" ? (
+          <>
+            <span>
+              An override changes what applies: <span className="font-mono">{overridden.join(", ")}</span>.
+            </span>
+            <button type="button" className="cursor-pointer font-medium underline underline-offset-2" onClick={() => onView("effective")}>
+              See the effective view
+            </button>
+          </>
+        ) : (
+          <span>Highlighted: what an override changes, not as the spec says.</span>
+        )}
+      </p>
+    )}
+    {effective ? (
+      <EffectiveJSON effective={effective} />
+    ) : shown ? (
       <pre className="min-h-0 flex-1 overflow-auto p-2 font-mono text-xs whitespace-pre-wrap">{json(shown.value)}</pre>
     ) : (
       <p className="p-2 text-muted-foreground">Select a node type, mark type or group to see its JSON here.</p>
     )}
   </aside>
-)
+  )
+}
 
 type MenuTarget = {card: string}
 
@@ -333,7 +426,17 @@ const toggled = (set: ReadonlySet<string>, tag: string) => {
 }
 
 /** A toggle in a row of filters. */
-const Toggle = ({pressed, onClick, children}: {pressed: boolean; onClick: () => void; children: ReactNode}) => (
+const Toggle = ({
+  pressed,
+  onClick,
+  className,
+  children,
+}: {
+  pressed: boolean
+  onClick: () => void
+  className?: string
+  children: ReactNode
+}) => (
   <button
     type="button"
     aria-pressed={pressed}
@@ -341,6 +444,7 @@ const Toggle = ({pressed, onClick, children}: {pressed: boolean; onClick: () => 
     className={cn(
       "h-5 cursor-pointer rounded px-1.5 text-xs",
       pressed ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground",
+      className,
     )}
   >
     {children}
@@ -431,6 +535,8 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
   const [selectedCard, setSelectedCard] = useState<string | null>(null)
   const scroller = useRef<HTMLDivElement | null>(null)
   const [paneOpen, setPaneOpen] = useState(true)
+  // Kept from card to card.
+  const [jsonView, setJSONView] = useState<JSONView>("spec")
   const showJSON = (card: string) => {
     setSelectedCard(card)
     setPaneOpen(true)
@@ -551,9 +657,7 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
           className="h-6 min-w-0 flex-1 basis-full bg-transparent outline-none @md:basis-0"
         />
         {filtered && (
-          <Button variant="ghost" size="xs" className="shrink-0" onClick={clearAll}>
-            Clear all filters
-          </Button>
+          <ClearFilters onClick={clearAll} />
         )}
         {schema && (
           <span className="flex shrink-0 gap-1">
@@ -570,7 +674,17 @@ export const Schema = ({store, editorId}: {store: PanelStore; editorId: number})
         )}
       </div>
       <SplitPane
-        pane={paneOpen ? <SpecPane shown={jsonOf(schema, selectedCard)} onLog={logCard} onClose={() => setPaneOpen(false)} /> : null}
+        pane={
+          paneOpen ? (
+            <SpecPane
+              shown={jsonOf(schema, selectedCard)}
+              view={jsonView}
+              onView={setJSONView}
+              onLog={logCard}
+              onClose={() => setPaneOpen(false)}
+            />
+          ) : null
+        }
       >
       <div
         ref={container}

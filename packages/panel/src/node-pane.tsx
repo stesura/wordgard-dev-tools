@@ -1,10 +1,10 @@
-import {ClipboardDocumentIcon, CommandLineIcon, EyeIcon} from "#icons"
+import {CommandLineIcon, EyeIcon} from "#icons"
 import {Suspense, use, useDeferredValue, useSyncExternalStore, type ReactNode} from "react"
 import type {Path} from "@stesura/wordgard-dev-tools"
 import {Button} from "#components/ui/button"
 import {pathOf, type DetailSource} from "./detail-cache.ts"
 import type {ColourKind} from "./colours.ts"
-import {copy} from "./node-menu.tsx"
+import {CopyButton} from "./copy-button.tsx"
 import type {PanelStore} from "./store.ts"
 import {Tip} from "./tip.tsx"
 import {TypeLink} from "./type-link.tsx"
@@ -65,11 +65,7 @@ export const SelectionBar = ({store, editorId}: {store: PanelStore; editorId: nu
                 <CommandLineIcon />
               </Button>
             </Tip>
-            <Tip label="Copy the selection's JSON">
-              <Button variant="ghost" size="icon-xs" aria-label="Copy the selection's JSON" onClick={() => void copy(json(info.json))}>
-                <ClipboardDocumentIcon />
-              </Button>
-            </Tip>
+            <CopyButton label="Copy the selection's JSON" text={() => json(info.json)} />
           </span>
         </>
       ) : (
@@ -133,11 +129,7 @@ const NodeDetailView = ({
             </Button>
           </Tip>
           {node.json != null && (
-            <Tip label="Copy the node's JSON">
-              <Button variant="ghost" size="icon-xs" aria-label="Copy the node's JSON" onClick={() => void copy(json(node.json))}>
-                <ClipboardDocumentIcon />
-              </Button>
-            </Tip>
+            <CopyButton label="Copy the node's JSON" text={() => json(node.json)} />
           )}
         </span>
       </div>

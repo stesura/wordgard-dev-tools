@@ -251,3 +251,24 @@ it("logs the state, live or as JSON, from the toolbar", async () => {
     logged.some((args) => args[0] == "[wordgard-devtools] state.toJSON()" && JSON.stringify(args[1]).includes('"Paragraph"')),
   );
 });
+
+it("searches keys and values, opening what holds the match", async () => {
+  await setup();
+  button("Collapse all")?.click();
+  await until(() => !line("$/doc/type"));
+  const input = await until(() =>
+    shadow().querySelector<HTMLInputElement>("[aria-label='Search the state']"),
+  );
+  await userEvent.click(input);
+  await userEvent.keyboard("hi");
+  // A value: its objects open, and it's focused.
+  await until(() => line("$/doc/content/0/content/0/param")?.className.includes("bg-yellow-500/40"));
+  expect(line("$/doc/content/0/content/0/param")?.getAttribute("aria-selected")).toBe("true");
+  expect(input.parentElement?.textContent).toMatch(/1\/\d/);
+  await userEvent.clear(input);
+  await userEvent.keyboard("selection");
+  // A key.
+  await until(() => line("$/selection")?.className.includes("bg-yellow-500/40"));
+  await userEvent.keyboard("{Escape}");
+  await until(() => !line("$/selection")?.className.includes("bg-yellow-500"));
+});

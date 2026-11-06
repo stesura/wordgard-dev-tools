@@ -128,3 +128,16 @@ it("sends and logs the value a change in the history set", async () => {
   await ask({type: "clearFieldHistory", id, index})
   await expect(ask({type: "fieldChange", id, index, seq: first?.seq ?? 0})).rejects.toThrow("no longer in the history")
 })
+
+it("clears every field's history without an index", async () => {
+  const wg = open()
+  const id = idOf(wg)
+  await ask({type: "select", id})
+  await ask({type: "watchFields", id, on: true})
+  wg.dispatch({effects: bump.of(2)})
+  wg.dispatch({changes: {from: 1, insert: [Leaf.text("x")]}})
+  wg.flush()
+  expect((await ask({type: "fields", id})).fields.filter(f => f.changes > 0).length).toBeGreaterThanOrEqual(2)
+  await ask({type: "clearFieldHistory", id})
+  expect((await ask({type: "fields", id})).fields.every(f => f.changes == 0)).toBe(true)
+})

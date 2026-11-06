@@ -5,6 +5,7 @@ import type {FieldChange} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
 import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger} from "#components/ui/context-menu"
+import {CopyButton} from "./copy-button.tsx"
 import {createFieldsSource, type FieldsSource} from "./fields-source.ts"
 import {clock} from "./Log.tsx"
 import {copy, createMenuAnchor, type MenuAnchor} from "./node-menu.tsx"
@@ -168,7 +169,7 @@ const FieldView = ({
       const found = values[i]
       return found && found.error == null ? [{transaction: change.log, time: change.time, value: found.value}] : []
     })
-    await copy(json(copied))
+    return json(copied)
   }
   const history = (
     <Part
@@ -186,11 +187,7 @@ const FieldView = ({
               <CommandLineIcon />
             </Button>
           </Tip>
-          <Tip label="Copy the history">
-            <Button variant="ghost" size="icon-xs" aria-label="Copy the history" disabled={!field.history.length} onClick={() => void copyHistory()}>
-              <ClipboardDocumentIcon />
-            </Button>
-          </Tip>
+          <CopyButton label="Copy the history" disabled={!field.history.length} text={copyHistory} />
           <Tip label="Clear this field's history">
             <Button
               variant="ghost"
@@ -237,11 +234,7 @@ const FieldView = ({
                   <CommandLineIcon />
                 </Button>
               </Tip>
-              <Tip label="Copy the value">
-                <Button variant="ghost" size="icon-xs" aria-label="Copy the value" onClick={() => void copy(json(field.value))}>
-                  <ClipboardDocumentIcon />
-                </Button>
-              </Tip>
+              <CopyButton label="Copy the value" text={() => json(field.value)} />
             </>
           }
         >
@@ -399,7 +392,8 @@ export const Fields = ({store, editorId}: {store: PanelStore; editorId: number})
   }
 
   // The field's next detail (a new version) has the history gone, and the list its count.
-  const clearHistory = (index: number) =>
+  // Without an index, every field's.
+  const clearHistory = (index?: number) =>
     store.transport
       .send({type: "clearFieldHistory", id: editorId, index})
       .then(() => source.load())
@@ -428,9 +422,14 @@ export const Fields = ({store, editorId}: {store: PanelStore; editorId: number})
         </p>
       )}
       <div className="flex h-7 shrink-0 items-center gap-2 border-b bg-strip px-2 text-xs">
-        <Tag className={cn(info?.tracking && "bg-green-500/15 text-green-800 dark:text-green-300")}>
-          {info?.tracking ? "Tracking changes" : "Not tracking changes"}
-        </Tag>
+        <Button
+          variant="ghost"
+          size="xs"
+          disabled={!fields.some(field => field.changes > 0)}
+          onClick={() => void clearHistory()}
+        >
+          <NoSymbolIcon /> Clear all
+        </Button>
         <Tip
           label={
             <span className="block max-w-72">

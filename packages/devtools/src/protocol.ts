@@ -137,8 +137,8 @@ export type LogRow = {
   docChanged: boolean
   selectionSet: boolean
   effects: number
-  /** Annotations other than the automatic time stamp. */
-  annotations: number
+  /** Its annotations' types, the time stamp included: Wordgard's own by name, others "annotation #n". */
+  annotations: string[]
   /** The `dispatch` call that produced it, nested dispatches included. Null when untimed. */
   dispatchMs: number | null
   /** The flush that drew it, shared with the rest of that flush's transactions. Null until drawn. */
@@ -198,6 +198,13 @@ export type SchemaParam = {
   validate: string | null
 }
 
+/**
+ * What applies to a type, as Wordgard resolved it (public API only: overrides themselves are
+ * internal). `notes` says, per key, why a value isn't the spec's: "default" (the spec doesn't set
+ * it), "override" (it differs from the spec's), "schema" (worked out from the whole schema).
+ */
+export type EffectiveSpec = {value: Record<string, unknown>; notes: Record<string, "default" | "override" | "schema">}
+
 export type SchemaNodeType = {
   name: string
   kind: "plot" | "leaf"
@@ -217,6 +224,7 @@ export type SchemaNodeType = {
   shape: string
   /** Its spec as JSON: groups, roles and queries by name, functions as `ƒ name(params)`. */
   spec: unknown
+  effective: EffectiveSpec
 }
 
 export type SchemaMarkType = {
@@ -231,6 +239,7 @@ export type SchemaMarkType = {
   shape: string
   /** Its spec as JSON, as a node type's. */
   spec: unknown
+  effective: EffectiveSpec
 }
 
 /** A node group: the node types in it, and where the schema names it. */
@@ -361,15 +370,21 @@ export type Requests = {
    * `history`, every change in its history, newest first.
    */
   logField: {id: number; index: number; seq?: number; history?: boolean}
-  /** Forgets the changes seen to a field. */
-  clearFieldHistory: {id: number; index: number}
+  /** Forgets the changes seen to a field, or to every field without `index`. */
+  clearFieldHistory: {id: number; index?: number}
   /** Logs a node or mark type in the page's console, or with `json` its spec as the Schema tab shows
    * it; a group, its data. */
   logType: {id: number; kind: "node" | "mark" | "group"; name: string; json?: boolean}
   /** Tracks the fields' changes while the panel shows them (the log's recording tracks them too). */
   watchFields: {id: number; on: boolean}
   /** Starts or pauses the log; `size` sets the ring buffer's (500 by default). */
-  record: {id: number; on: boolean; size?: number}
+  record: {
+    id: number
+    on: boolean
+    size?: number
+    /** Records `select.pointer` transactions (a pointer selecting); true by default. */
+    selectPointer?: boolean
+  }
   clear: {id: number}
   /** Rows with `from <= index < to`, of those still held. */
   log: {id: number; from: number; to: number}

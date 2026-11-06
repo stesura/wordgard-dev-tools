@@ -1,4 +1,5 @@
 import {afterEach, expect, it, vi} from "vitest"
+import {Leaf} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
 import {history} from "wordgard/history"
 import {basicSchema} from "wordgard/schema"
@@ -41,6 +42,19 @@ const button = (text: string) =>
 const row = (name: string) => shadow().querySelector<HTMLElement>(`[aria-label='State fields'] [data-field='${name}']`)
 const pane = () => shadow().querySelector<HTMLElement>("[aria-label='Field']")
 
+const editorId = () => [...(window.__WORDGARD_DEVTOOLS__?.editors.values() ?? [])][0]?.id ?? 0
+
+/** Waits until the page tracks the editor's field changes (the panel no longer shows it). */
+const tracking = async () => {
+  const start = performance.now()
+  for (;;) {
+    const reply = await window.__WORDGARD_DEVTOOLS__?.agent?.request({type: "fields", id: editorId()})
+    if (reply?.ok && reply.value.tracking) return
+    if (performance.now() - start > 2000) throw new Error("Timed out")
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+}
+
 const bump = Transaction.Effect.define<number>()
 const counter = GardState.Field.define<number>({
   create: () => 0,
@@ -66,7 +80,7 @@ it("lists the fields and tracks their changes while shown", async () => {
   const editor = await setup()
   expect(row("counter")?.textContent).toContain("0")
   expect(row("field #1")).not.toBeNull()
-  await until(() => shadow().textContent?.includes("Tracking changes"))
+  await tracking()
   editor.dispatch({effects: bump.of(4)})
   await until(() => row("counter")?.textContent?.startsWith("counter41"))
   row("counter")?.click()
@@ -90,7 +104,7 @@ it("links a change to its transaction in the log", async () => {
 
 it("stops tracking when another tab is shown", async () => {
   await setup()
-  await until(() => shadow().textContent?.includes("Tracking changes"))
+  await tracking()
   ;(await until(() => tab("State"))).click()
   await new Promise(resolve => setTimeout(resolve, 50))
   const id = [...(window.__WORDGARD_DEVTOOLS__?.editors.values() ?? [])][0]?.id ?? 0
@@ -100,7 +114,7 @@ it("stops tracking when another tab is shown", async () => {
 
 it("tracks again when the editor reconnects under the same id", async () => {
   const editor = await setup()
-  await until(() => shadow().textContent?.includes("Tracking changes"))
+  await tracking()
   editor.dom.remove()
   document.body.append(editor.dom)
   await new Promise(resolve => setTimeout(resolve, 100))
@@ -241,4 +255,20 @@ it("selects the field selected last after a reload, if it's still there", async 
   await until(() => row("counter"))
   expect(shadow().querySelector("[aria-label='State fields'] [aria-selected='true']")).toBeNull()
   expect(pane()?.textContent).toContain("Select a field to see it here.")
+})
+
+it("clears every field's history at once", async () => {
+  const editor = await setup()
+  const clearAll = await until(() => button("Clear all"))
+  expect(clearAll.disabled).toBe(true)
+  await tracking()
+  editor.dispatch({effects: bump.of(2)})
+  // A document change: history()'s field changes too.
+  editor.dispatch({changes: {from: 1, insert: [Leaf.text("x")]}})
+  await until(() => shadow().querySelectorAll("[aria-label='State fields'] [data-changes]").length >= 2)
+  await until(() => !clearAll.disabled)
+  clearAll.click()
+  await until(() => !shadow().querySelector("[aria-label='State fields'] [data-changes]"))
+  expect(clearAll.disabled).toBe(true)
+  expect(row("counter")?.textContent).toContain("2")
 })

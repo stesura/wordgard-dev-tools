@@ -136,11 +136,11 @@ const createHandlers = (
       tracker.watch(e, client, on)
       return null
     },
-    record: ({id, on, size}) => {
+    record: ({id, on, size, selectPointer}) => {
       const e = entry(id)
       // The log records only what a panel shows (see `sync`).
       if (on && !e.attached) throw new Error("Select the editor before recording")
-      recorder.record(e, on, size)
+      recorder.record(e, on, size, selectPointer)
       return null
     },
     clear: ({id}) => {

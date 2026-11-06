@@ -33,7 +33,8 @@ it("lists the node and mark types, with what each holds and where marks go", asy
   expect(node("Paragraph")).toMatchObject({
     kind: "plot",
     inline: false,
-    groups: ["Textblock", "Content"],
+    // Textblock is automatic: not listed.
+    groups: ["Content"],
     content: "inline: any",
     holds: ["Text", "LineBreak"],
     marks: ["Flagged"],
@@ -83,6 +84,29 @@ it("names a group an override applies, for the types listed before the query tha
   const schema = await schemaOf(wg)
   expect(schema.nodes.find(n => n.name == "Paragraph")?.groups).toContain("group #1")
   expect(schema.nodes.find(n => n.name == "Box")).toMatchObject({content: "block: group #1", holds: ["Paragraph"]})
+  // The effective view: the override's group, noted.
+  expect(schema.nodes.find(n => n.name == "Paragraph")?.effective).toMatchObject({
+    value: {group: ["Content", "group #1"]},
+    notes: {group: "override"},
+  })
+})
+
+it("resolves each type's spec: defaults, what the schema works out", async () => {
+  const wg = editor([wordgardDevtools(), GardState.schemaElement.of([Callout, Flagged])])
+  editors.push(wg)
+  const schema = await schemaOf(wg)
+  const callout = schema.nodes.find(n => n.name == "Callout")?.effective
+  // As its spec says: no note.
+  expect(callout?.value.group).toEqual(["Content", "group #1"])
+  expect(callout?.notes.group).toBeUndefined()
+  // Not in its spec: neutral is !defining.
+  expect(callout).toMatchObject({value: {neutral: true, defining: false, canBeEmpty: false}, notes: {neutral: "default", defining: "default"}})
+  expect(callout?.notes.holds).toBe("schema")
+  expect(callout?.value.holds).toEqual(expect.arrayContaining(["Paragraph", "Callout"]))
+  expect(schema.marks.find(m => m.name == "Flagged")?.effective).toMatchObject({
+    value: {inclusive: true, targets: ["Paragraph"]},
+    notes: {targets: "schema"},
+  })
 })
 
 it("lists the node groups: their members and where the schema names them", async () => {
@@ -91,7 +115,8 @@ it("lists the node groups: their members and where the schema names them", async
   const {groups} = await schemaOf(wg)
   const group = (name: string) => groups.find(g => g.name == name)
   // Callout's content names Textblock and its own group.
-  expect(group("Textblock")).toMatchObject({builtIn: true, implied: false, inContentOf: ["Callout"]})
+  // Textblock is automatic, as Wordgard assigns it to block plots with inline content.
+  expect(group("Textblock")).toMatchObject({builtIn: true, implied: true, inContentOf: ["Callout"]})
   expect(group("Textblock")?.members).toEqual(expect.arrayContaining(["Paragraph", "Heading"]))
   expect(group("group #1")).toMatchObject({builtIn: false, implied: false, members: ["Callout"], inContentOf: ["Callout"]})
   expect(group("Block")).toMatchObject({implied: true})
