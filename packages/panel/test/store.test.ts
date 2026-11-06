@@ -129,7 +129,7 @@ it("restores the tab and the editor, by name, after a reload", async () => {
   const stopBefore = before.start();
   await settle();
   await before.select(2);
-  before.setView("schema");
+  before.setTab("schema");
   stopBefore();
   // A reload: new ids, same names.
   const agent = fakeAgent([5, 6]);
@@ -138,7 +138,7 @@ it("restores the tab and the editor, by name, after a reload", async () => {
   agent.add(8, "e2");
   agent.remove(6);
   const store = createPanelStore(agent.transport);
-  expect(store.get().view).toBe("schema");
+  expect(store.get().tab).toBe("schema");
   const stop = store.start();
   await settle();
   expect(store.get().selected).toBe(8);
@@ -146,15 +146,22 @@ it("restores the tab and the editor, by name, after a reload", async () => {
 });
 
 it("shows the first editor when the saved one is gone, and a stored tab that isn't one is ignored", async () => {
-  localStorage.setItem("wordgard-devtools:panel", JSON.stringify({ view: "nope", editor: "gone" }));
+  localStorage.setItem("wordgard-devtools:panel", JSON.stringify({ tab: "nope", editor: "gone" }));
   const agent = fakeAgent([1, 2]);
   const store = createPanelStore(agent.transport);
-  expect(store.get().view).toBe("structure");
+  expect(store.get().tab).toBe("structure");
   const stop = store.start();
   await settle();
   expect(store.get().selected).toBe(1);
   expect(agent.attached()).toEqual([1]);
   stop();
+});
+
+it("reads a tab saved before the DOM tab's id was dom", () => {
+  localStorage.setItem("wordgard-devtools:panel", JSON.stringify({ view: "view", editor: null }));
+  expect(createPanelStore(fakeAgent([]).transport).get().tab).toBe("dom");
+  localStorage.setItem("wordgard-devtools:panel", JSON.stringify({ view: "log", editor: null }));
+  expect(createPanelStore(fakeAgent([]).transport).get().tab).toBe("log");
 });
 
 it("doesn't attach an editor once stopped", async () => {

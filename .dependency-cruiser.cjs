@@ -58,6 +58,62 @@ module.exports = {
       from: { path: "^packages/panel/src/" },
       to: { path: "^(packages/extension|demo)/" },
     },
+    // The panel's layers (docs/panel-restructure.md). Type-only imports are exempt: the layers are
+    // about what runs. tabs/tabs.ts is plain data, open to all.
+    {
+      name: "panel-lib-plain",
+      comment: "lib/ is plain helpers: no React, no components, tabs, panel, stores or hooks.",
+      severity: "error",
+      from: { path: "^packages/panel/src/lib/" },
+      to: {
+        path: [
+          "^packages/panel/src/(components|tabs|panel|stores|hooks)/",
+          "(^|/)node_modules/react(-dom)?/",
+        ],
+        pathNot: "^packages/panel/src/tabs/tabs\\.ts$",
+        dependencyTypesNot: ["type-only"],
+      },
+    },
+    {
+      name: "panel-stores-below-ui",
+      comment: "stores/ knows no components, tabs, panel or hooks.",
+      severity: "error",
+      from: { path: "^packages/panel/src/stores/" },
+      to: {
+        path: "^packages/panel/src/(components|tabs|panel|hooks)/",
+        pathNot: "^packages/panel/src/tabs/tabs\\.ts$",
+        dependencyTypesNot: ["type-only"],
+      },
+    },
+    {
+      name: "panel-components-below-tabs",
+      comment: "components/ and hooks/ are shared by the tabs, so they know no tab and no panel.",
+      severity: "error",
+      from: { path: "^packages/panel/src/(components|hooks)/" },
+      to: {
+        path: "^packages/panel/src/(tabs|panel)/",
+        pathNot: "^packages/panel/src/tabs/tabs\\.ts$",
+        dependencyTypesNot: ["type-only"],
+      },
+    },
+    {
+      name: "panel-tabs-apart",
+      comment: "A tab doesn't import another tab: what they share goes to components/ or lib/.",
+      severity: "error",
+      from: { path: "^packages/panel/src/tabs/([^/]+)/" },
+      to: {
+        path: "^packages/panel/src/tabs/",
+        pathNot: ["^packages/panel/src/tabs/$1/", "^packages/panel/src/tabs/tabs\\.ts$"],
+        dependencyTypesNot: ["type-only"],
+      },
+    },
+    {
+      name: "panel-tabs-list-plain",
+      comment: "tabs/tabs.ts imports nothing: Node scripts load it.",
+      severity: "error",
+      from: { path: "^packages/panel/src/tabs/tabs\\.ts$" },
+      to: {},
+    },
     {
       name: "no-cross-package-relative",
       comment: "Workspaces import each other by package name, not by relative path.",

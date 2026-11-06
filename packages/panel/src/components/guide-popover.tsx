@@ -9,8 +9,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "#components/ui/popover";
-import { GUIDES, type Guide } from "../guides/guides.ts";
-import type { View } from "#stores/panel-store.ts";
+import type { Guide } from "../guides/guides.ts";
 import { stored } from "#stores/stored.ts";
 
 const LINK = /^\[([^\]]+)\]\(([^)]+)\)$/;
@@ -104,7 +103,7 @@ export const GuidePopover = ({
   );
 };
 
-/** The shown tab's guide. */
-export const GuideButton = ({ view }: { view: View }) => (
-  <GuidePopover guide={GUIDES[view]} label={`About the ${GUIDES[view].title} tab`} dim={false} />
+/** The shown tab's guide, in the tab bar: never dimmed. */
+export const GuideButton = ({ guide }: { guide: Guide }) => (
+  <GuidePopover guide={guide} label={`About the ${guide.title} tab`} dim={false} />
 );

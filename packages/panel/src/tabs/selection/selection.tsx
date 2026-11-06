@@ -32,7 +32,7 @@ export const SelectionTab = ({ store, editorId }: { store: PanelStore; editorId:
   const container = useCallback(
     (element: HTMLDivElement | null) => {
       if (!element) return;
-      const shown = () => store.get().view == "selection";
+      const shown = () => store.get().tab == "selection";
       let stale = true;
       const load = () => {
         stale = false;

@@ -80,7 +80,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
     (element: HTMLDivElement | null) => {
       scroller.current = element;
       if (!element) return;
-      const shown = () => store.get().view == "schema";
+      const shown = () => store.get().tab == "schema";
       let stale = true;
       const load = () => {
         stale = false;

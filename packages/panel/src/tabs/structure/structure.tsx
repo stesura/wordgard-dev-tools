@@ -100,7 +100,7 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
     (element: HTMLDivElement | null) => {
       scroller.current = element;
       if (!element) return;
-      const shown = () => store.get().view == "structure";
+      const shown = () => store.get().tab == "structure";
       let stale = true;
       const load = () => {
         stale = false;

@@ -25,7 +25,7 @@ export const SelectionBar = ({ store, editorId }: { store: PanelStore; editorId:
         <button
           type="button"
           className="cursor-pointer font-sans font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid"
-          onClick={() => store.setView("selection")}
+          onClick={() => store.setTab("selection")}
         >
           Selection
         </button>

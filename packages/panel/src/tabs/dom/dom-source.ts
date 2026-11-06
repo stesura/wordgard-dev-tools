@@ -2,10 +2,10 @@ import type { Path, ViewInfo } from "@stesura/wordgard-dev-tools";
 import { errorMessage } from "#lib/json.ts";
 import type { Transport } from "../../transport.ts";
 
-export type ViewState = { info: ViewInfo | null; error: string | null };
+export type DomState = { info: ViewInfo | null; error: string | null };
 
-export type ViewSource = {
-  get: () => ViewState;
+export type DomSource = {
+  get: () => DomState;
   subscribe: (listener: () => void) => () => void;
   /** Replies to an older load are dropped. Never rejects. */
   load: () => Promise<void>;
@@ -15,8 +15,8 @@ export type ViewSource = {
   hideOutline: () => void;
 };
 
-export const createViewSource = (transport: Transport, id: number): ViewSource => {
-  let state: ViewState = { info: null, error: null };
+export const createDomSource = (transport: Transport, id: number): DomSource => {
+  let state: DomState = { info: null, error: null };
   let version = 0;
   const listeners = new Set<() => void>();
   let outlined = false;

@@ -145,7 +145,7 @@ it("shows the node's type in the Schema, and logs the node in the console", asyn
 });
 
 const domLine = (id: string) =>
-  shadow().querySelector<HTMLElement>(`[aria-label='View'] [data-dom='${id}']`);
+  shadow().querySelector<HTMLElement>(`[aria-label='DOM'] [data-dom='${id}']`);
 const overlay = () => document.querySelector<HTMLElement>("[data-wordgard-devtools-overlay]");
 
 it("shows a node's element in the DOM tab, a text node's parent element for a text node", async () => {

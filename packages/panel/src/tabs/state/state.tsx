@@ -107,7 +107,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
     (element: HTMLDivElement | null) => {
       setScrollElement(element);
       if (!element) return;
-      const shown = () => store.get().view == "state";
+      const shown = () => store.get().tab == "state";
       let stale = true;
       const load = () => {
         stale = false;

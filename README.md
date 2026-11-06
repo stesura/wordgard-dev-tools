@@ -57,7 +57,7 @@ production builds (see [Keep it out of production](#keep-it-out-of-production)).
 
 Nothing runs until the panel opens, and nothing is recorded until you press record.
 
-<!-- tabs:start: written from packages/panel/src/guides/guides.ts by `npm run readme`; edit there -->
+<!-- tabs:start: written from packages/panel/src/guides/ by `npm run readme`; edit there -->
 
 ## Tabs
 
@@ -95,7 +95,7 @@ The [editor state](https://wordgard.net/docs/ref/#state.GardState) as collapsibl
 
 ### DOM
 
-![The DOM tab](docs/screenshots/view.png)
+![The DOM tab](docs/screenshots/dom.png)
 
 The editor's [content DOM](https://wordgard.net/docs/ref/#editor.Wordgard.contentDOM): the editable DOM element holding the editor content. Each element shows the document node it draws; text shows its position.
 

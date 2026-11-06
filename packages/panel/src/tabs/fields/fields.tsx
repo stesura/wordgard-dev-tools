@@ -81,7 +81,7 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
     (element: HTMLDivElement | null) => {
       setList(element);
       if (!element) return;
-      const shown = () => store.get().view == "fields";
+      const shown = () => store.get().tab == "fields";
       let stale = true;
       let watching = false;
       const watch = (on: boolean) => {

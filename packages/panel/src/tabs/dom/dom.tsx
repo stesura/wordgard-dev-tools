@@ -13,7 +13,7 @@ import { centreRow } from "#lib/dom.ts";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { Tip } from "#components/tip";
-import { createViewSource } from "./dom-source.ts";
+import { createDomSource } from "./dom-source.ts";
 import { keepRowInView, useRows } from "#hooks/use-rows.ts";
 import { flatten, folders, lineOf, pathOf, search } from "./dom-lines.ts";
 import { ROW, Row } from "./dom-row.tsx";
@@ -21,8 +21,8 @@ import { DomMenu, type DomTarget } from "./dom-menu.tsx";
 import { Status } from "./dom-status.tsx";
 
 /** The editor's view: its status and its content's DOM, mapped to the document. Mounted per editor. */
-export const View = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
-  const [source] = useState(() => createViewSource(store.transport, editorId));
+export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
+  const [source] = useState(() => createDomSource(store.transport, editorId));
   const { info, error } = useSyncExternalStore(source.subscribe, source.get);
   const [collapsed, setCollapsedState] = useState<ReadonlySet<string>>(() => new Set());
   // Also read by a reveal, which runs outside a render.
@@ -89,7 +89,7 @@ export const View = ({ store, editorId }: { store: PanelStore; editorId: number 
     (scroller: HTMLDivElement | null) => {
       setScrollElement(scroller);
       if (!scroller) return;
-      const shown = () => store.get().view == "view";
+      const shown = () => store.get().tab == "dom";
       let stale = true;
       const load = () => {
         stale = false;
@@ -178,7 +178,7 @@ export const View = ({ store, editorId }: { store: PanelStore; editorId: number 
     <div className="flex min-h-0 flex-1 flex-col">
       {error != null && (
         <p role="alert" className="flex items-center gap-2 border-b px-2 py-1 text-destructive">
-          Couldn't load the view: {error}
+          Couldn't load the DOM: {error}
           <Button variant="outline" size="xs" onClick={() => void source.load()}>
             Retry
           </Button>
@@ -254,7 +254,7 @@ export const View = ({ store, editorId }: { store: PanelStore; editorId: number 
       <div
         ref={container}
         role="tree"
-        aria-label="View"
+        aria-label="DOM"
         tabIndex={0}
         aria-activedescendant={active == null ? undefined : `view-${active || "root"}`}
         onKeyDown={onKeyDown}

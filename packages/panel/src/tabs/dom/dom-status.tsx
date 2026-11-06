@@ -38,7 +38,7 @@ export const Status = ({ status }: { status: ViewInfo["status"] }) => {
   ];
   return (
     <dl
-      aria-label="View status"
+      aria-label="DOM status"
       className="flex shrink-0 flex-wrap gap-x-3 gap-y-0.5 border-b px-2 py-1 text-xs"
     >
       {items.map(([label, value, tip]) => (

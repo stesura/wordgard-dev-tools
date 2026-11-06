@@ -39,7 +39,7 @@ const tab = (name: string) =>
     (element) => element.textContent == name
   );
 const line = (id: string) =>
-  shadow().querySelector<HTMLElement>(`[aria-label='View'] [data-dom='${id}']`);
+  shadow().querySelector<HTMLElement>(`[aria-label='DOM'] [data-dom='${id}']`);
 const overlay = () => document.querySelector<HTMLElement>("[data-wordgard-devtools-overlay]");
 
 const setup = async () => {
@@ -61,7 +61,7 @@ const setup = async () => {
 
 it("shows the view's status and its DOM, mapped to the document, live", async () => {
   const editor = await setup();
-  expect(shadow().querySelector("[aria-label='View status']")?.textContent).toContain(
+  expect(shadow().querySelector("[aria-label='DOM status']")?.textContent).toContain(
     "root:document"
   );
   expect(line("")?.textContent).toContain("<wg-content");
@@ -121,7 +121,7 @@ it("searches text, tags and node names, opening and outlining the match", async 
   await setup();
   // In the DOM tab's panel: the Structure has a button of the same name.
   shadow()
-    .querySelector("[aria-label='View']")
+    .querySelector("[aria-label='DOM']")
     ?.closest("[role='tabpanel']")
     ?.querySelector<HTMLButtonElement>("[aria-label='Collapse all']")
     ?.click();

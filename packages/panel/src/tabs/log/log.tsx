@@ -80,7 +80,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
       scroller.current = element;
       setScrollElement(element);
       if (!element) return;
-      const shown = () => store.get().view == "log";
+      const shown = () => store.get().tab == "log";
       let stale = true;
       const load = () => {
         stale = false;

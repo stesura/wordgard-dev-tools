@@ -1,21 +1,24 @@
-// The README's "Tabs" section, written from the panel's guides (packages/panel/src/guides/guides.ts), so
-// the two say the same.
+// The README's "Tabs" section, written from the panel's guides (packages/panel/src/guides/<tab>.md),
+// so the two say the same.
 //   node scripts/readme.ts           rewrite it
 //   node scripts/readme.ts --check   fail if it's out of date
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { GUIDES, TAB_ORDER } from "../packages/panel/src/guides/guides.ts";
+import { parseGuide } from "../packages/panel/src/guides/parse.ts";
+import { TABS } from "../packages/panel/src/tabs/tabs.ts";
 
 const readme = fileURLToPath(new URL("../README.md", import.meta.url));
+const guides = new URL("../packages/panel/src/guides/", import.meta.url);
 const START =
-  "<!-- tabs:start: written from packages/panel/src/guides/guides.ts by `npm run readme`; edit there -->";
+  "<!-- tabs:start: written from packages/panel/src/guides/ by `npm run readme`; edit there -->";
 const END = "<!-- tabs:end -->";
 
-const section = TAB_ORDER.map((view) => {
-  const { title, summary, tips } = GUIDES[view];
+const section = TABS.map(({ id }) => {
+  const name = `${id}.md`;
+  const { title, summary, tips } = parseGuide(readFileSync(new URL(name, guides), "utf8"), name);
   return [
     `### ${title}`,
-    `![The ${title} tab](docs/screenshots/${view}.png)`,
+    `![The ${title} tab](docs/screenshots/${id}.png)`,
     summary,
     tips.map((tip) => `- ${tip}`).join("\n"),
   ].join("\n\n");

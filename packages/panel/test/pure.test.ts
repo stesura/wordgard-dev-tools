@@ -6,6 +6,9 @@ import { clock } from "../src/lib/time.ts";
 import { containers, flatten, keysOf, nodePathOf, search } from "../src/tabs/state/json-lines.ts";
 import { flags, flushTitle, isSlow, ms } from "../src/tabs/log/log-format.ts";
 import { matches, pressedIn, tagsOf, toggled } from "../src/tabs/schema/schema-filters.ts";
+import { TABS, isTab } from "../src/tabs/tabs.ts";
+import { GUIDES } from "../src/guides/guides.ts";
+import { parseGuide } from "../src/guides/parse.ts";
 
 const row = (patch: Partial<LogRow>): LogRow => ({
   index: 0,
@@ -97,4 +100,33 @@ it("filters schema types by name and tags", () => {
   expect([...toggled(new Set(["a"]), "b")]).toEqual(["a", "b"]);
   // A saved tag this schema doesn't have isn't pressed.
   expect([...pressedIn(new Set(["a", "gone"]), ["a", "b"])]).toEqual(["a"]);
+});
+
+it("lists each tab once, each with a guide", () => {
+  const ids = TABS.map((tab) => tab.id);
+  expect(new Set(ids).size).toBe(ids.length);
+  expect(Object.keys(GUIDES).sort()).toEqual([...ids].sort());
+  expect(isTab("dom")).toBe(true);
+  expect(isTab("view")).toBe(false);
+  for (const id of ids) expect(GUIDES[id].tips.length).toBeGreaterThan(0);
+});
+
+it("reads a guide's markdown, and refuses what the panel can't show", () => {
+  const md = (...lines: string[]) => lines.join("\n");
+  expect(
+    parseGuide(
+      md("# T", "", "Some `code`,", "wrapped.", "", "- one [link](https://x)", "- two", "  wrapped")
+    )
+  ).toEqual({
+    title: "T",
+    summary: "Some `code`, wrapped.",
+    tips: ["one [link](https://x)", "two wrapped"],
+  });
+  expect(() => parseGuide(md("Summary", "", "- tip"), "a.md")).toThrow("a.md: it starts with");
+  expect(() => parseGuide(md("# T", "", "Summary"))).toThrow("one list");
+  expect(() => parseGuide(md("# T", "", "Summary", "", "- tip", "", "More"))).toThrow("one list");
+  expect(() => parseGuide(md("# T", "", "A **bold** word", "", "- tip"))).toThrow("only `code`");
+  expect(() => parseGuide(md("# T", "", "Summary", "", "- tip", "  - nested"))).toThrow(
+    "no nested"
+  );
 });

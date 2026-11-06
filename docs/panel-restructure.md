@@ -1,6 +1,6 @@
 # Panel restructure — plan
 
-Status: PARTIALLY EXECUTED. Phases 0 to 3 done on 2026-11-06, see
+Status: PARTIALLY EXECUTED. Phases 0 to 4 done on 2026-11-06, see
 [Implementation notes](#implementation-notes). Drafted 2026-11-06 from an audit of
 `packages/panel`, scope agreed with the user the same day; revised after a Fable review the same
 day, see [Review](#review-2026-11-06).
@@ -231,7 +231,7 @@ Code moves between files; nothing is rewritten. Each piece keeps its comments.
 - New fast unit tests where the code is now pure and was only reached through the UI:
   `json-lines.ts`, `log-format.ts`, `schema-filters.ts`, `lib/paths.ts`. A few cases each.
 
-## Phase 4: the tab registry, `dom`, guides as markdown
+## Phase 4: the tab registry, `dom`, guides as markdown (executed 2026-11-06)
 
 ### Tab registry
 
@@ -577,3 +577,36 @@ Found while applying them: the tab-to-tab rule's `pathNot` must also let a tab i
 - Checks: typecheck, lint, tests (87 + 151 + 12), build, `compiler:check` (counts unchanged:
   panel 133, extension 128, demo 134), `format:check`, `readme:check`, `dependency-check` (no
   cycles, no orphans): all pass.
+
+### Phase 4 (2026-11-06)
+
+- `tabs/tabs.ts`: the `Tab` union, `TABS` (id and label, in order) and `isTab`. No `as const`, no
+  imports. It replaces `View`, `VIEWS`, `isView` and `TAB_ORDER`.
+- `tabs/registry.tsx`: `TAB_COMPONENTS: Record<Tab, ComponentType<TabProps>>`. The guides stay
+  in `GUIDES` (already a `Record<Tab, Guide>`), so the registry holds components only.
+  `panel-body.tsx` maps `TABS` to the triggers and the contents; the Log's recording dot is a
+  special case in the trigger (one line, clearer than a `badge` slot in the registry).
+- `view` → `dom`: the tab id, `PanelState.tab`, `setTab`; the DOM tab's component is `Dom`, its
+  source `createDomSource`/`DomSource`/`DomState`; its aria labels "DOM" and "DOM status", its
+  error "Couldn't load the DOM". `test/view.test.ts` → `test/dom.test.ts`;
+  `docs/screenshots/view.png` → `dom.png`. The saved panel layout is written as `{tab, editor}`
+  and read from `tab` or, saved before this, `view` (`"view"` reads as `"dom"`); a test covers it.
+- Guides: 15 markdown files in `src/guides/`, generated from the old `guides.ts` so the text is
+  unchanged (the regenerated README differs only in the marker comment and the DOM screenshot's
+  name). Prettier leaves them as written. `guides/parse.ts` (plain TypeScript, Node runs it)
+  also accepts a summary wrapped over several lines and a tip continued on an indented line,
+  so an editor's soft wrap doesn't break a guide. It refuses bold, HTML, images, nested lists
+  and extra blocks. `guides/guides.ts` loads them with `import.meta.glob(?raw)`; `GuideButton`
+  takes the `Guide` instead of a tab id. `scripts/readme.ts` reads the files with `fs`.
+- dependency-cruiser: `panel-lib-plain`, `panel-stores-below-ui`, `panel-components-below-tabs`,
+  `panel-tabs-apart`, `panel-tabs-list-plain`. Checked with throwaway files that break them
+  (a tab importing another, `lib/` importing React and a component, a component importing a
+  tab): all four caught.
+- Deviation: `stores/panel-store.ts` needs `isTab` at runtime, so `tabs/tabs.ts` (plain data, no
+  imports) is open to every layer; each rule's `pathNot` lets it through.
+- Tests: `pure.test.ts` + 2 (the tab list and its guides; the guide parser), `store.test.ts` + 1
+  (the saved-tab migration).
+- Checks: typecheck, lint, tests (87 + 154 + 12), build, `compiler:check` (panel 132, extension
+  127, demo 133: one memo slot fewer each, from the tab bar's map; `panicThreshold: "all_errors"`
+  means every component still compiles), `format:check`, `readme:check`, `dependency-check`,
+  e2e (11): all pass.

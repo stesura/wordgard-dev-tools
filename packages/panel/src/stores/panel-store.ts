@@ -8,33 +8,28 @@ import type {
 } from "@stesura/wordgard-dev-tools";
 import type { ColourKind } from "#lib/colours.ts";
 import type { Transport } from "../transport.ts";
-import { errorMessage } from "#lib/json.ts";
-
-export type View = "structure" | "selection" | "state" | "view" | "schema" | "fields" | "log";
-const VIEWS: readonly View[] = [
-  "structure",
-  "selection",
-  "state",
-  "view",
-  "schema",
-  "fields",
-  "log",
-];
-export const isView = (value: unknown): value is View => VIEWS.some((view) => view == value);
+import { errorMessage, isRecord } from "#lib/json.ts";
+import { isTab, type Tab } from "../tabs/tabs.ts";
 
 // The tab and the editor shown last, restored on reload. The editor by name: ids don't survive one.
 const KEY = "wordgard-devtools:panel";
-type Saved = { view: View; editor: string | null };
+type Saved = { tab: Tab; editor: string | null };
+
+// Saved before the DOM tab's id was "dom": `{view}`, with the DOM tab as "view".
+const savedTab = (stored: unknown): Tab => {
+  const tab = isRecord(stored) ? (stored.tab ?? stored.view) : null;
+  return tab == "view" ? "dom" : isTab(tab) ? tab : "structure";
+};
 
 const readSaved = (): Saved => {
   try {
-    const stored = JSON.parse(localStorage.getItem(KEY) ?? "null");
+    const stored: unknown = JSON.parse(localStorage.getItem(KEY) ?? "null");
     return {
-      view: isView(stored?.view) ? stored.view : "structure",
-      editor: typeof stored?.editor == "string" ? stored.editor : null,
+      tab: savedTab(stored),
+      editor: isRecord(stored) && typeof stored.editor == "string" ? stored.editor : null,
     };
   } catch {
-    return { view: "structure", editor: null };
+    return { tab: "structure", editor: null };
   }
 };
 
@@ -60,7 +55,7 @@ export type PanelState = {
   /** Paused by the user: no pushes, no editor attached, so the page's plugins do nothing. */
   paused: boolean;
   /** The tab shown for the selected editor. */
-  view: View;
+  tab: Tab;
   /** Whether the shown editor's log records, as its Log tab knows it: for the tab's red dot. */
   recording: boolean;
 };
@@ -78,7 +73,7 @@ export type PanelStore = {
   /** The selected editor's transaction log changed (coalesced per frame). */
   onLogChanged: (listener: (id: number) => void) => () => void;
   pick: (on: boolean) => void;
-  setView: (view: View) => void;
+  setTab: (tab: Tab) => void;
   /** From the Log tab: its editor's log records or not. */
   setRecording: (recording: boolean) => void;
   /** A node to reveal in an editor's Structure (a pick): taken once, by that editor's Structure tab. */
@@ -114,7 +109,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     notices: [],
     picking: false,
     paused: false,
-    view: saved.view,
+    tab: saved.tab,
     recording: false,
   };
   const listeners = new Set<() => void>();
@@ -129,7 +124,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   let domReveal: { id: number; path: Path } | null = null;
   const set = (patch: Partial<PanelState>) => {
     state = { ...state, ...patch };
-    if (patch.view) save();
+    if (patch.tab) save();
     for (const listener of listeners) listener();
   };
   const fail = (e: unknown) => set({ error: errorMessage(e) });
@@ -144,7 +139,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   // first editor is shown.
   let chosen: { id: number | null; name: string } | null =
     saved.editor == null ? null : { id: null, name: saved.editor };
-  const save = () => writeSaved({ view: state.view, editor: chosen?.name ?? null });
+  const save = () => writeSaved({ tab: state.tab, editor: chosen?.name ?? null });
 
   // Replies can arrive out of order: only the latest selection request lands.
   let selectionRun = 0;
@@ -237,7 +232,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       pick(false);
       reveal = { id: push.id, path: push.path };
       // Shown in the Structure, whichever tab was open.
-      set({ view: "structure" });
+      set({ tab: "structure" });
       void select(push.id);
       for (const listener of revealListeners) listener();
     } else if (push.type == "stateChanged" && push.id == state.selected) {
@@ -322,7 +317,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       };
     },
     pick,
-    setView: (view) => set({ view }),
+    setTab: (tab) => set({ tab }),
     setRecording: (recording) => {
       if (recording != state.recording) set({ recording });
     },
@@ -334,7 +329,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     },
     showType: (id, name, kind = "node") => {
       typeReveal = { id, kind, name };
-      set({ view: "schema" });
+      set({ tab: "schema" });
       for (const listener of revealListeners) listener();
     },
     takeTypeReveal: (id) => {
@@ -345,12 +340,12 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     },
     showNode: (id, path) => {
       reveal = { id, path };
-      set({ view: "structure" });
+      set({ tab: "structure" });
       for (const listener of revealListeners) listener();
     },
     showLogEntry: (id, index) => {
       logReveal = { id, index };
-      set({ view: "log" });
+      set({ tab: "log" });
       for (const listener of revealListeners) listener();
     },
     takeLogReveal: (id) => {
@@ -361,7 +356,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     },
     showDom: (id, path) => {
       domReveal = { id, path };
-      set({ view: "view" });
+      set({ tab: "dom" });
       for (const listener of revealListeners) listener();
     },
     takeDomReveal: (id) => {
