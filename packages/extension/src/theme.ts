@@ -1,4 +1,4 @@
-import {isThemeChoice, prefersDark, type ThemeSource, type ThemeStorage} from "wordgard-devtools-panel/ui"
+import {isThemeChoice, prefersDark, type ThemeSource, type ThemeStorage} from "@stesura/wordgard-dev-tools-panel/ui"
 import {browser} from "wxt/browser"
 
 /** Follows the DevTools theme; outside DevTools (the panel page opened directly), the system's. */

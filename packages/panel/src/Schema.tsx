@@ -1,7 +1,7 @@
 import {cn} from "cn"
 import {XIcon} from "lucide-react"
 import {useCallback, useRef, useState, useSyncExternalStore, type ReactNode} from "react"
-import type {SchemaMarkType, SchemaNodeType, SchemaParam} from "wordgard-devtools"
+import type {SchemaMarkType, SchemaNodeType, SchemaParam} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
 import {json} from "./node-pane.tsx"

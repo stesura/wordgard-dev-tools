@@ -1,6 +1,6 @@
 import {CrosshairIcon} from "lucide-react"
 import {Suspense, use, useDeferredValue, useSyncExternalStore, type ReactNode} from "react"
-import type {Path, SelectionInfo} from "wordgard-devtools"
+import type {Path, SelectionInfo} from "@stesura/wordgard-dev-tools"
 import {Button} from "#components/ui/button"
 import {pathOf, type DetailSource} from "./detail-cache.ts"
 import {Tip} from "./tip.tsx"

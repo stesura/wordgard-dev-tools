@@ -1,4 +1,6 @@
 import {Wordgard} from "wordgard/editor"
+import type {GardState} from "wordgard/state"
+import {isProduction} from "./production.ts"
 import {currentRegistry, ensureRegistry, type NamedFields} from "./registry.ts"
 
 export type DevtoolsOptions = {
@@ -6,6 +8,11 @@ export type DevtoolsOptions = {
   name?: string
   /** Names for the editor's state fields in the Fields tab; unnamed ones show as "field #n". */
   fields?: NamedFields
+  /**
+   * Whether to register the editor. Defaults to off in production builds and on otherwise. Pass it
+   * where `process.env.NODE_ENV` isn't set (no bundler), or to keep the devtools in production.
+   */
+  enabled?: boolean
 }
 
 // Shared by every plugin of this copy, so the facets dedupe them when an editor has two.
@@ -23,8 +30,9 @@ const listeners = [
 ]
 
 /** Registers the editor with Wordgard DevTools while it is connected. */
-export const wordgardDevtools = (options: DevtoolsOptions = {}) =>
-  Wordgard.Plugin.define(
+export const wordgardDevtools = (options: DevtoolsOptions = {}): GardState.Extension => {
+  if (!(options.enabled ?? !isProduction())) return []
+  return Wordgard.Plugin.define(
     wg => {
       // Added by a reconfigure while connected: Wordgard calls `connect` before creating the
       // value, so `connect` never runs for this instance.
@@ -40,3 +48,4 @@ export const wordgardDevtools = (options: DevtoolsOptions = {}) =>
     },
     () => listeners,
   )
+}

@@ -1,4 +1,4 @@
-import type {StructureNode} from "wordgard-devtools"
+import type {StructureNode} from "@stesura/wordgard-dev-tools"
 import {createDetailCache, type DetailSource} from "./detail-cache.ts"
 import {errorMessage} from "./store.ts"
 import type {Transport} from "./transport.ts"

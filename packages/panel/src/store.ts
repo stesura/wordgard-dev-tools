@@ -1,4 +1,4 @@
-import type {AgentInfo, EditorInfo, Path, Push, Request, SelectionInfo} from "wordgard-devtools"
+import type {AgentInfo, EditorInfo, Path, Push, Request, SelectionInfo} from "@stesura/wordgard-dev-tools"
 import type {Transport} from "./transport.ts"
 
 export type View = "structure" | "state" | "view" | "schema" | "fields" | "log"

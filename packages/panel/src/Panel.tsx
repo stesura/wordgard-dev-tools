@@ -1,7 +1,7 @@
 import {cn} from "cn"
 import {MonitorIcon, MoonIcon, MousePointerClickIcon, PauseIcon, PlayIcon, SunIcon} from "lucide-react"
 import {useState, useSyncExternalStore, type ReactNode} from "react"
-import type {EditorInfo} from "wordgard-devtools"
+import type {EditorInfo} from "@stesura/wordgard-dev-tools"
 import {PortalContainer} from "#components/portal"
 import {Button} from "#components/ui/button"
 import {

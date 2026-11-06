@@ -2,7 +2,7 @@ import {afterEach, expect, it} from "vitest"
 import {Leaf} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
 import {basicSchema} from "wordgard/schema"
-import {wordgardDevtools, type RequestType} from "wordgard-devtools"
+import {wordgardDevtools, type RequestType} from "@stesura/wordgard-dev-tools"
 import {inPageTransport, mountDevtools, type MountedDevtools, type Transport} from "../src/index.ts"
 
 const doc = "<h1>Title</h1><p>Alpha</p>"

@@ -1,4 +1,5 @@
 export {wordgardDevtools, type DevtoolsOptions} from "./plugin.ts"
+export {isProduction} from "./production.ts"
 export {
   REGISTRY_VERSION,
   currentRegistry,

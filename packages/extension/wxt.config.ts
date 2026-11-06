@@ -1,6 +1,10 @@
 import tailwindcss from "@tailwindcss/vite"
 import {defaultClientConditions} from "vite"
 import {defineConfig} from "wxt"
+import {cssAndCopiedCode, thirdPartyLicenses} from "../../scripts/third-party-licenses.ts"
+
+// WXT runs one Vite build per entrypoint group: collect across them, write once at the end.
+const licenses = thirdPartyLicenses({extra: cssAndCopiedCode, emit: false})
 
 export default defineConfig({
   modules: ["@wxt-dev/module-react"],
@@ -21,7 +25,12 @@ export default defineConfig({
   }),
   vite: () => ({
     // The panel's Tailwind styles come from its source.
-    plugins: [tailwindcss()],
+    plugins: [tailwindcss(), licenses.plugin],
     resolve: {conditions: ["source", ...defaultClientConditions], dedupe: ["react", "react-dom"]},
   }),
+  hooks: {
+    "build:done": wxt => {
+      if (wxt.config.command == "build") licenses.write(wxt.config.outDir)
+    },
+  },
 })

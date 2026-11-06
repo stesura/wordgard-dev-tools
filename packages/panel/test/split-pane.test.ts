@@ -2,7 +2,7 @@ import {afterEach, expect, it} from "vitest"
 import {page, userEvent} from "vitest/browser"
 import {Wordgard} from "wordgard/editor"
 import {basicSchema} from "wordgard/schema"
-import {wordgardDevtools} from "wordgard-devtools"
+import {wordgardDevtools} from "@stesura/wordgard-dev-tools"
 import {mountDevtools, type MountedDevtools} from "../src/index.ts"
 
 let wg: Wordgard | null = null

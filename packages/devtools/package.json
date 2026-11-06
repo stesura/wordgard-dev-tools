@@ -1,8 +1,9 @@
 {
-  "name": "wordgard-devtools",
+  "name": "@stesura/wordgard-dev-tools",
   "version": "0.0.0",
   "description": "Page side of Wordgard DevTools: the editor registry and the agent",
   "license": "MIT",
+  "publishConfig": {"access": "public"},
   "type": "module",
   "sideEffects": false,
   "exports": {

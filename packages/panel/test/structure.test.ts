@@ -4,7 +4,7 @@ import {Leaf} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
 import {GardSelection} from "wordgard/state"
 import {basicSchema} from "wordgard/schema"
-import {wordgardDevtools} from "wordgard-devtools"
+import {wordgardDevtools} from "@stesura/wordgard-dev-tools"
 import {inPageTransport, mountDevtools, type MountedDevtools, type Transport} from "../src/index.ts"
 
 // Heading 0–7 ("Title" 1–6), Paragraph 7–19 ("Alpha " 8–14, "bold" 14–18), Paragraph 19–25.

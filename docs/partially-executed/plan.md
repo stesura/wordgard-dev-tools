@@ -93,8 +93,8 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
   calls `disconnect` then `remove`.)
 - Registry: `window.__WORDGARD_DEVTOOLS__`, keyed by the `Wordgard` instance
   (`Map<Wordgard, Entry>`), not by plugin. Each `wordgardDevtools()` call returns a new plugin,
-  and facet dedupe only removes duplicates of the same object, so react-wordgard's automatic
-  plugin and an app's own one would otherwise give two entries. A second `connect` for a known
+  and facet dedupe only removes duplicates of the same object, so two plugins on one editor (two
+  libraries each adding one) would otherwise give two entries. A second `connect` for a known
   editor only updates the name. An entry is removed when `wg.connected` is false.
 - An entry is `{id, name, wg, attached, recording}`. The name comes from the option, falling
   back to the editor's `aria-label` (set from `Wordgard.label`), then `editor #n`.
@@ -258,9 +258,9 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
 
 ## react-wordgard integration
 
-- react-wordgard adds `wordgardDevtools()` automatically in development builds. Opt out with a
-  prop. Done in the react-wordgard repo once `wordgard-devtools` is published. Registry keying by
-  instance makes an app's own `wordgardDevtools()` harmless.
+- **Dropped (2026-11-05, the user's decision):** react-wordgard doesn't add `wordgardDevtools()`
+  automatically. Apps add it to the `config` they pass to `<WordgardEditor>`, as with plain
+  Wordgard. react-wordgard stays free of any devtools dependency.
 
 ## Phases
 
@@ -293,7 +293,8 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
    update, only while the tab is shown or the log records.
 6. `$wg` / `$tr`.
 7. Copy as repro, tested by running the generated script in Node.
-8. react-wordgard automatic registration (react-wordgard repo).
+8. ~~react-wordgard automatic registration (react-wordgard repo).~~ Dropped (2026-11-05): apps
+   add the plugin themselves. See [react-wordgard integration](#react-wordgard-integration).
 9. Publishing: npm package and extension stores.
 
 E2E: Playwright with the built extension loaded (`--load-extension`, persistent context)
@@ -304,8 +305,12 @@ created before the panel opened, and picking without moving the caret.
 
 1. **Dev-mode detection in react-wordgard.** `process.env.NODE_ENV` or a `devtools` prop
    defaulting to off? react-wordgard currently has no dev/prod switch.
+   Closed (2026-11-05): react-wordgard doesn't add the plugin. The plugin and `mountDevtools()`
+   are off in production builds unless `enabled: true`. See
+   [Production builds](#production-builds-2026-11-05).
 2. **Dependency shape.** Should react-wordgard depend on `wordgard-devtools`, or take
    `wordgardDevtools()` as an optional peer passed in by the app?
+   Closed (2026-11-05): neither, react-wordgard has no devtools dependency.
 3. **Timing hook.** The `flush`/`dispatch` wrappers work today. If Wordgard renames or rebinds
    them, ask its author for a supported hook rather than patching deeper.
 4. **Effects in repro.** Is there a way to name effect types (e.g. a devtools-only registry)?
@@ -920,3 +925,22 @@ Audit of this batch (Fable), all accepted and fixed:
 - `record` is still one flag per editor for both panels (phase 5's design): one panel pausing
   pauses the other.
 
+## Production builds (2026-11-05)
+
+Added at the user's request.
+
+- `isProduction()` (`production.ts`, exported): `process.env.NODE_ENV === "production"` in a
+  `try`. Bundlers replace the expression in dependencies (Vite in dev and build, webpack, Next);
+  without a bundler `process` throws and it reads as development. No `typeof process` guard: webpack
+  replaces the expression but leaves `process` undefined, so the guard would hide production.
+- One option, `enabled` (first `showInProduction`, renamed so it also turns the devtools off where
+  `NODE_ENV` isn't set: no bundler, Rollup without the replace plugin). It defaults to
+  `!isProduction()`.
+- `wordgardDevtools({enabled})`: when off, it returns `[]`. Its
+  return type is now `GardState.Extension` rather than the `Wordgard.Plugin`.
+- `mountDevtools({enabled})`: when off, it returns a detached
+  host, a resolved `ready` and a no-op `unmount`; the panel's chunk is never imported.
+- The demo passes `enabled: true` everywhere: it is deployed, and the e2e runs against its
+  production build. Checked that the demo's build folds `isProduction` to `true`.
+- Not done: export conditions with no-op builds. They'd save the page side's few KB but can't honour
+  the option; the README shows the `import.meta.env.DEV` guard for zero bytes.

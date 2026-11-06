@@ -19,7 +19,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react"
-import type {Path, SelectionInfo, StructureNode} from "wordgard-devtools"
+import type {Path, SelectionInfo, StructureNode} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
 import {ROOT, itemId, pathOf} from "./detail-cache.ts"

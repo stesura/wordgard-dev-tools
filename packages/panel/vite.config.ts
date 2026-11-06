@@ -4,9 +4,10 @@ import {playwright} from "@vitest/browser-playwright"
 import {fileURLToPath} from "node:url"
 import {defaultClientConditions, searchForWorkspaceRoot} from "vite"
 import {defineConfig} from "vitest/config"
+import {cssAndCopiedCode, thirdPartyLicenses} from "../../scripts/third-party-licenses.ts"
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), thirdPartyLicenses({extra: cssAndCopiedCode}).plugin],
   resolve: {
     conditions: ["source", ...defaultClientConditions],
     dedupe: ["wordgard", "react", "react-dom"],

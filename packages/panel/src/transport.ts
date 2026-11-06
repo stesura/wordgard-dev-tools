@@ -1,4 +1,4 @@
-import {PROTOCOL, ensureRegistry, mismatch, type Push, type Request, type RequestType, type Results} from "wordgard-devtools"
+import {PROTOCOL, ensureRegistry, mismatch, type Push, type Request, type RequestType, type Results} from "@stesura/wordgard-dev-tools"
 
 /** How the panel reaches the page agent, wherever the panel runs. */
 export type Transport = {

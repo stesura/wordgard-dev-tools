@@ -1,4 +1,4 @@
-import type {FieldDetail, FieldsInfo} from "wordgard-devtools"
+import type {FieldDetail, FieldsInfo} from "@stesura/wordgard-dev-tools"
 import {errorMessage} from "./store.ts"
 import type {Transport} from "./transport.ts"
 

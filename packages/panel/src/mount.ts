@@ -1,3 +1,4 @@
+import {isProduction} from "@stesura/wordgard-dev-tools"
 import {inPageTransport, type Transport} from "./transport.ts"
 
 export type MountOptions = {
@@ -5,6 +6,11 @@ export type MountOptions = {
   parent?: Element
   /** Defaults to the in-page transport. */
   transport?: Transport
+  /**
+   * Whether to mount. Defaults to off in production builds and on otherwise. When off, nothing is
+   * mounted or downloaded, and the returned host stays detached.
+   */
+  enabled?: boolean
 }
 
 export type MountedDevtools = {
@@ -18,6 +24,9 @@ export type MountedDevtools = {
 /** Docks the panel at the bottom of the page, in a shadow root. */
 export const mountDevtools = (options: MountOptions = {}): MountedDevtools => {
   const host = document.createElement("wordgard-devtools")
+  if (!(options.enabled ?? !isProduction())) {
+    return {host, ready: Promise.resolve(), unmount: () => {}}
+  }
   // Nothing the page sets on its ancestors is inherited into the panel.
   host.setAttribute("style", "all: initial")
   ;(options.parent ?? document.body).append(host)

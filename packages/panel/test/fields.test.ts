@@ -3,7 +3,7 @@ import {Wordgard} from "wordgard/editor"
 import {history} from "wordgard/history"
 import {basicSchema} from "wordgard/schema"
 import {GardState, Transaction} from "wordgard/state"
-import {wordgardDevtools} from "wordgard-devtools"
+import {wordgardDevtools} from "@stesura/wordgard-dev-tools"
 import {mountDevtools, type MountedDevtools} from "../src/index.ts"
 
 let wg: Wordgard | null = null

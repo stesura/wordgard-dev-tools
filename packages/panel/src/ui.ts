@@ -1,5 +1,5 @@
 // The panel without the dock, for hosts that render it themselves (the extension).
-// Its styles are `wordgard-devtools-panel/styles.css`.
+// Its styles are `@stesura/wordgard-dev-tools-panel/styles.css`.
 export {Panel, type PanelProps} from "./Panel.tsx"
 export {createPanelStore, type PanelState, type PanelStore} from "./store.ts"
 export {

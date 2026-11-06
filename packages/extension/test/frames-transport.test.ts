@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest"
-import {PROTOCOL, mismatch, type EditorInfo, type Push, type Request} from "wordgard-devtools"
+import {PROTOCOL, mismatch, type EditorInfo, type Push, type Request} from "@stesura/wordgard-dev-tools"
 import {createFramesTransport} from "../src/frames-transport.ts"
 import type {ToBridge} from "../src/messages.ts"
 

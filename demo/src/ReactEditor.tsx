@@ -3,14 +3,14 @@ import {useState} from "react"
 import {Wordgard} from "wordgard/editor"
 import {history} from "wordgard/history"
 import {basicSchema} from "wordgard/schema"
-import {wordgardDevtools} from "wordgard-devtools"
+import {wordgardDevtools} from "@stesura/wordgard-dev-tools"
 
 // No name option: the panel names it from its aria-label.
 const config = [
   basicSchema(),
   history(),
   Wordgard.contentAttributes.of({"aria-label": "React editor"}),
-  wordgardDevtools(),
+  wordgardDevtools({enabled: true}),
 ]
 
 const doc = "<h2>Drawn by React</h2><p>A <em>react-wordgard</em> editor. Remount it to see the panel follow.</p>"

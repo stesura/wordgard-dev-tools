@@ -4,7 +4,7 @@ import {Node, Plot} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
 import {basicSchema} from "wordgard/schema"
 import {GardState} from "wordgard/state"
-import {wordgardDevtools} from "wordgard-devtools"
+import {wordgardDevtools} from "@stesura/wordgard-dev-tools"
 import {mountDevtools, type MountedDevtools} from "../src/index.ts"
 
 let wg: Wordgard | null = null

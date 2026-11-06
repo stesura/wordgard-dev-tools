@@ -1,4 +1,4 @@
-import type {AgentInfo, Push, Request} from "wordgard-devtools"
+import type {AgentInfo, Push, Request} from "@stesura/wordgard-dev-tools"
 
 export const PANEL_PORT = "wordgard-devtools-panel"
 export const BRIDGE_PORT = "wordgard-devtools-bridge"

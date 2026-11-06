@@ -1,4 +1,4 @@
-import {PROTOCOL, SOURCE, type Message} from "wordgard-devtools"
+import {PROTOCOL, SOURCE, type Message} from "@stesura/wordgard-dev-tools"
 import {browser, type Browser} from "wxt/browser"
 import {BRIDGE_PORT, type FromBridge, type ToBridge} from "./messages.ts"
 

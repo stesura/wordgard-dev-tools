@@ -2,7 +2,7 @@ import {afterEach, expect, it, vi} from "vitest"
 import {userEvent} from "vitest/browser"
 import {Wordgard} from "wordgard/editor"
 import {basicSchema} from "wordgard/schema"
-import {wordgardDevtools} from "wordgard-devtools"
+import {wordgardDevtools} from "@stesura/wordgard-dev-tools"
 import {inPageTransport, mountDevtools, type MountedDevtools, type Transport} from "../src/index.ts"
 
 const doc = "<h1>Title</h1><p>Alpha <strong>bold</strong></p><p>Beta</p>"

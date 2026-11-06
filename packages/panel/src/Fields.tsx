@@ -1,7 +1,7 @@
 import {cn} from "cn"
 import {InfoIcon} from "lucide-react"
 import {Suspense, use, useCallback, useDeferredValue, useState, useSyncExternalStore, type KeyboardEvent} from "react"
-import type {FieldChange} from "wordgard-devtools"
+import type {FieldChange} from "@stesura/wordgard-dev-tools"
 import {Tag} from "#components/ui/badge"
 import {Button} from "#components/ui/button"
 import {createFieldsSource, type FieldsSource} from "./fields-source.ts"

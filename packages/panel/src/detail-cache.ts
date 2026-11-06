@@ -1,4 +1,4 @@
-import type {NodeDetail, Path} from "wordgard-devtools"
+import type {NodeDetail, Path} from "@stesura/wordgard-dev-tools"
 import {errorMessage} from "./store.ts"
 import type {Transport} from "./transport.ts"
 

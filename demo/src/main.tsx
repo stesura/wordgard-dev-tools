@@ -6,8 +6,8 @@ import {Wordgard} from "wordgard/editor"
 import {history} from "wordgard/history"
 import {basicSchema} from "wordgard/schema"
 import {GardState} from "wordgard/state"
-import {wordgardDevtools} from "wordgard-devtools"
-import {mountDevtools} from "wordgard-devtools-panel"
+import {wordgardDevtools} from "@stesura/wordgard-dev-tools"
+import {mountDevtools} from "@stesura/wordgard-dev-tools-panel"
 import {ReactEditor} from "./ReactEditor.tsx"
 
 const plain = (id: string, doc: string, extra: GardState.Extension) => {
@@ -26,11 +26,14 @@ const wordCount = GardState.Field.define<number>({
 plain(
   "plain",
   "<h2>Plain Wordgard</h2><p>Created with <code>Wordgard.create</code>, named <strong>plain</strong>.</p>",
-  [wordCount, wordgardDevtools({name: "plain", fields: {wordCount}})],
+  [wordCount, wordgardDevtools({name: "plain", fields: {wordCount}, enabled: true})],
 )
 // Two plugins on one editor: still one entry, named by the one with a name.
-plain("left", "<p>Left editor.</p>", [wordgardDevtools(), wordgardDevtools({name: "left"})])
-plain("right", "<p>Right editor.</p>", wordgardDevtools({name: "right"}))
+plain("left", "<p>Left editor.</p>", [
+  wordgardDevtools({enabled: true}),
+  wordgardDevtools({name: "left", enabled: true}),
+])
+plain("right", "<p>Right editor.</p>", wordgardDevtools({name: "right", enabled: true}))
 
 const root = document.getElementById("react")
 if (root) {
@@ -41,4 +44,5 @@ if (root) {
   )
 }
 
-mountDevtools()
+// The demo is deployed as a production build.
+mountDevtools({enabled: true})

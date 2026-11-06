@@ -1,6 +1,6 @@
 import {BookTypeIcon, ClipboardCopyIcon, CrosshairIcon, ScanIcon, TerminalIcon} from "lucide-react"
 import {useSyncExternalStore, type KeyboardEvent, type MouseEvent} from "react"
-import type {Path} from "wordgard-devtools"
+import type {Path} from "@stesura/wordgard-dev-tools"
 import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger} from "#components/ui/context-menu"
 import type {PanelStore} from "./store.ts"
 

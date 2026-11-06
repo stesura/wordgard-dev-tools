@@ -1,5 +1,5 @@
-import {PROTOCOL, mismatch, type AgentInfo, type EditorInfo, type Push, type Request, type RequestType, type Results} from "wordgard-devtools"
-import {AgentError, type Transport} from "wordgard-devtools-panel/transport"
+import {PROTOCOL, mismatch, type AgentInfo, type EditorInfo, type Push, type Request, type RequestType, type Results} from "@stesura/wordgard-dev-tools"
+import {AgentError, type Transport} from "@stesura/wordgard-dev-tools-panel/transport"
 import type {BackgroundToPanel, FromBridge, ToBridge} from "./messages.ts"
 
 type Frame = {url: string; agent: AgentInfo; v: number}
