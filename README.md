@@ -116,6 +116,8 @@ With react-wordgard, add the plugin to the `config` you pass to `<WordgardEditor
 `wordgard` (`>=0.6.2 <1`) is a peer dependency.
 If a newer Wordgard breaks the devtools, they turn themselves off
 with one console warning; your editor keeps working.
+Below 0.6.2, npm refuses the install: upgrade Wordgard, or use an older devtools release.
+On release of v1 of Wordgard, the devtools will need a release to support it.
 
 ### 2. Mount the panel
 
