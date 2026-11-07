@@ -27,16 +27,24 @@ export const DecorationBadge = ({
   items?.length ? (
     <Tip
       label={
-        <ul>
-          {items.map((item, i) => (
-            <li key={i}>{summary(item, index)}</li>
-          ))}
-        </ul>
+        // A column: the tooltip lays its content out in a row.
+        <div className="flex flex-col gap-0.5">
+          <p className="font-medium">
+            {items.length == 1 ? "Decoration" : `${items.length} decorations`} on this node
+          </p>
+          <ul>
+            {items.map((item, i) => (
+              <li key={i}>{summary(item, index)}</li>
+            ))}
+          </ul>
+        </div>
       }
     >
+      {/* A gradient, to stand out among the marks' tags: white on it keeps 4.5:1 at both ends.
+          Forced colours drop it: an outlined badge there. */}
       <Tag
         data-decorations={items.length}
-        className="bg-violet-500/15 text-violet-800 dark:text-violet-300"
+        className="bg-linear-to-r from-violet-600 to-purple-700 font-medium text-white forced-colors:border-[CanvasText]"
       >
         <span aria-hidden="true">◇ {items.length}</span>
         <span className="sr-only">
@@ -51,7 +59,7 @@ export const WidgetChip = ({ item, index }: { item: DecorationInfo; index: Decor
   const param = item.details.find(([label]) => label == "param")?.[1];
   return (
     <Tip
-      label={`Widget ${place(item)}${item.side ? `, side ${item.side}` : ""}, from ${sourceLabel(index.sources[item.source])}${param ? `: ${param}` : ""}`}
+      label={`Widget decoration ${place(item)}${item.side ? `, side ${item.side}` : ""}, from ${sourceLabel(index.sources[item.source])}${param ? `: ${param}` : ""}`}
     >
       <span
         data-widget={item.from}
@@ -64,7 +72,7 @@ export const WidgetChip = ({ item, index }: { item: DecorationInfo; index: Decor
   );
 };
 
-/** The node pane's section: each decoration on the node, with what it adds; logged or copied. */
+/** The Decorations pane's body: each decoration on the node, with what it adds; logged or copied. */
 export const DecorationList = ({
   title,
   items,
@@ -76,7 +84,7 @@ export const DecorationList = ({
   index: DecorationIndex;
   onLog: (item: DecorationInfo) => void;
 }) => (
-  <section aria-label="Decorations" className="mt-3 border-t pt-2 font-mono text-xs">
+  <section aria-label={title} className="font-mono text-xs">
     <h3 className="mb-1 font-sans text-muted-foreground">{title}</h3>
     {items.length ? (
       <ol>

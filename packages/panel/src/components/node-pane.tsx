@@ -1,6 +1,6 @@
 import { IconButton } from "#components/icon-button";
 import { useStore } from "@nanostores/react";
-import { ClipboardDocumentIcon, CommandLineIcon } from "#icons";
+import { ClipboardDocumentIcon, CommandLineIcon, XMarkIcon } from "#icons";
 import { Suspense, use, useDeferredValue, useState, type ReactNode } from "react";
 import type { NodePart, Path } from "@stesura/wordgard-dev-tools";
 import {
@@ -11,6 +11,7 @@ import {
 } from "./ui/context-menu.tsx";
 import { CopySelection } from "./copy-selection.tsx";
 import { copy } from "#lib/clipboard.ts";
+import { paneHeader } from "./pane-header.tsx";
 import { createMenuAnchor, type MenuAnchor } from "#lib/menu-anchor.ts";
 import type { DetailSource } from "#lib/detail-cache.ts";
 import { pathOf } from "#lib/paths.ts";
@@ -161,14 +162,14 @@ export const NodePane = ({
   focused,
   onShowType,
   onLog,
-  children,
+  onClose,
 }: {
   source: DetailSource;
   focused: string | null;
   onShowType: ShowType;
   onLog: (path: Path, part: PaneLog) => void;
-  /** More about the focused node, after its detail; with none focused, about the document. */
-  children?: ReactNode;
+  /** Closes the pane: its button, or Escape in it. */
+  onClose: () => void;
 }) => {
   // Deferred: the previous detail stays up while the next one loads, instead of a fallback.
   const version = useDeferredValue(useStore(source.state).version);
@@ -186,29 +187,44 @@ export const NodePane = ({
   return (
     <aside
       aria-label="Node"
-      className="h-full overflow-auto p-2"
-      onContextMenu={menu.onContextMenu}
+      className="flex h-full min-h-0 flex-col"
+      onKeyDown={(event) => {
+        // In the pane itself: a popup's Escape (its menu) bubbles here too, through React.
+        if (
+          event.key == "Escape" &&
+          !event.defaultPrevented &&
+          event.target instanceof Node &&
+          event.currentTarget.contains(event.target)
+        ) {
+          event.preventDefault();
+          onClose();
+        }
+      }}
     >
-      {id == null ? (
-        <>
+      <div className={paneHeader}>
+        <h3 className="font-medium">Node</h3>
+        <IconButton label="Close the node" className="ml-auto" onClick={onClose}>
+          <XMarkIcon />
+        </IconButton>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto p-2" onContextMenu={menu.onContextMenu}>
+        {id == null ? (
           <p className="text-muted-foreground">Focus a node to see it here.</p>
-          {children}
-        </>
-      ) : (
-        <>
-          <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
-            <NodeDetailView
-              source={source}
-              path={pathOf(id)}
-              version={version}
-              onShowType={onShowType}
-              onLog={onLog}
-            />
-          </Suspense>
-          {children}
-          <PaneMenu anchor={menu} onLog={(part) => onLog(pathOf(id), part)} />
-        </>
-      )}
+        ) : (
+          <>
+            <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
+              <NodeDetailView
+                source={source}
+                path={pathOf(id)}
+                version={version}
+                onShowType={onShowType}
+                onLog={onLog}
+              />
+            </Suspense>
+            <PaneMenu anchor={menu} onLog={(part) => onLog(pathOf(id), part)} />
+          </>
+        )}
+      </div>
     </aside>
   );
 };

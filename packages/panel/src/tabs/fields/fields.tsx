@@ -14,6 +14,7 @@ import { scrollInto } from "#lib/dom.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { SplitPane, type Orientation, type SplitKind } from "#components/split-pane";
 import { Tip } from "#components/tip";
+import { SearchInput, searchStrip } from "#components/search-box";
 import { FieldMenu, type MenuTarget } from "./field-menu.tsx";
 import { FieldView } from "./field-view.tsx";
 import { When } from "./field-history.tsx";
@@ -127,8 +128,11 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
     [store, editorId, source]
   );
 
-  const fields = info?.fields ?? [];
-  // Selection follows the keys; nothing selected, Down goes to the first.
+  const { query, found } = useStore(source.search);
+  const all = info?.fields ?? [];
+  const fields = found ? all.filter((field) => found.has(field.index)) : all;
+  const listed = selected != null && fields.some((field) => field.index == selected);
+  // Selection follows the keys; nothing selected (or filtered out), Down goes to the first.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     menu.onKeyDown(event);
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -190,11 +194,26 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
       <LoadError what="the fields" error={error} onRetry={() => void source.load()} />
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b bg-strip px-2 text-xs">
+      <div className={searchStrip}>
+        <h3 className="shrink-0 font-medium">Fields</h3>
+        <SearchInput
+          value={query}
+          onChange={(event) => source.setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key == "Escape") source.setQuery("");
+          }}
+          aria-label="Search the fields"
+          placeholder="Search names and values"
+        />
+        {query.trim() && found && (
+          <span className="shrink-0 text-muted-foreground" aria-live="polite">
+            {fields.length} of {all.length} field{all.length == 1 ? "" : "s"}
+          </span>
+        )}
         <Button
           variant="ghost"
           size="xs"
-          disabled={!fields.some((field) => field.changes > 0)}
+          disabled={!all.some((field) => field.changes > 0)}
           onClick={() => clearFrom()}
         >
           <NoSymbolIcon /> Clear all
@@ -206,13 +225,16 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
           role="listbox"
           aria-label="State fields"
           tabIndex={0}
-          aria-activedescendant={selected == null ? undefined : `field-${selected}`}
+          aria-activedescendant={listed ? `field-${selected}` : undefined}
           onKeyDown={onKeyDown}
           onContextMenu={menu.onContextMenu}
           className="group/list min-h-0 min-w-0 flex-1 overflow-auto font-mono text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset"
         >
-          {info && !fields.length && (
+          {info && !all.length && (
             <p className="p-2 font-sans text-muted-foreground">No state fields found.</p>
+          )}
+          {all.length > 0 && !fields.length && (
+            <p className="p-2 font-sans text-muted-foreground">No fields match.</p>
           )}
           {fields.length > 0 && (
             <div

@@ -142,6 +142,60 @@ it("lists each source's decorations, where Wordgard applies them", async () => {
   });
 });
 
+it("puts a range over part of a text on that text, with the part", async () => {
+  // "Hello " 8–14, "world" 14–19.
+  const parts = () =>
+    Decoration.Range.set([
+      [Decoration.Range.wrapper("mark", {}), 10, 12],
+      [Decoration.Range.attribute("data-p", "1"), 12, 16],
+    ]);
+  const { wg, id } = open(Decoration.Range.source.of(parts));
+  const { decorations } = await ask({ type: "decorations", id });
+  const [inside, across] = decorations.filter((d) => d.kind.startsWith("range"));
+  expect(inside).toMatchObject({
+    paths: [[1, 0]],
+    parts: [{ path: [1, 0], from: 2, to: 4 }],
+    note: null,
+  });
+  expect(across).toMatchObject({
+    paths: [
+      [1, 0],
+      [1, 1],
+    ],
+    parts: [
+      { path: [1, 0], from: 4, to: 6 },
+      { path: [1, 1], from: 0, to: 2 },
+    ],
+  });
+  // As Wordgard draws them.
+  wg.flush();
+  expect(wg.contentDOM.querySelectorAll("mark")).toHaveLength(1);
+  expect(wg.contentDOM.querySelector("mark")?.textContent).toBe("ll");
+  expect([...wg.contentDOM.querySelectorAll("[data-p]")].map((e) => e.textContent)).toEqual([
+    "o ",
+    "wo",
+  ]);
+});
+
+it("gives a text a range covers whole all of it, and says when it lists only some nodes", async () => {
+  // 60 paragraphs of "ab": each 4 positions long.
+  const content = "<p>ab</p>".repeat(60);
+  const all = () =>
+    Decoration.Range.set([
+      [Decoration.Range.attribute("data-all", "1"), 0, 240],
+      [Decoration.Range.attribute("data-w", "1"), 1, 3],
+    ]);
+  const wg = editor([wordgardDevtools(), Decoration.Range.source.of(all)], content);
+  editors.push(wg);
+  const id = registry().editors.get(wg)?.id ?? 0;
+  const [many, whole] = (await ask({ type: "decorations", id })).decorations.filter((d) =>
+    d.kind.startsWith("range")
+  );
+  expect(whole).toMatchObject({ paths: [[0, 0]], parts: [{ path: [0, 0], from: 0, to: 2 }] });
+  expect(many?.paths).toHaveLength(50);
+  expect(many?.note).toBe("applies to more than 50 nodes: the first 50 are listed");
+});
+
 it("shows the node selection's own decoration", async () => {
   const { wg, id } = open([]);
   const paragraph = wg.state.doc.nodeAt(7);

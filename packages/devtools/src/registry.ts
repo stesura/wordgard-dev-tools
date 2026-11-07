@@ -10,6 +10,15 @@ export const REGISTRY_VERSION = 1;
 /** State fields by name, for the Fields tab (the shape `GardState.toJSON` takes). */
 export type NamedFields = { [name: string]: GardState.Field<unknown> };
 
+/** Names for the Extensions tab, by identity: a facet, a compartment, a field or any extension. */
+export type NamedExtensions = {
+  [name: string]:
+    | GardState.Extension
+    | GardState.Facet<never, unknown>
+    | GardState.Compartment
+    | GardState.Field.Derived<unknown>;
+};
+
 export type Entry = {
   readonly id: number;
   name: string;
@@ -20,6 +29,7 @@ export type Entry = {
   recording: boolean;
   /** Named by the plugins' options; optional for registries made by older copies. */
   fields?: NamedFields;
+  names?: NamedExtensions;
 };
 
 export type Agent = {
@@ -36,8 +46,8 @@ export type Agent = {
 export type Registry = {
   readonly registryVersion: number;
   readonly editors: ReadonlyMap<Wordgard, Entry>;
-  /** Adds the editor, or renames it when known, adding field names. Counted: one per connected plugin. */
-  register: (wg: Wordgard, name?: string, fields?: NamedFields) => Entry;
+  /** Adds the editor, or renames it when known, adding names. Counted: one per connected plugin. */
+  register: (wg: Wordgard, name?: string, fields?: NamedFields, names?: NamedExtensions) => Entry;
   /** Removes the editor once no plugin holds it, or when it is disconnected. */
   unregister: (wg: Wordgard) => void;
   subscribe: (listener: () => void) => () => void;
@@ -72,17 +82,20 @@ const createRegistry = (): Registry => {
   return {
     registryVersion: REGISTRY_VERSION,
     editors,
-    register: (wg, name, fields) => {
+    register: (wg, name, fields, names) => {
       holds.set(wg, (holds.get(wg) ?? 0) + 1);
       const known = editors.get(wg);
       if (known) {
         const named =
           fields && Object.entries(fields).some(([key, field]) => known.fields?.[key] != field);
         if (named) known.fields = { ...known.fields, ...fields };
+        const labelled =
+          names && Object.entries(names).some(([key, value]) => known.names?.[key] != value);
+        if (labelled) known.names = { ...known.names, ...names };
         const renamed = Boolean(name) && name != known.name;
         if (name && renamed) known.name = name;
         // The panel reloads its editors, and with them the field names.
-        if (named || renamed) changed();
+        if (named || labelled || renamed) changed();
         return known;
       }
       // Stable across reconnects of the same instance.
@@ -95,6 +108,7 @@ const createRegistry = (): Registry => {
         attached: false,
         recording: false,
         fields,
+        names,
       };
       editors.set(wg, entry);
       changed();

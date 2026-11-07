@@ -209,6 +209,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
     <div className="flex min-h-0 flex-1 flex-col">
       <LoadError what="the state" error={error} onRetry={() => void source.load()} />
       <div className={searchStrip}>
+        <h3 className="shrink-0 font-medium">State</h3>
         <SearchBox
           search={searching}
           label="Search the state"

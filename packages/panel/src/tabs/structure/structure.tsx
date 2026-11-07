@@ -4,7 +4,7 @@ import { ExpandCollapse } from "#components/expand-collapse";
 import { LoadError } from "#components/load-error";
 import { Button } from "#components/ui/button";
 import { Tip } from "#components/tip";
-import { NoSymbolIcon } from "#icons";
+import { CheckIcon, NoSymbolIcon } from "#icons";
 import { fire } from "../../transport.ts";
 import { useStore } from "@nanostores/react";
 import { useCallback, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
@@ -14,16 +14,31 @@ import { NodeMenu, createNodeMenuAnchor } from "#components/node-menu";
 import { NodePane } from "#components/node-pane";
 import { isPrefix } from "#lib/paths.ts";
 import { SearchBox, searchStrip, useSearch } from "#components/search-box";
-import { SplitPane } from "#components/split-pane";
+import { SplitPane, type SplitKind } from "#components/split-pane";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { createStructureSource } from "./structure-source.ts";
 import { scrollInto } from "#lib/dom.ts";
 import { Box } from "./boxes.tsx";
 import { persistent } from "#stores/persistent.ts";
-import { DecorationList } from "./decoration-views.tsx";
-import { createDecorationsSource, decorationsOf, indexDecorations } from "./decorations-source.ts";
+import { DecorationsPane } from "./decorations-pane.tsx";
+import { createDecorationsSource, indexDecorations } from "./decorations-source.ts";
+
+// The decorations' pane, beside the document and its node: side by side from 960px.
+const DECORATIONS_SPLIT: SplitKind = {
+  key: "wordgard-devtools:decorations-pane",
+  wide: 960,
+  defaults: { horizontal: 360, vertical: 200 },
+  min: { horizontal: 240, vertical: 100 },
+};
 
 // Whether the Structure shows decorations: off by default (nothing is asked of the page).
+// Whether the node pane is open: on by default.
+const showNodePane = () =>
+  persistent("wordgard-devtools:structure-node-pane", true, {
+    decode: (text) => text != "false",
+    encode: String,
+  });
+
 const showDecorations = () =>
   persistent("wordgard-devtools:structure-decorations", false, {
     decode: (text) => text == "true",
@@ -91,6 +106,8 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
   // A clicked box's node is outlined in the page until another is clicked, or the tab or editor changes.
   const [outline] = useState(() => createOutline(store.transport, editorId));
   const [decorationsSource] = useState(() => createDecorationsSource(store.transport, editorId));
+  const [nodePaneOn] = useState(showNodePane);
+  const nodePaneShown = useStore(nodePaneOn);
   const [decorationsOn] = useState(showDecorations);
   const showing = useStore(decorationsOn);
   const decorations = useStore(decorationsSource.state);
@@ -276,43 +293,77 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
     decorationsOn.set(on);
     if (on) void decorationsSource.load();
   };
-  const failed = index?.sources.filter((s) => s.error != null) ?? [];
+  // Closing the node pane: focus goes back to its toggle.
+  const nodeButton = useRef<HTMLButtonElement | null>(null);
+  const closeNodePane = () => {
+    nodePaneOn.set(false);
+    nodeButton.current?.focus();
+  };
+  // Closing the pane turns decorations off; focus goes back to the toggle.
+  const decorationsButton = useRef<HTMLButtonElement | null>(null);
+  const closeDecorations = () => {
+    decorationsOn.set(false);
+    decorationsButton.current?.focus();
+  };
   // The document isn't shown in the pane.
   const paneId = selected == ROOT ? null : selected;
 
-  return (
-    <div className="@container flex min-h-0 flex-1 flex-col">
-      <LoadError what="the structure" error={error} onRetry={() => void source.load()} />
+  // Each panel has its own header bar, as in the Extensions tab: the document's toolbar, the
+  // node's, the decorations'.
+  const documentAndNode = (
+    <SplitPane
+      pane={
+        nodePaneShown ? (
+          <NodePane
+            source={source}
+            focused={paneId}
+            onShowType={(kind, name) => store.showType(editorId, name, kind)}
+            onLog={(path, part) =>
+              fire(
+                store.transport,
+                part == "json"
+                  ? { type: "logNode", id: editorId, path, json: true }
+                  : { type: "logNode", id: editorId, path, part }
+              )
+            }
+            onClose={closeNodePane}
+          />
+        ) : null
+      }
+    >
       <div className={searchStrip}>
+        <h3 className="shrink-0 font-medium">Structure</h3>
         <SearchBox
           search={searching}
           label="Search the structure"
           placeholder="Search text, node names, params"
         />
         <span className="flex items-center gap-1">
-          {index && (
-            <span className="text-xs text-muted-foreground" aria-live="polite">
-              {index.total} decoration{index.total == 1 ? "" : "s"} from {index.sources.length}{" "}
-              source{index.sources.length == 1 ? "" : "s"}
-              {failed.length > 0 && (
-                <span className="text-destructive">
-                  {" "}
-                  · {failed.length} failed: {failed.map((s) => s.error).join("; ")}
-                </span>
-              )}
-            </span>
-          )}
-          {showing && decorations.error != null && (
-            <span className="text-xs text-destructive">{decorations.error}</span>
-          )}
-          <Tip label="Show the editor's decorations: widgets, attributes, shapes and wrappers">
+          <Tip label="Show the selected node's detail and JSON (or double-click a node)">
             <Button
+              ref={nodeButton}
+              variant="ghost"
+              size="xs"
+              aria-pressed={nodePaneShown}
+              onClick={() => nodePaneOn.set(!nodePaneShown)}
+              className="aria-pressed:bg-foreground/10 aria-pressed:shadow-[inset_0_-2px_0_var(--color-ring)]"
+            >
+              {nodePaneShown && <CheckIcon />}
+              Node
+            </Button>
+          </Tip>
+          <Tip label="Show the editor's decorations: widgets, attributes, shapes and wrappers">
+            {/* On: the decorations' badge gradient, and a check (not by colour alone). Forced
+                colours drop the gradient: the pressed style is theirs. */}
+            <Button
+              ref={decorationsButton}
               variant="ghost"
               size="xs"
               aria-pressed={showing}
               onClick={toggleDecorations}
-              className="aria-pressed:bg-foreground/10 aria-pressed:shadow-[inset_0_-2px_0_var(--color-ring)]"
+              className="aria-pressed:bg-linear-to-r aria-pressed:from-violet-600 aria-pressed:to-purple-700 aria-pressed:text-white aria-pressed:hover:text-white forced-colors:bg-none"
             >
+              {showing && <CheckIcon />}
               Decorations
             </Button>
           </Tip>
@@ -340,55 +391,54 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
           />
         </span>
       </div>
+      <div
+        ref={container}
+        role="tree"
+        aria-label="Document structure"
+        className="min-w-0 flex-1 overflow-auto p-2 font-mono text-xs"
+        onClick={(event: MouseEvent) => select(itemOf(event.target))}
+        // Opens the node pane, and scrolls the node into view in the editor.
+        onDoubleClick={(event: MouseEvent) => {
+          const path = dataPath(itemOf(event.target));
+          if (!path) return;
+          nodePaneOn.set(true);
+          fire(store.transport, { type: "scrollIntoView", id: editorId, path });
+        }}
+        onKeyDown={onKeyDown}
+        onContextMenu={menu.onContextMenu}
+      >
+        {doc && <Box node={doc} marks={marks} />}
+      </div>
+    </SplitPane>
+  );
+
+  return (
+    <div className="@container flex min-h-0 flex-1 flex-col">
+      <LoadError what="the structure" error={error} onRetry={() => void source.load()} />
       <SplitPane
+        kind={DECORATIONS_SPLIT}
         pane={
-          <NodePane
-            source={source}
-            focused={paneId}
-            onShowType={(kind, name) => store.showType(editorId, name, kind)}
-            onLog={(path, part) =>
-              fire(
-                store.transport,
-                part == "json"
-                  ? { type: "logNode", id: editorId, path, json: true }
-                  : { type: "logNode", id: editorId, path, part }
-              )
-            }
-          >
-            {index && (
-              <DecorationList
-                title={paneId == null ? "The document's decorations" : "Decorations"}
-                items={decorationsOf(index, paneId == null ? [] : pathOf(paneId))}
-                index={index}
-                onLog={(item) =>
-                  fire(store.transport, {
-                    type: "logDecoration",
-                    id: editorId,
-                    source: item.source,
-                    index: item.index,
-                  })
-                }
-              />
-            )}
-          </NodePane>
+          showing ? (
+            <DecorationsPane
+              index={index}
+              error={decorations.error}
+              doc={doc}
+              selected={paneId == null ? null : pathOf(paneId)}
+              onShow={(path) => void reveal(path)}
+              onLog={(item) =>
+                fire(store.transport, {
+                  type: "logDecoration",
+                  id: editorId,
+                  source: item.source,
+                  index: item.index,
+                })
+              }
+              onClose={closeDecorations}
+            />
+          ) : null
         }
       >
-        <div
-          ref={container}
-          role="tree"
-          aria-label="Document structure"
-          className="min-w-0 flex-1 overflow-auto p-2 font-mono text-xs"
-          onClick={(event: MouseEvent) => select(itemOf(event.target))}
-          // Scrolls the node into view in the editor.
-          onDoubleClick={(event: MouseEvent) => {
-            const path = dataPath(itemOf(event.target));
-            if (path) fire(store.transport, { type: "scrollIntoView", id: editorId, path });
-          }}
-          onKeyDown={onKeyDown}
-          onContextMenu={menu.onContextMenu}
-        >
-          {doc && <Box node={doc} marks={marks} />}
-        </div>
+        {documentAndNode}
       </SplitPane>
       <NodeMenu store={store} editorId={editorId} anchor={menu} />
     </div>

@@ -135,6 +135,7 @@ const createHandlers = (
       });
     },
     view: ({ id }) => view.viewInfo(entry(id).wg),
+    status: ({ id }) => view.viewStatus(entry(id).wg),
     viewElement: ({ id, path, action }) => {
       const target = view.viewNode(entry(id).wg, path);
       if (action == "outline") inspector.outlineDOM(target, view.viewLabel(target));
@@ -156,15 +157,15 @@ const createHandlers = (
     },
     extensions: ({ id }) => {
       const e = entry(id);
-      return extensions.extensions(e.wg.state, e.fields);
+      return extensions.extensions(e.wg.state, e);
     },
     extension: ({ id, path }) => {
       const e = entry(id);
-      return extensions.extensionDetail(e.wg.state, e.fields, path);
+      return extensions.extensionDetail(e.wg.state, e, path);
     },
     logExtension: ({ id, path, resolved }) => {
       const e = entry(id);
-      extensions.logExtension(e.wg.state, e.fields, path, resolved);
+      extensions.logExtension(e.wg.state, e, path, resolved);
       return null;
     },
     keymap: ({ id }) => keymap.keymap(entry(id).wg.state),
@@ -216,6 +217,7 @@ const createHandlers = (
       tracker.clearHistory(entry(id), index);
       return null;
     },
+    findFields: ({ id, query }) => tracker.find(entry(id), query),
     logType: ({ id, kind, name, json }) => {
       const state = entry(id).wg.state;
       if (json || kind == "group") {

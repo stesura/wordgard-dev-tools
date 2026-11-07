@@ -1,4 +1,4 @@
-import type { ExtensionNode } from "@stesura/wordgard-dev-tools";
+import type { ExtensionNode, ExtensionsInfo } from "@stesura/wordgard-dev-tools";
 
 /**
  * A row of the tree as drawn: its node, its id (the child indices, dotted; "" is the root), its
@@ -74,3 +74,60 @@ export const ancestorsOf = (id: string) => {
   const parts = id.split(".");
   return parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join("."));
 };
+
+/** The "By facet" view: each facet, and under it its values in Wordgard's order. */
+export type FacetsTree = {
+  root: ExtensionNode;
+  /** A row's id in the tree: a value's own row; a facet's, its first value's. */
+  real: ReadonlyMap<string, string>;
+};
+
+const row = (
+  label: string,
+  prec: ExtensionNode["prec"],
+  value: string | null,
+  children: ExtensionNode[] = []
+): ExtensionNode => ({
+  kind: "facet",
+  label,
+  prec,
+  value,
+  duplicate: false,
+  field: null,
+  source: null,
+  facet: null,
+  order: null,
+  children,
+  more: 0,
+});
+
+const facetsTrees = new WeakMap<ExtensionsInfo, FacetsTree>();
+
+export const facetsTree = (info: ExtensionsInfo): FacetsTree => {
+  const cached = facetsTrees.get(info);
+  if (cached) return cached;
+  const real = new Map<string, string>();
+  const children = info.facets.map((facet, i) => {
+    const values = facet.values.map((value, j) => {
+      real.set(`${i}.${j}`, value.path.join("."));
+      const parts = [value.value, value.from ? `in ${value.from}` : null].filter(
+        (part): part is string => Boolean(part)
+      );
+      return row(`#${j + 1}`, value.prec, parts.join(" · ") || null);
+    });
+    const [first] = facet.values;
+    if (first) real.set(String(i), first.path.join("."));
+    const count = `${values.length} value${values.length == 1 ? "" : "s"}`;
+    return row(facet.label, "default", count, values);
+  });
+  const made: FacetsTree = {
+    root: { ...row("facets", "default", null, children), kind: "configuration" },
+    real,
+  };
+  facetsTrees.set(info, made);
+  return made;
+};
+
+/** A tree row's id in the "By facet" view: its value's row. */
+export const facetsIdOf = (tree: FacetsTree, id: string) =>
+  [...tree.real].find(([at, real]) => at.includes(".") && real == id)?.[0] ?? null;

@@ -8,6 +8,7 @@ Each [`GardState.Field`](https://wordgard.net/docs/ref/#state.GardState.Field): 
 ## Tips
 
 - Name unnamed fields ("field #n") with `wordgardDevtools({fields: {name: field}})`.
+- Search filters the fields by name or by value, the whole value, not just its preview.
 - Expand a change to see its value; right-click to log or copy it.
 - For a [`PointSet` or `RangeSet`](https://wordgard.net/docs/ref/#set), click a position to show its node in the Structure.
 - Amber "kept, not mapped": the set wasn't mapped through a change that moved it; usually a missing `set.map(tr.changes)`.

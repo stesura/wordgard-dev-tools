@@ -160,6 +160,18 @@ it("clears every field's history without an index", async () => {
   expect((await ask({ type: "fields", id })).fields.every((f) => f.changes == 0)).toBe(true);
 });
 
+it("finds fields by name or by value, past the preview's cut, ignoring case", async () => {
+  const wg = open();
+  const id = idOf(wg);
+  const { fields } = await ask({ type: "fields", id });
+  const indexOf = (name: string) => fields.find((f) => f.name == name)?.index;
+  const hiddenIndex = fields.find((f) => f.preview == '"in a compartment"')?.index;
+  expect(await ask({ type: "findFields", id, query: "COUNTER" })).toEqual([indexOf("counter")]);
+  expect(await ask({ type: "findFields", id, query: "compartment" })).toEqual([hiddenIndex]);
+  expect(await ask({ type: "findFields", id, query: "nothing like it" })).toEqual([]);
+  expect(await ask({ type: "findFields", id, query: " " })).toEqual(fields.map((f) => f.index));
+});
+
 // A comment: equal by its text.
 type Comment = RangeSet.Value & { text: string };
 const comment = (text: string): Comment => ({

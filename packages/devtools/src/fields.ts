@@ -87,6 +87,8 @@ export type FieldTracker = {
   log: (entry: Entry, index: number, seq?: number, history?: boolean) => void;
   /** Forgets the changes seen to one field. */
   clearHistory: (entry: Entry, index?: number) => void;
+  /** The fields whose name or value holds `query`, ignoring case. */
+  find: (entry: Entry, query: string) => number[];
   /** Drops the history of editors that left the registry. */
   prune: () => void;
 };
@@ -147,7 +149,10 @@ export const createFieldTracker = (
   const info = (entry: Entry, fields: Field[], index: number): FieldInfo => {
     const field = fields[index];
     if (!field) throw new Error(`No field ${index}`);
-    const named = Object.entries(entry.fields ?? {}).find(([, f]) => f == field)?.[0];
+    const named = [
+      ...Object.entries(entry.fields ?? {}),
+      ...Object.entries(entry.names ?? {}),
+    ].find(([, f]) => f == field)?.[0];
     const history = tracked.get(entry)?.history.get(field) ?? [];
     const last = history.at(-1);
     return {
@@ -268,6 +273,20 @@ export const createFieldTracker = (
       const field = fieldsOf(entry.wg.state)[index];
       if (!field) throw new Error(`No field ${index}`);
       tracked.get(entry)?.history.delete(field);
+    },
+    find: (entry, query) => {
+      const needle = query.trim().toLowerCase();
+      const fields = fieldsOf(entry.wg.state);
+      // The value as the field pane shows it (`detail`'s), so a match is there to see.
+      const text = (index: number) => {
+        const field = fields[index];
+        const value = toSafe(field && entry.wg.state.field(field, false));
+        return `${info(entry, fields, index).name}
+${JSON.stringify(value) ?? ""}`;
+      };
+      return fields.flatMap((_, index) =>
+        !needle || text(index).toLowerCase().includes(needle) ? [index] : []
+      );
     },
     prune: () => {
       for (const entry of tracked.keys())

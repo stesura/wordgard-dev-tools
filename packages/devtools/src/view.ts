@@ -1,5 +1,5 @@
 import type { Wordgard } from "wordgard/editor";
-import type { Path, ViewInfo, ViewNode } from "./protocol.ts";
+import type { EditorStatus, Path, ViewInfo, ViewNode } from "./protocol.ts";
 import { locate, pathFrom, truncate } from "./serialise.ts";
 
 // Loaded with the serialisers, on the first panel request.
@@ -59,16 +59,18 @@ const describe = (wg: Wordgard, dom: Node): ViewNode => {
   };
 };
 
+export const viewStatus = (wg: Wordgard): EditorStatus => ({
+  connected: wg.connected,
+  editable: wg.editable,
+  focusable: wg.focusable,
+  focused: wg.hasFocus,
+  composing: wg.composing,
+  compositionStarted: wg.compositionStarted,
+  root: wg.root instanceof ShadowRoot ? "shadow root" : "document",
+});
+
 export const viewInfo = (wg: Wordgard): ViewInfo => ({
-  status: {
-    connected: wg.connected,
-    editable: wg.editable,
-    focusable: wg.focusable,
-    focused: wg.hasFocus,
-    composing: wg.composing,
-    compositionStarted: wg.compositionStarted,
-    root: wg.root instanceof ShadowRoot ? "shadow root" : "document",
-  },
+  status: viewStatus(wg),
   dom: describe(wg, wg.contentDOM),
 });
 

@@ -13,7 +13,8 @@ import type { PanelStore } from "#stores/panel-store.ts";
 import { Tip } from "#components/tip";
 import { SplitPane } from "#components/split-pane";
 import { keepRowInView, useRows } from "#hooks/use-rows.ts";
-import { COLUMNS, ROW, Row, type Sort, SortHeading, sorted } from "./log-rows.tsx";
+import { SortHeading } from "#components/sort-heading";
+import { COLUMNS, ROW, Row, type Sort, sorted } from "./log-rows.tsx";
 import { useStore } from "@nanostores/react";
 import {
   FilterBar,
@@ -316,11 +317,27 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
             >
               <SortHeading sortKey="index" label="#" tip="Index" sort={sort} onSort={changeSort} />
               <SortHeading sortKey="time" label="time" tip="Time" sort={sort} onSort={changeSort} />
-              <span>userEvent</span>
-              <span>changed</span>
-              <Tip label="Effects">
-                <span>eff</span>
-              </Tip>
+              <SortHeading
+                sortKey="userEvent"
+                label="userEvent"
+                tip="User event"
+                sort={sort}
+                onSort={changeSort}
+              />
+              <SortHeading
+                sortKey="changed"
+                label="changed"
+                tip="Changed"
+                sort={sort}
+                onSort={changeSort}
+              />
+              <SortHeading
+                sortKey="effects"
+                label="eff"
+                tip="Effects"
+                sort={sort}
+                onSort={changeSort}
+              />
               <SortHeading
                 sortKey="annotations"
                 label="ann"

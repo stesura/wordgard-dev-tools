@@ -17,7 +17,6 @@ import { keepRowInView, useRows } from "#hooks/use-rows.ts";
 import { flatten, folders, lineOf, search } from "./dom-lines.ts";
 import { ROW, Row } from "./dom-row.tsx";
 import { DomMenu, type DomTarget } from "./dom-menu.tsx";
-import { Status } from "./dom-status.tsx";
 
 /** The editor's view: its status and its content's DOM, mapped to the document. Mounted per editor. */
 export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }) => {
@@ -173,8 +172,8 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <LoadError what="the DOM" error={error} onRetry={() => void source.load()} />
-      {info && <Status status={info.status} />}
       <div className={searchStrip}>
+        <h3 className="shrink-0 font-medium">DOM</h3>
         <SearchBox
           search={searching}
           label="Search the DOM"

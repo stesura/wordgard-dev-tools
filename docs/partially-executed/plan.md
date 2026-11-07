@@ -1503,3 +1503,81 @@ whose case, a re-subscribe while it closes, no test can bring about).
 6. A State closing line repeats its opening's position, so two items read "1 of 2". Rejected:
    closing lines as items predate this; counting them gave "1 of 4" for two keys, which misleads
    more. Noted in `docs/accessibility.md`.
+
+## Parked (2026-11-07)
+
+Pinned by the user, not started. In the order recommended:
+
+1. **axe-core scans**: every tab, light and dark, in the panel's browser tests (contrast and ARIA),
+   so accessibility regressions are caught without a review. One dev dependency (`axe-core`). Also
+   in [the accessibility to-do](../accessibility.md#to-do).
+2. **Fields and Extensions after a reconfigure**: a reconfigure that adds or removes a field or an
+   extension shifts indices and paths, so the selected field or extension can show another one
+   (open points of phases 5c and of the Extensions tab). Needs stable ids, or a check that drops a
+   selection that no longer resolves.
+3. **One recording flag for two panels**: `record` is one flag per editor, so pausing the Log in
+   the in-page dock pauses the extension's too (phase 5's design). A per-client flag changes the
+   agent's protocol.
+4. **The accessibility review left over**: the Selection tab, the Log's filters and entry pane,
+   and the panel's own controls (dock, resize, editor picker, settings); a "Keyboard" section in
+   each tab's guide. In [the accessibility to-do](../accessibility.md#to-do).
+5. **Tests not written**: end-to-end runs of Copy as repro and of the Schema's decorations and key
+   bindings through the extension; the extension on Firefox; a service-worker restart, a bfcache
+   restore and an injection failure in a real browser.
+
+## Structure decorations: text parts, the list, stepping (2026-11-07)
+
+At the user's request: a range decoration over part of a text (a highlighted word) showed on no box,
+and "n decorations from m sources" led nowhere.
+
+- **Page side** (`decorations.ts`): a range decoration applies to the text leaves it overlaps, not
+  only to the nodes starting in it, as Wordgard draws it (it splits a text at a range's ends).
+  `DecorationInfo.parts` gives each text's decorated part as offsets. When the `PATHS` cap (50) cuts
+  a range's nodes, its note says so. `PROTOCOL` is 4: `DecorationInfo` changed shape.
+- **Boxes**: a text's decorated characters are tinted and underlined (dotted), beside the widgets
+  at their offsets; in a long text, within its preview.
+- **The count** opens a list of every decoration by source (with failed sources and capped
+  counts); a row goes to its node. **Previous / next** beside it step through the nodes that have
+  decorations, in document order, with "i/n".
+- Tests: page side (parts, whole texts, the cap, checked against Wordgard's DOM); panel (parts,
+  long text, list, stepping); a unit spec for the document order.
+
+### Audit (Fable)
+
+1. `parts` added without a protocol bump: a panel meeting an agent of the same number without it
+   would throw in render. Accepted: `PROTOCOL` 4.
+2. Texts over 200 characters got no part marking. Accepted: marked within the preview.
+3. The `PATHS` cap cut text leaves silently. Accepted: a note.
+4. A text a range covers whole got no underline (only partial ones had `parts`). Accepted: every
+   decorated text has its part.
+5. With a failed source, the summary's name didn't start with its visible text (WCAG 2.5.3).
+   Accepted.
+6. Stepping also stops on nodes holding decorations that apply to nothing (no badge). Rejected:
+   their pane explains why they aren't drawn, which is what one steps there to see.
+7. A capped source's count didn't say fewer are listed. Accepted: "n+", "k listed".
+8. The list draws every row at once (up to 2000). Rejected: a developer tool, rarely that many.
+9. No unit test for the order. Accepted: `decorations-source.spec.ts`.
+
+### The Decorations pane (2026-11-07, at the user's request)
+
+- The ◇ badge has a violet-to-purple gradient (white text at 4.5:1 or more); its tooltip opens with
+  "Decoration on this node", a widget's with "Widget decoration".
+- The Structure has three panels, each with its bar, as the Extensions tab: the document (its
+  toolbar, labelled "Document"), the node ("Node"), and, while decorations are on, the
+  decorations ("Decorations"): the selected node's, the count and its list, the stepping, and a ×.
+  Closing the pane (or Escape in it) turns decorations off and gives focus back to the toggle.
+- The Decorations toggle, on: the badge's gradient and a check.
+- The node pane no longer lists decorations.
+- The node pane closes too (its ×, or Escape in it); the Document bar's "Node" toggle (pressed,
+  with a check, while open) and a double-click on a box open it again. Saved, open by default.
+
+## The bottom bar's Editor, the Selection tab's link (2026-11-07, at the user's request)
+
+- The bottom bar has two groups, one line when wide (from 896px) and one line each when narrow:
+  the selection, and the **Editor**: the view's status (root, connected, editable, focusable,
+  focused, IME, moved from the DOM tab), a guide explaining each, and a button logging the editor.
+  A `status` request sends the status alone (`view` without its DOM); the panel store loads it with
+  the selection, on every state change.
+- The bar's three selection buttons are gone. The Selection tab's "Selection" bar has "Show the
+  node holding the selection" (the head's innermost node; a cell selection's head cell), and so
+  does the Selection card's context menu.

@@ -18,10 +18,12 @@ import {
   type ExtensionDetail,
   type ExtensionNode,
   type ExtensionsInfo,
+  type FacetOrder,
+  type FacetValue,
   type Path,
   type Precedence,
 } from "./protocol.ts";
-import type { NamedFields } from "./registry.ts";
+import type { Entry } from "./registry.ts";
 import { preview } from "./serialise.ts";
 import { tagFacets } from "./tags.ts";
 
@@ -32,11 +34,16 @@ import { tagFacets } from "./tags.ts";
 export const EXTENSIONS = 5000;
 const DEFAULT = 2;
 
+/** The app's names: `wordgardDevtools({fields, names})`. */
+export type Labels = Pick<Entry, "fields" | "names">;
+
 type Shape = {
   node: ExtensionNode;
   ext: unknown;
   facet: GardState.Facet<unknown, unknown> | null;
   field: GardState.Field<unknown> | GardState.Field.Derived<unknown> | null;
+  /** Its label is the app's (by `names`, or an object's `name`). */
+  named: boolean;
   children: Shape[];
 };
 
@@ -157,7 +164,21 @@ const className = (ext: object) => {
   return name && name != "Object" ? name : null;
 };
 
-const build = (state: GardState, names: NamedFields | undefined): Shape => {
+/** `{name, extension}`: a plain object's own name. A class's `name` may mean anything else. */
+const ownName = (ext: unknown) => {
+  if (!isObject(ext) || Array.isArray(ext)) return null;
+  const proto: unknown = Object.getPrototypeOf(ext);
+  if (proto !== Object.prototype && proto !== null) return null;
+  return "extension" in ext && ext.extension && "name" in ext && typeof ext.name == "string"
+    ? ext.name || null
+    : null;
+};
+
+const build = (state: GardState, labels: Labels): { root: Shape; facets: FacetOrder[] } => {
+  // The app's names, by identity: the first name given to a value.
+  const named = new Map<unknown, string>();
+  for (const [name, value] of Object.entries(labels.names ?? {}))
+    if (!named.has(value)) named.set(value, name);
   const { kept, seen } = keptOccurrences(state);
   // Every prefix of a kept occurrence: a dropped one holding a kept one is walked.
   const holding = new Set<string>();
@@ -181,17 +202,19 @@ const build = (state: GardState, names: NamedFields | undefined): Shape => {
     [tagged.markShape, "Decoration.Mark.shape"],
   ] satisfies [unknown, string][])
     if (facet) facetNames.set(facet, name);
+  const facetLabel = (facet: object) =>
+    named.get(facet) ?? facetNames.get(facet) ?? `facet #${facetNumber(facet)}`;
   let count = 0;
 
   const shape = (
     ext: unknown,
-    node: Omit<ExtensionNode, "children" | "more" | "duplicate">,
-    refs: Partial<Pick<Shape, "facet" | "field">> = {}
+    node: Omit<ExtensionNode, "children" | "more" | "duplicate" | "order">
   ): Shape => ({
-    node: { ...node, duplicate: false, children: [], more: 0 },
+    node: { ...node, duplicate: false, order: null, children: [], more: 0 },
     ext,
-    facet: refs.facet ?? null,
-    field: refs.field ?? null,
+    facet: null,
+    field: null,
+    named: false,
     children: [],
   });
 
@@ -207,9 +230,9 @@ const build = (state: GardState, names: NamedFields | undefined): Shape => {
     parent.node.children.push(child.node);
   };
 
-  /** The rows for some content: a kept array's items, or the one row. */
+  /** The rows for some content: a kept, unnamed array's items, or the one row. */
   const contents = (parent: Shape, content: unknown, prec: number, at: string) => {
-    if (Array.isArray(content) && kept.get(content) == at)
+    if (Array.isArray(content) && kept.get(content) == at && ownLabel(content) == null)
       content.forEach((ext, i) => add(parent, ext, prec, `${at}.${i}`));
     else add(parent, content, prec, at);
   };
@@ -226,13 +249,16 @@ const build = (state: GardState, names: NamedFields | undefined): Shape => {
         value: `duplicate: kept at ${precedence(seen.get(ext) ?? prec)} precedence`,
       });
       dropped.node.duplicate = true;
+      dropped.named = ownLabel(ext) != null;
       // Only what it holds that Wordgard keeps from here: it says nothing of its own.
       if (holding.has(at)) children(dropped, ext, prec, at);
       return dropped;
     }
-    // One item: shown in its parent's place.
-    if (Array.isArray(ext) && ext.length == 1) return row(ext[0], prec, `${at}.0`);
+    // One item: shown in its parent's place, unless named.
+    if (Array.isArray(ext) && ext.length == 1 && ownLabel(ext) == null)
+      return row(ext[0], prec, `${at}.0`);
     const made = shape(ext, { ...base, kind: kindOf(ext), label: labelOf(ext), prec: p });
+    made.named = ownLabel(ext) != null;
     describe(made, ext);
     children(made, ext, prec, at);
     return made;
@@ -255,7 +281,22 @@ const build = (state: GardState, names: NamedFields | undefined): Shape => {
                   ? "object"
                   : "unknown";
 
+  /** The app's name for an extension: by `names` (itself, or its compartment), or its own. */
+  const ownLabel = (ext: unknown): string | null => {
+    const compartment = compartmentOf(ext);
+    return (
+      named.get(ext) ??
+      (compartment ? named.get(compartment.compartment) : undefined) ??
+      ownName(ext)
+    );
+  };
+
   const labelOf = (ext: unknown): string => {
+    // `fields` first, as the Fields tab names a field.
+    const own =
+      (isField(ext) ? Object.entries(labels.fields ?? {}).find(([, f]) => f == ext)?.[0] : null) ??
+      ownLabel(ext);
+    if (own != null) return own;
     const compartment = compartmentOf(ext);
     const wrapped = precedenceOf(ext);
     const provider = providerOf(ext);
@@ -263,11 +304,11 @@ const build = (state: GardState, names: NamedFields | undefined): Shape => {
     if (compartment) return `compartment #${compartmentNumber(compartment.compartment)}`;
     if (wrapped) return precedence(wrapped.prec);
     if (isField(ext)) {
-      const named = Object.entries(names ?? {}).find(([, f]) => f == ext)?.[0];
-      return named ?? `field #${fields.indexOf(ext) + 1}`;
+      const name = Object.entries(labels.fields ?? {}).find(([, f]) => f == ext)?.[0];
+      return name ?? `field #${fields.indexOf(ext) + 1}`;
     }
     if (isDerived(ext)) return `derived field #${derivedNumber(ext)}`;
-    if (provider) return facetNames.get(provider.facet) ?? `facet #${facetNumber(provider.facet)}`;
+    if (provider) return facetLabel(provider.facet);
     if (isObject(ext) && "extension" in ext && ext.extension)
       return className(ext) ?? "extension object";
     return "unknown extension";
@@ -277,7 +318,11 @@ const build = (state: GardState, names: NamedFields | undefined): Shape => {
   const describe = (made: Shape, ext: unknown) => {
     const { node } = made;
     const compartment = compartmentOf(ext);
+    const wrapped = precedenceOf(ext);
     const provider = providerOf(ext);
+    // Named, an array or a precedence says what it is in its value.
+    if (made.named && Array.isArray(ext)) node.value = `${ext.length} extensions`;
+    else if (made.named && wrapped) node.value = `${precedence(wrapped.prec)} precedence`;
     if (compartment) {
       const content = compartment.compartment.get(state) ?? compartment.inner;
       if (content !== compartment.inner) node.value = "reconfigured";
@@ -287,7 +332,7 @@ const build = (state: GardState, names: NamedFields | undefined): Shape => {
       node.field = index < 0 ? null : index;
     } else if (isDerived(ext)) made.field = ext;
     else if (provider) {
-      const name = facetNames.get(provider.facet) ?? null;
+      const name = named.get(provider.facet) ?? facetNames.get(provider.facet) ?? null;
       node.value = provider.isStatic
         ? (preview(provider.value) ?? String(provider.value))
         : "computed";
@@ -330,48 +375,102 @@ const build = (state: GardState, names: NamedFields | undefined): Shape => {
     prec: "default",
   });
   contents(root, state.config.base, DEFAULT, "r");
-  return root;
+
+  // Each facet's kept values, in tree order: Wordgard's walk order. `flatten` puts each in its
+  // precedence's bucket in that order, then joins the buckets: the facet's input.
+  const byFacet = new Map<
+    object,
+    { label: string; wordgard: string | null; values: FacetValue[]; nodes: ExtensionNode[] }
+  >();
+  const walk = (parent: Shape, path: Path, from: string[]) =>
+    parent.children.forEach((child, i) => {
+      const at = [...path, i];
+      const provider = child.node.duplicate ? null : providerOf(child.ext);
+      if (provider) {
+        let facet = byFacet.get(provider.facet);
+        if (!facet)
+          byFacet.set(
+            provider.facet,
+            (facet = {
+              label: facetLabel(provider.facet),
+              wordgard: facetNames.get(provider.facet) ?? null,
+              values: [],
+              nodes: [],
+            })
+          );
+        facet.values.push({
+          path: at,
+          prec: child.node.prec,
+          value: child.node.value,
+          from: from.join(" › "),
+        });
+        facet.nodes.push(child.node);
+      }
+      const unnamedArray = child.node.kind == "group" && !child.named;
+      walk(child, at, unnamedArray ? from : [...from, child.node.label]);
+    });
+  walk(root, [], []);
+  const rank = (prec: Precedence) => PRECEDENCES.indexOf(prec);
+  const numbered = (facet: object) => !named.has(facet) && !facetNames.has(facet);
+  const sorted = [...byFacet].toSorted(([a, x], [b, y]) =>
+    numbered(a) != numbered(b)
+      ? Number(numbered(a)) - Number(numbered(b))
+      : numbered(a)
+        ? facetNumber(a) - facetNumber(b)
+        : x.label.localeCompare(y.label)
+  );
+  const facets = sorted.map(([, facet], index): FacetOrder => {
+    const order = facet.values
+      .map((value, i) => ({ value, node: facet.nodes[i] }))
+      .toSorted((a, b) => rank(a.value.prec) - rank(b.value.prec));
+    order.forEach(({ node }, i) => {
+      if (node) node.order = { facet: index, index: i, of: order.length };
+    });
+    return {
+      label: facet.label,
+      wordgard: facet.wordgard,
+      values: order.map(({ value }) => value),
+    };
+  });
+  return { root, facets };
 };
 
-type Cached = { names: NamedFields | undefined; shape: Shape; count: number };
+type Cached = Labels & { shape: Shape; facets: FacetOrder[]; count: number };
 const byConfig = new WeakMap<GardState.Configuration, Cached>();
 
-const shapeOf = (state: GardState, names: NamedFields | undefined) => {
+const shapeOf = (state: GardState, labels: Labels): Cached => {
   const cached = byConfig.get(state.config);
-  if (cached && cached.names == names) return cached;
-  const shape = build(state, names);
+  // The registry replaces either object when the app adds names.
+  if (cached && cached.fields == labels.fields && cached.names == labels.names) return cached;
+  const { root, facets } = build(state, labels);
   let count = 0;
   const countRows = (s: Shape) => {
     count++;
     s.children.forEach(countRows);
   };
-  shape.children.forEach(countRows);
-  const made = { names, shape, count };
+  root.children.forEach(countRows);
+  const made = { fields: labels.fields, names: labels.names, shape: root, facets, count };
   byConfig.set(state.config, made);
   return made;
 };
 
 /** The configuration's extensions, as a tree. Cached per configuration: its values are static. */
-export const extensions = (state: GardState, names?: NamedFields): ExtensionsInfo => {
-  const { shape, count } = shapeOf(state, names);
+export const extensions = (state: GardState, labels: Labels = {}): ExtensionsInfo => {
+  const { shape, facets, count } = shapeOf(state, labels);
   const capped = (s: Shape): boolean => s.node.more > 0 || s.children.some(capped);
-  return { root: shape.node, count, capped: capped(shape) };
+  return { root: shape.node, count, capped: capped(shape), facets };
 };
 
-const at = (state: GardState, names: NamedFields | undefined, path: Path) => {
-  let found: Shape | undefined = shapeOf(state, names).shape;
+const at = (state: GardState, labels: Labels, path: Path) => {
+  let found: Shape | undefined = shapeOf(state, labels).shape;
   for (const index of path) found = found?.children[index];
   if (!found) throw new Error("That extension is no longer there");
   return found;
 };
 
 /** A row's values in the current state: a known facet's, a field's. */
-export const extensionDetail = (
-  state: GardState,
-  names: NamedFields | undefined,
-  path: Path
-): ExtensionDetail => {
-  const { facet, field } = at(state, names, path);
+export const extensionDetail = (state: GardState, labels: Labels, path: Path): ExtensionDetail => {
+  const { facet, field } = at(state, labels, path);
   const guarded = (read: () => unknown) => {
     try {
       return preview(read());
@@ -388,16 +487,11 @@ export const extensionDetail = (
 };
 
 /** Logs a row's extension, or its facet's value, live. */
-export const logExtension = (
-  state: GardState,
-  names: NamedFields | undefined,
-  path: Path,
-  resolved = false
-) => {
-  const { node, ext, facet } = at(state, names, path);
+export const logExtension = (state: GardState, labels: Labels, path: Path, resolved = false) => {
+  const { node, ext, facet } = at(state, labels, path);
   if (resolved) {
     if (!facet) throw new Error(`${node.label} has no resolved value here`);
-    console.log(`[wordgard-devtools] state.facet(${node.label})`, state.facet(facet));
+    console.log(`[wordgard-devtools] state.facet(${node.facet ?? node.label})`, state.facet(facet));
     return;
   }
   console.log(`[wordgard-devtools] ${node.label}`, ext);

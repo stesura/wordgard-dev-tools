@@ -54,6 +54,16 @@ const pane = () =>
     "[data-slot='tabs-content']:not([hidden]) [aria-label='Node']"
   );
 
+/** The Structure's resizable panels: a closed pane takes its panel with it, not only its content. */
+const panels = () =>
+  structure()?.closest("[role='tabpanel']")?.querySelectorAll("[data-slot='resizable-panel']")
+    .length ?? 0;
+
+const decorationsPane = () =>
+  shadow().querySelector<HTMLElement>(
+    "[data-slot='tabs-content']:not([hidden]) aside[aria-label='Decorations']"
+  );
+
 /** The in-page transport, counting `structure` and `scrollIntoView` requests. */
 const counting = () => {
   const inner = inPageTransport();
@@ -407,7 +417,7 @@ it("lets the browser skip off-screen boxes, tints marks and edges text chips", a
     (b) => b.textContent == "Strong"
   );
   expect(mark?.style.getPropertyValue("--hue")).not.toBe("");
-  expect(getComputedStyle(strong).borderRightWidth).toBe("2px");
+  expect(getComputedStyle(strong).borderLeftWidth).toBe("2px");
 });
 
 // In the Structure tab's panel: the State has buttons of the same names.
@@ -617,7 +627,7 @@ it("shows decorations when asked, and follows the selection", async () => {
     )
   );
   toggle.click();
-  await until(() => shadow().textContent?.includes("3 decorations from 2 sources"));
+  await until(() => shadow().querySelector("[aria-label^='3 decorations, from 2 sources']"));
   expect(toggle.getAttribute("aria-pressed")).toBe("true");
   expect(box("0.0")?.querySelector("[data-widget='3']")).not.toBeNull();
   // Read as "widget" where it sits: the glyph is hidden.
@@ -630,7 +640,7 @@ it("shows decorations when asked, and follows the selection", async () => {
   expect(badge?.querySelector(".sr-only")?.textContent).toBe("1 decoration");
 
   box("1")?.click();
-  const section = await until(() => pane()?.querySelector("[aria-label='Decorations']"));
+  const section = await until(() => decorationsPane()?.querySelector("section"));
   expect(section.textContent).toContain("attributes");
   expect(section.textContent).toContain('class="para"');
 
@@ -670,7 +680,191 @@ it("shows a widget in an empty node, and the document's own decorations in the p
   await mounted.ready;
   (await until(() => tab("Structure"))).click();
   await until(() => box("0")?.querySelector("[data-widget='1']"));
-  const section = await until(() => pane()?.querySelector("[aria-label='Decorations']"));
-  expect(section.textContent).toContain("The document's decorations");
+  const section = await until(() => decorationsPane()?.querySelector("section"));
+  expect(section.getAttribute("aria-label")).toBe("On the document");
   expect(section.textContent).toContain("applies to no node");
+});
+
+it("marks the part of a text a range decorates, lists every decoration, and steps through them", async () => {
+  // "Alpha " 8–14 and "Beta" 20–24: "ph" and "eta".
+  const ranges = () =>
+    Decoration.Range.set([
+      [Decoration.Range.wrapper("mark", {}), 10, 12],
+      [Decoration.Range.attribute("data-r", "1"), 21, 24],
+    ]);
+  wg = Wordgard.create({
+    parent: document.body,
+    doc,
+    config: [basicSchema(), Decoration.Range.source.of(ranges), wordgardDevtools({ name: "r" })],
+  });
+  localStorage.setItem("wordgard-devtools:structure-decorations", "true");
+  mounted = mountDevtools();
+  await mounted.ready;
+  (await until(() => tab("Structure"))).click();
+
+  // On the text it covers in part: a badge, and its characters marked.
+  const alpha = await until(() => box("1.0")?.querySelector("[data-decorated]") && box("1.0"));
+  expect(alpha.querySelector("[data-decorated]")?.textContent).toBe("ph");
+  expect(alpha.querySelector("[data-decorations]")).not.toBeNull();
+  expect(box("2.0")?.querySelector("[data-decorated]")?.textContent).toBe("eta");
+
+  // Stepping: from no selection, the first; on to the next; around.
+  const selectedPath = () =>
+    structure()?.querySelector("[aria-selected='true']")?.getAttribute("data-path");
+  const step = (label: string) =>
+    shadow().querySelector<HTMLButtonElement>(`[aria-label='${label}']`)?.click();
+  step("Next node with decorations");
+  await until(() => selectedPath() == "1.0");
+  expect(shadow().textContent).toContain("1/2");
+  step("Next node with decorations");
+  await until(() => selectedPath() == "2.0");
+  step("Next node with decorations");
+  await until(() => selectedPath() == "1.0");
+  step("Previous node with decorations");
+  await until(() => selectedPath() == "2.0");
+
+  // The list: by source, each decoration a way to its node.
+  shadow().querySelector<HTMLButtonElement>("[aria-label^='2 decorations, from']")?.click();
+  const list = await until(() =>
+    shadow().querySelector<HTMLElement>("[data-slot='popover-content']")
+  );
+  // Numbered across kinds: the node selection's point source is #1.
+  expect(list.textContent).toContain("Range source #2 (ranges)");
+  const row = [...list.querySelectorAll("button")].find((b) =>
+    b.textContent?.startsWith("range wrapper10–12")
+  );
+  expect(row?.textContent).toContain("on Text");
+  row?.click();
+  await until(() => selectedPath() == "1.0");
+  await until(() => !shadow().querySelector("[data-slot='popover-content']"));
+});
+
+it("marks a decorated part within a long text's preview", async () => {
+  // One text of 250 characters, 1–251: a range in its preview, another past it.
+  const long = "x".repeat(10) + "HIT" + "y".repeat(237);
+  const ranges = () =>
+    Decoration.Range.set([
+      [Decoration.Range.wrapper("mark", {}), 11, 14],
+      [Decoration.Range.wrapper("mark", {}), 200, 210],
+    ]);
+  wg = Wordgard.create({
+    parent: document.body,
+    doc: `<p>${long}</p>`,
+    config: [basicSchema(), Decoration.Range.source.of(ranges), wordgardDevtools({ name: "l" })],
+  });
+  localStorage.setItem("wordgard-devtools:structure-decorations", "true");
+  mounted = mountDevtools();
+  await mounted.ready;
+  (await until(() => tab("Structure"))).click();
+  const text = await until(() => box("0.0")?.querySelector("[data-decorated]") && box("0.0"));
+  expect([...text.querySelectorAll("[data-decorated]")].map((e) => e.textContent)).toEqual(["HIT"]);
+  expect(text.textContent).toContain('y…"');
+});
+
+it("says in the badge's and the widget's tooltips that they are decorations", async () => {
+  const ranges = () => Decoration.Range.set([[Decoration.Range.attribute("data-r", "1"), 10, 12]]);
+  wg = Wordgard.create({
+    parent: document.body,
+    doc,
+    config: [
+      basicSchema(),
+      Decoration.Point.source.of(highlights),
+      Decoration.Range.source.of(ranges),
+      wordgardDevtools({ name: "t" }),
+    ],
+  });
+  localStorage.setItem("wordgard-devtools:structure-decorations", "true");
+  mounted = mountDevtools();
+  await mounted.ready;
+  (await until(() => tab("Structure"))).click();
+  const tooltip = async (target: Element) => {
+    await userEvent.hover(target);
+    return (await until(() => shadow().querySelector("[data-slot='tooltip-content']"))).textContent;
+  };
+  const badge = await until(() => box("1.0")?.querySelector("[data-decorations]"));
+  expect(await tooltip(badge)).toMatch(/^Decoration on this node/);
+  await userEvent.unhover(badge);
+  await until(() => !shadow().querySelector("[data-slot='tooltip-content']"));
+  const widget = await until(() => structure()?.querySelector("[data-widget='3']"));
+  expect(await tooltip(widget)).toMatch(/^Widget decoration at 3/);
+});
+
+it("shows the decorations in their own panel, closed with its button or Escape, which turns them off", async () => {
+  await setup();
+  await showStructure();
+  const toggle = await until(() =>
+    [...shadow().querySelectorAll<HTMLButtonElement>("button")].find(
+      (b) => b.textContent == "Decorations"
+    )
+  );
+  // Each panel has its bar with a label.
+  const tabPanel = toggle.closest("[role='tabpanel']");
+  const headings = () => [...(tabPanel?.querySelectorAll("h3") ?? [])].map((h) => h.textContent);
+  expect(headings()).toEqual(["Structure", "Node"]);
+  expect(toggle.querySelector("svg")).toBeNull();
+
+  toggle.click();
+  await until(() => decorationsPane());
+  expect(toggle.getAttribute("aria-pressed")).toBe("true");
+  // The decorations' split: its content (the document's and the node's split) and its pane.
+  expect(panels()).toBe(4);
+  // On: a check, besides the gradient.
+  expect(toggle.querySelector("svg")).not.toBeNull();
+  expect(getComputedStyle(toggle).backgroundImage).toContain("linear-gradient");
+  expect(headings()).toContain("Decorations");
+
+  decorationsPane()
+    ?.querySelector<HTMLButtonElement>("[aria-label='Close the decorations']")
+    ?.click();
+  await until(() => !decorationsPane());
+  expect(toggle.getAttribute("aria-pressed")).toBe("false");
+  expect(shadow().activeElement).toBe(toggle);
+  expect(panels()).toBe(3);
+
+  toggle.click();
+  const opened = await until(() => decorationsPane());
+  opened.querySelector<HTMLButtonElement>("[aria-label='Close the decorations']")?.focus();
+  // The first Escape closes the button's tooltip (focus shows it), the next the panel.
+  await userEvent.keyboard("{Escape}");
+  await userEvent.keyboard("{Escape}");
+  await until(() => !decorationsPane());
+  expect(toggle.getAttribute("aria-pressed")).toBe("false");
+});
+
+it("closes the node pane, and opens it from its toggle or a double-click on a node", async () => {
+  await setup();
+  await showStructure();
+  const toggle = await until(() =>
+    [...shadow().querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent == "Node")
+  );
+  // Open by default: pressed, with a check.
+  expect(toggle.getAttribute("aria-pressed")).toBe("true");
+  expect(toggle.querySelector("svg")).not.toBeNull();
+  // The decorations' split's content (closed: no pane), the document's, the node's.
+  expect(panels()).toBe(3);
+
+  pane()?.querySelector<HTMLButtonElement>("[aria-label='Close the node']")?.click();
+  await until(() => !pane());
+  expect(panels()).toBe(2);
+  expect(toggle.getAttribute("aria-pressed")).toBe("false");
+  expect(toggle.querySelector("svg")).toBeNull();
+  expect(shadow().activeElement).toBe(toggle);
+  // The tree stays, with its selection.
+  box("1")?.click();
+  await until(() => box("1")?.getAttribute("aria-selected") == "true");
+
+  // A double-click on a node opens it.
+  box("1.1")?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+  await until(() => pane());
+  expect(panels()).toBe(3);
+  expect(toggle.getAttribute("aria-pressed")).toBe("true");
+
+  // Escape in it closes it; its toggle opens it again.
+  pane()?.querySelector<HTMLButtonElement>("[aria-label='Close the node']")?.focus();
+  // The first Escape closes the button's tooltip (focus shows it).
+  await userEvent.keyboard("{Escape}");
+  await userEvent.keyboard("{Escape}");
+  await until(() => !pane());
+  toggle.click();
+  await until(() => pane());
 });

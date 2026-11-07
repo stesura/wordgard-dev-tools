@@ -422,6 +422,38 @@ const selectByKeys = async (name: string) => {
   for (let i = 0; i < 10 && selectedField() != name; i++) await userEvent.keyboard("{ArrowDown}");
   expect(selectedField()).toBe(name);
 };
+it("filters the fields by a search, again as they change", async () => {
+  const editor = await setup();
+  const options = () =>
+    [...shadow().querySelectorAll("[aria-label='State fields'] [role='option']")].map((option) =>
+      option.getAttribute("data-field")
+    );
+  const total = options().length;
+  const input = await until(() =>
+    shadow().querySelector<HTMLInputElement>("[aria-label='Search the fields']")
+  );
+  await userEvent.click(input);
+  await userEvent.keyboard("COUNT");
+  await until(() => options().length == 1);
+  expect(options()).toEqual(["counter"]);
+  expect(shadow().textContent).toContain(`1 of ${total} fields`);
+  // Down goes to the first field shown.
+  list()?.focus();
+  await userEvent.keyboard("{ArrowDown}");
+  expect(selectedField()).toBe("counter");
+
+  await userEvent.clear(input);
+  await userEvent.type(input, "98765");
+  await until(() => shadow().textContent?.includes("No fields match."));
+  // Searched again on each load: the counter's new value matches.
+  editor.dispatch({ effects: bump.of(98765) });
+  await until(() => options().includes("counter"));
+
+  await userEvent.click(input);
+  await userEvent.keyboard("{Escape}");
+  await until(() => options().length == total);
+});
+
 const record = async () => {
   (await until(() => tab("Log"))).click();
   (await until(() => button("Record"))).click();

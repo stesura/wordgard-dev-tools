@@ -8,6 +8,7 @@ import type {
   DecorationSource,
   DecorationsInfo,
   Path,
+  TextPart,
 } from "./protocol.ts";
 import { createQueryNamer, isQuery } from "./schema.ts";
 import { pathIn, plotPath, preview, truncate } from "./serialise.ts";
@@ -190,29 +191,38 @@ const resolved = (doc: Plot.Doc, pos: number) =>
 const nodeStartingAt = (at: Pos): Path | null =>
   !at.inText && at.nodeAfter && !at.nodeAfter.isText ? [...plotPath(at.parent), at.index] : null;
 
-/** The nodes a range decoration applies to: those starting in it that its scope and query admit. */
-const rangeNodes = (state: GardState, value: object, from: number, to: number): Path[] => {
+/**
+ * The nodes a range decoration applies to, that its scope and query admit: those starting in it,
+ * and the text leaves it overlaps (Wordgard splits a text at a range's ends and decorates the part
+ * inside), with the part of each it decorates. Capped at `PATHS` nodes: `capped` says more were left.
+ */
+const rangeNodes = (state: GardState, value: object, from: number, to: number) => {
   const scope = "scope" in value && typeof value.scope == "number" ? value.scope : 1;
   const query = "query" in value && isQuery(value.query) ? value.query : null;
-  const found: Path[] = [];
+  const paths: Path[] = [];
+  const parts: TextPart[] = [];
+  let capped = false;
   const { doc } = state;
   doc.iterate(Math.max(0, from), Math.min(to, doc.length), (node: DocNode, pos: number) => {
-    if (found.length >= PATHS) return false;
+    if (capped) return false;
     const atom = state.isAtom(node.type);
     const nodeScope = 4 | (atom ? 1 | (node.type.isInline ? 2 : 0) : 0);
-    if (
-      pos >= from &&
-      pos < to &&
-      nodeScope & scope &&
-      (!query || state.schema.matchNode(node.type, query))
-    ) {
+    const end = pos + node.length;
+    const inside = node.isText ? pos < to && end > from : pos >= from && pos < to;
+    if (inside && nodeScope & scope && (!query || state.schema.matchNode(node.type, query))) {
       const at = resolved(doc, pos);
-      if (at) found.push([...plotPath(at.parent), at.index]);
+      if (at && paths.length >= PATHS) capped = true;
+      else if (at) {
+        const path = [...plotPath(at.parent), at.index];
+        paths.push(path);
+        if (node.isText)
+          parts.push({ path, from: Math.max(from, pos) - pos, to: Math.min(to, end) - pos });
+      }
     }
     // Wordgard draws nothing inside an atom.
     return !atom;
   });
-  return found;
+  return { paths, parts, capped };
 };
 
 export const decorations = (state: GardState): DecorationsInfo => {
@@ -270,19 +280,25 @@ const info = (
     details: detailsOf(value, kind, describe),
     at: pathIn(state.doc, from),
     paths: [],
+    parts: [],
     offset: null,
     note: at ? null : "outside the document",
   };
   if (!at) return base;
   if (sourceKind == "range") {
-    const paths =
-      typeof value == "object" && value != null ? rangeNodes(state, value, from, to) : [];
+    const { paths, parts, capped } =
+      typeof value == "object" && value != null
+        ? rangeNodes(state, value, from, to)
+        : { paths: [], parts: [], capped: false };
     return {
       ...base,
       paths,
-      note: paths.length
-        ? null
-        : "applies to no node: none starts in it that its scope and query admit",
+      parts,
+      note: capped
+        ? `applies to more than ${PATHS} nodes: the first ${PATHS} are listed`
+        : paths.length
+          ? null
+          : "applies to no node: none in it that its scope and query admit",
     };
   }
   if (inAtom(state, at)) return { ...base, note: "inside an atom: not drawn" };

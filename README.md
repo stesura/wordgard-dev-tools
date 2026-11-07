@@ -89,11 +89,12 @@ Wordgard.create({
 });
 ```
 
-| Option    | Type                                | Default                                        | Description                                                                                  |
-| --------- | ----------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `name`    | `string`                            | the editor's `aria-label`, then `editor #n`    | Shown in the panel's editor picker.                                                          |
-| `fields`  | `{[name: string]: GardState.Field}` | none: fields show as `field #n`                | Names the editor's state fields in the Fields tab.                                           |
-| `enabled` | `boolean`                           | `false` in production builds, `true` otherwise | Whether to register the editor. See [Keep it out of production](#keep-it-out-of-production). |
+| Option    | Type                                                       | Default                                        | Description                                                                                  |
+| --------- | ---------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `name`    | `string`                                                   | the editor's `aria-label`, then `editor #n`    | Shown in the panel's editor picker.                                                          |
+| `fields`  | `{[name: string]: GardState.Field}`                        | none: fields show as `field #n`                | Names the editor's state fields in the Fields tab.                                           |
+| `names`   | `{[name: string]: facet, compartment, field or extension}` | none: as Wordgard names them, or numbered      | Names them in the Extensions tab, by identity (a field in the Fields tab too).               |
+| `enabled` | `boolean`                                                  | `false` in production builds, `true` otherwise | Whether to register the editor. See [Keep it out of production](#keep-it-out-of-production). |
 
 With react-wordgard, add the plugin to the `config` you pass to `<WordgardEditor>`.
 
@@ -190,11 +191,12 @@ The document as represented by a tree of nested boxes, each box being a [plots](
 
 Tips:
 
-- Click a box for its detail and JSON; Escape clears it.
+- Click a box for its detail and JSON in the Node pane; Escape clears it. Close the pane with its ×; the Node button, or a double-click on a box, opens it again (a double-click also scrolls the editor to the node).
 - Right-click a box for more actions.
 - Use the pick button, then click in the page, to find a node.
 - In the page's console, `$wg` is the editor the panel shows.
-- Decorations shows the editor's [decorations](https://wordgard.net/docs/ref/#editor.Decoration): ◆ marks a widget, ◇ 2 a node with two decorations.
+- Decorations shows the editor's [decorations](https://wordgard.net/docs/ref/#editor.Decoration): ◆ marks a widget, ◇ 2 a node with two decorations, and a dotted underline the part of a text a range decorates. Click a box for what each adds.
+- Decorations opens a pane beside the node's: the selected node's decorations (else the document's), the count, which lists every decoration by source (pick one to go to its node), and arrows that step through the nodes that have any. Close it, or press Escape in it, to turn decorations off.
 - By default a range decoration applies to the text in its range, not the paragraph around it; a point decoration to the node starting at it.
 
 ### Selection
@@ -230,13 +232,12 @@ Tips:
 The editor's [content DOM](https://wordgard.net/docs/ref/#editor.Wordgard.contentDOM): the editable DOM element holding the editor content. Each element shows the document node it draws; text shows its position.
 
 - Elements that draw no node (widgets, decorations) are marked as chrome.
-- The status line says whether the editor is connected, editable, focused or composing.
+- Whether the editor is connected, editable, focused or composing: the bottom bar's Editor.
 
 Tips:
 
 - Click an element to outline it in the page; Escape clears it.
 - Right-click an element to show its node in the Structure, log it, or log or copy its outer HTML.
-- Hover a status label for more.
 
 ### Schema
 
@@ -266,6 +267,7 @@ Each [`GardState.Field`](https://wordgard.net/docs/ref/#state.GardState.Field): 
 Tips:
 
 - Name unnamed fields ("field #n") with `wordgardDevtools({fields: {name: field}})`.
+- Search filters the fields by name or by value, the whole value, not just its preview.
 - Expand a change to see its value; right-click to log or copy it.
 - For a [`PointSet` or `RangeSet`](https://wordgard.net/docs/ref/#set), click a position to show its node in the Structure.
 - Amber "kept, not mapped": the set wasn't mapped through a change that moved it; usually a missing `set.map(tr.changes)`.
@@ -275,21 +277,19 @@ Tips:
 
 ![The Extensions tab](docs/screenshots/extensions.png)
 
-The editor's [configuration](https://wordgard.net/docs/ref/#state.GardState.Extension), nested as the app wrote it: arrays, [precedence](https://wordgard.net/docs/ref/#state.GardState.prec), [compartments](https://wordgard.net/docs/ref/#state.GardState.Compartment), [state fields](https://wordgard.net/docs/ref/#state.GardState.Field) and [facet](https://wordgard.net/docs/ref/#state.GardState.Facet) values, and objects carrying an `extension`.
+The editor's [configuration](https://wordgard.net/docs/ref/#state.GardState.Extension) as Wordgard resolves it: what it keeps, at which [precedence](https://wordgard.net/docs/ref/#state.GardState.prec), and in which order each [facet](https://wordgard.net/docs/ref/#state.GardState.Facet) gets its values.
 
-- Each row says the precedence it applies at: a precedence wrapper sets it for what it holds; what a field provides inherits the field's; what a facet enables applies at default precedence.
-- Wordgard keeps one occurrence of an extension used twice: the one at the highest precedence, the first among equals. The others show as `duplicate`.
-- A compartment shows its current content: what a reconfigure put there, if any.
-- Facets have no names: those Wordgard exports are named (`Wordgard.updateListener`, `Decoration.Point.source`), the others numbered (`facet #n`), Wordgard's own internal ones among them.
-- When the editor's text direction disagrees with the state's, Wordgard adds a compartment of its own, at highest precedence, holding `GardState.textLTR`.
+- Extensions: the configuration, nested as the app wrote it.
+- Details: the selected extension, its value in the current state, and its place among its facet's values.
+- Key bindings: the editor's [key bindings](https://wordgard.net/docs/ref/#editor.KeyBinding), in the order Wordgard tries them.
 
 Tips:
 
-- Select a row to see its value now: a field's, or the resolved value of a facet Wordgard exports (on its first row).
-- Log a row to the console to jump to its definition; log a facet's value to see what Wordgard combined.
-- Show a field in the Fields tab; a decoration source lists its decorations, each a link to the Structure.
-- Name unnamed fields with `wordgardDevtools({fields: {name: field}})`.
-- Key bindings lists the editor's [key bindings](https://wordgard.net/docs/ref/#editor.KeyBinding) in the order Wordgard tries them, the default keymap last; search by key, command or description, and log a command to jump to it.
+- Click a row to select it; double-click it, or click the + button, to open its details.
+- Click the keyboard button to open the key bindings.
+- Click "By facet" to list each facet with its values in the order Wordgard gives them.
+- Name what shows as `facet #n` or `compartment #n` with `wordgardDevtools({names: {name: value}})`, or a plain `{name: "spellcheck", extension}` object.
+- Right-click a row, the details or a key binding (or Shift+F10) to log it to the console, show it in Fields or copy it.
 
 ### Log
 
@@ -304,7 +304,7 @@ Recorded [transactions](https://wordgard.net/docs/ref/#state.Transaction). For e
 Tips:
 
 - Press Record, then use the editor.
-- Filter by user event, what changed or annotation; sort by any timing column.
+- Filter by user event, what changed or annotation; sort by any column.
 - Right-click a row to log the transaction or copy it as JSON or text; right-click a part of its detail to log or copy that part.
 - Copy as repro copies a Node script that replays the transactions on plain Wordgard, from the state before the oldest, and checks the document it ends with: a bug report's schema, document and steps. Its header says what it leaves out.
 - Untick record select.pointer to leave out selections made with the pointer, and record focus to leave out focus changes.

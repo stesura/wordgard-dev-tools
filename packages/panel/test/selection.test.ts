@@ -129,6 +129,20 @@ it("resolves the anchor and head of a range, and any position", async () => {
   await until(() => tab("Selection")?.getAttribute("aria-selected") == "true");
 });
 
+it("resolves positions in a resizable pane, beside the selection when wide, under it when narrow", async () => {
+  await setup();
+  const resolved = await until(() =>
+    panel()?.querySelector<HTMLElement>("aside[aria-label='Resolved positions']")
+  );
+  await until(() => resolved.querySelector("[data-section='Cursor']"));
+  expect(resolved.querySelector("[aria-label='Position to resolve']")).not.toBeNull();
+  expect(resolved.contains(card("Selection") ?? null)).toBe(false);
+  const handle = panel()?.querySelector("[data-slot='resizable-handle']");
+  const wide = (panel()?.clientWidth ?? 0) >= 768;
+  // A vertical handle sits between panes side by side.
+  expect(handle?.getAttribute("aria-orientation")).toBe(wide ? "vertical" : "horizontal");
+});
+
 it("links its nodes to the Structure and their types to the Schema", async () => {
   await setup();
   const cursor = await until(() => card("Cursor", 1));
@@ -235,4 +249,25 @@ it("gives each card its guide, the Selection card's explaining selections", asyn
       ?.textContent?.includes("A node selection covers one node")
   );
   expect(guide.hasAttribute("data-popup-open")).toBe(true);
+});
+
+it("shows the node holding the selection, from its bar or its card's menu", async () => {
+  await setup();
+  const selected = () =>
+    shadow().querySelector("[aria-label='Document structure'] [aria-selected='true']");
+  // The cursor at 1: in the first paragraph.
+  (
+    await until(() =>
+      panel()?.querySelector<HTMLButtonElement>(
+        "[aria-label='Show the node holding the selection']:not(:disabled)"
+      )
+    )
+  ).click();
+  await until(() => tab("Structure")?.getAttribute("aria-selected") == "true");
+  await until(() => selected()?.getAttribute("data-path") == "0");
+
+  (await until(() => tab("Selection"))).click();
+  rightClick(await until(() => card("Selection")));
+  (await until(() => item("Show the node holding the selection"))).click();
+  await until(() => tab("Structure")?.getAttribute("aria-selected") == "true");
 });

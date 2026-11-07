@@ -32,6 +32,8 @@ export const SELECTION_JSON = guide("selection-json");
 export const SELECTION_SLICE = guide("selection-slice");
 /** The bar under every tab: the selection at a glance. */
 export const SELECTION_BAR = guide("selection-bar");
+/** The same bar's Editor: the view's status. */
+export const EDITOR_BAR = guide("editor-bar");
 export const RESOLVED_POSITIONS = guide("resolved-positions");
 /** The Log's filter bar. */
 export const LOG_FILTERS = guide("log-filters");
@@ -47,3 +49,8 @@ export const SCHEMA_GROUPS = guide("schema-groups");
 export const SPEC_EFFECTIVE_NODE = guide("spec-effective-node");
 /** The Schema's JSON pane, on a mark type. */
 export const SPEC_EFFECTIVE_MARK = guide("spec-effective-mark");
+/** The Extensions tab's tree, and its details pane. */
+export const EXTENSIONS_TREE = guide("extensions-tree");
+export const EXTENSION_DETAIL = guide("extension-detail");
+/** The Extensions tab's Key bindings pane: its columns, and using the table. */
+export const KEY_BINDINGS = guide("key-bindings");

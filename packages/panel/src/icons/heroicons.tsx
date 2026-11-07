@@ -24,6 +24,13 @@ export const ArrowDownTrayIcon = icon(
   </>
 );
 
+export const ArrowTopRightOnSquareIcon = icon(
+  <>
+    <path d="M6.22 8.72a.75.75 0 0 0 1.06 1.06l5.22-5.22v1.69a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5a.75.75 0 0 0 0 1.5h1.69L6.22 8.72Z" />
+    <path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 0 0 7 4H4.75A2.75 2.75 0 0 0 2 6.75v4.5A2.75 2.75 0 0 0 4.75 14h4.5A2.75 2.75 0 0 0 12 11.25V9a.75.75 0 0 0-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5Z" />
+  </>
+);
+
 export const ArrowUpLeftIcon = icon(
   <path
     fillRule="evenodd"
@@ -191,6 +198,14 @@ export const PauseIcon = icon(
 
 export const PlayIcon = icon(
   <path d="M3 3.732a1.5 1.5 0 0 1 2.305-1.265l6.706 4.267a1.5 1.5 0 0 1 0 2.531l-6.706 4.268A1.5 1.5 0 0 1 3 12.267V3.732Z" />
+);
+
+export const PlusCircleIcon = icon(
+  <path
+    fillRule="evenodd"
+    d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0v2.5h-2.5a.75.75 0 0 0 0 1.5h2.5v2.5a.75.75 0 0 0 1.5 0v-2.5h2.5a.75.75 0 0 0 0-1.5h-2.5v-2.5Z"
+    clipRule="evenodd"
+  />
 );
 
 export const QuestionMarkCircleIcon = icon(

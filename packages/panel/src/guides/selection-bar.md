@@ -6,4 +6,4 @@ The selected editor's [selection](https://wordgard.net/docs/ref/#state.GardSelec
 
 ## Tips
 
-- The buttons show the node holding the head in the Structure, log the selection to the console, or copy its JSON.
+- Click Selection for the Selection tab: there, show the node holding the selection, log it or copy its JSON.

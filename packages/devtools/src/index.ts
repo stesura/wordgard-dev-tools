@@ -6,6 +6,7 @@ export {
   ensureRegistry,
   type Agent,
   type Entry,
+  type NamedExtensions,
   type NamedFields,
   type Registry,
 } from "./registry.ts";

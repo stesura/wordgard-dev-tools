@@ -1,5 +1,10 @@
 import { cn } from "cn";
-import { ClipboardDocumentIcon, CommandLineIcon, XMarkIcon } from "#icons";
+import {
+  ArrowTopRightOnSquareIcon,
+  ClipboardDocumentIcon,
+  CommandLineIcon,
+  XMarkIcon,
+} from "#icons";
 import type { ReactNode } from "react";
 import type {
   MarkPreview,
@@ -68,7 +73,13 @@ export const Marks = ({ marks, links }: { marks: MarkPreview[]; links: Links }) 
 
 /** A card's menu: log the live object in the page's console, copy its JSON (null: too large to
  * send), clear (the typed position). */
-type CardMenu = { onLog: () => void; copied: (() => string) | null; onClear?: () => void };
+type CardMenu = {
+  onLog: () => void;
+  copied: (() => string) | null;
+  onClear?: () => void;
+  /** Shows the node holding the selection in the Structure. */
+  onShowNode?: () => void;
+};
 
 /** A card, with its context menu (focusable: Shift+F10 opens it too). `code`: the expression
  * giving what it shows. `fixed`: a set height, its content scrolling, so a change in it doesn't
@@ -101,7 +112,7 @@ export const Section = ({
             tabIndex={0}
             className={cn(
               "flex min-w-0 flex-col rounded-md border px-2 py-1 outline-none focus-visible:ring-1 focus-visible:ring-ring",
-              fixed && "h-44"
+              fixed && "h-32"
             )}
           />
         }
@@ -113,8 +124,13 @@ export const Section = ({
         </div>
         <div className={cn(fixed && "min-h-0 flex-1 overflow-auto")}>{children}</div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
+      <ContextMenuContent className="w-auto min-w-48">
         <CopySelection text={selection} />
+        {menu.onShowNode && (
+          <ContextMenuItem onClick={menu.onShowNode}>
+            <ArrowTopRightOnSquareIcon /> Show the node holding the selection
+          </ContextMenuItem>
+        )}
         <ContextMenuItem onClick={menu.onLog}>
           <CommandLineIcon /> Log to console
         </ContextMenuItem>

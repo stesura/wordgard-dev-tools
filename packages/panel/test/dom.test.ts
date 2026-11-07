@@ -59,11 +59,8 @@ const setup = async () => {
   return wg;
 };
 
-it("shows the view's status and its DOM, mapped to the document, live", async () => {
+it("shows the view's DOM, mapped to the document, live", async () => {
   const editor = await setup();
-  expect(shadow().querySelector("[aria-label='DOM status']")?.textContent).toContain(
-    "root:document"
-  );
   expect(line("")?.textContent).toContain("<wg-content");
   expect(line("0")?.textContent).toMatch(/<h1.*>Heading 0–7/);
   expect(line("0.0")?.textContent).toBe('"Title"pos 1');

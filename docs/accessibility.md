@@ -7,15 +7,15 @@ conventions the panel follows, so new code keeps to them, and what is still to d
 
 Every tab can be used without a mouse. One Tab stop per list; the arrows move inside it.
 
-| Where                       | Keys                                                                                                                                                                                                                                   |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Any tab with a search box   | Ctrl+F (Cmd+F) goes to the search, from anywhere in the tab. Enter and Shift+Enter step through the matches; Escape clears.                                                                                                            |
-| Any list with a menu        | Shift+F10 or the Menu key opens the focused item's context menu.                                                                                                                                                                       |
-| Structure, DOM, State trees | ↑ ↓ previous and next visible item; → opens, or goes to the first child; ← closes, or goes to the parent; Home and End. Structure: Enter scrolls the node into view in the editor, Escape clears the selection. State: Ctrl+A, Ctrl+C. |
-| Schema cards                | Tab and ↑ ↓ go from card to card, across the sections; Home and End; → and ← move through a card's links and tags; Enter on a card shows its JSON; Escape closes the JSON (in the filter: clears it first).                            |
-| Extensions                  | The tree: as the trees above; Escape clears the selection. Key bindings: one Tab stop in the table, ↑ ↓ Home End between its rows' log buttons.                                                                                        |
-| Log                         | ↑ ↓ between transactions, Home and End. A jump to the Log ("Show #N in Log") focuses the list.                                                                                                                                         |
-| Fields                      | The list: ↑ ↓ Home End pick a field. The history (a tree): ↑ ↓ Home End between changes; Enter or Space opens and closes one; → opens it, then steps through its links; ← steps back, then closes. Tab to the value for its menu.      |
+| Where                       | Keys                                                                                                                                                                                                                                                                 |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Any tab with a search box   | Ctrl+F (Cmd+F) goes to the search, from anywhere in the tab. Enter and Shift+Enter step through the matches; Escape clears.                                                                                                                                          |
+| Any list with a menu        | Shift+F10 or the Menu key opens the focused item's context menu.                                                                                                                                                                                                     |
+| Structure, DOM, State trees | ↑ ↓ previous and next visible item; → opens, or goes to the first child; ← closes, or goes to the parent; Home and End. Structure: Enter scrolls the node into view in the editor, Escape clears the selection. State: Ctrl+A, Ctrl+C.                               |
+| Schema cards                | Tab and ↑ ↓ go from card to card, across the sections; Home and End; → and ← move through a card's links and tags; Enter on a card shows its JSON; Escape closes the JSON (in the filter: clears it first).                                                          |
+| Extensions                  | The tree: as the trees above; Escape clears the selection. Tab to the pane for its menu. Key bindings pane: one Tab stop in the table, ↑ ↓ Home End select a row, Enter opens its menu; Escape closes it (in the search: clears it first), focus back on its button. |
+| Log                         | ↑ ↓ between transactions, Home and End. A jump to the Log ("Show #N in Log") focuses the list.                                                                                                                                                                       |
+| Fields                      | The list: ↑ ↓ Home End pick a field. The history (a tree): ↑ ↓ Home End between changes; Enter or Space opens and closes one; → opens it, then steps through its links; ← steps back, then closes. Tab to the value for its menu.                                    |
 
 - Trees follow the [WAI-ARIA tree pattern](https://www.w3.org/WAI/ARIA/apg/patterns/treeview/).
   Virtualized lists (DOM, State, Log) keep focus on the list and point at the active row with
@@ -39,9 +39,9 @@ Every tab can be used without a mouse. One Tab stop per list; the arrows move in
   an outline (`focus-visible:outline-2 focus-visible:outline-offset-2 …`), so focus on a card
   shows apart from focus on a link inside it.
 - A selected row's `bg-accent` is 1.1:1 on the background: never the only sign of the selection.
-- Pressed text toggles (`aria-pressed`: the Structure's and the Log's Decorations, the Extensions
-  view switch): a 2px bar under them besides the tint
-  (`aria-pressed:shadow-[inset_0_-2px_0_var(--color-ring)]`).
+- Pressed text toggles (`aria-pressed`: the Log's Decorations, the Extensions view switch): a 2px
+  bar under them besides the tint (`aria-pressed:shadow-[inset_0_-2px_0_var(--color-ring)]`). The
+  Structure's Decorations: the decorations' gradient and a check.
 - Virtualized trees give each item `aria-posinset` and `aria-setsize` (not every row is in the DOM):
   `withSiblings` in `lib/siblings.ts`. The State's closing brackets aren't counted (an object's
   keys are its children); each takes its opening's numbers.
@@ -87,6 +87,7 @@ Check with Playwright: `browser.newContext({ forcedColors: "active", colorScheme
 - The current search match: a 2px outline, besides the stronger tint; other matches a dashed outline
   in forced colours.
 - The Log timeline's selected bar: a mark under it; slow bars rise above the dashed threshold line.
+- The Structure's decorated text: a dotted underline besides the violet tint.
 
 ## Targets
 

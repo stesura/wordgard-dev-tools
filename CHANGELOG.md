@@ -10,6 +10,8 @@ The panel lists every connected editor on the page, iframes included, and finds 
 
 Its tabs show the document's structure, the selection, the state, the rendered DOM, the schema, the state fields, the extensions as Wordgard resolves them, and a log of transactions and decoration flushes with their timing.
 
+The Extensions tab lists each facet's values in the order Wordgard gives them, by precedence, and names facets, compartments and other extensions from the `names` option or a `{name, extension}` object.
+
 A recorded log copies as a Node script that replays it on plain Wordgard.
 
 In production builds both calls do nothing unless `enabled` is set, and the panel downloads nothing.

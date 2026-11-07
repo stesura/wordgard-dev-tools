@@ -1,16 +1,30 @@
 import { expect, it } from "vitest";
-import type { ExtensionNode } from "@stesura/wordgard-dev-tools";
-import { ancestorsOf, folders, linesOf, nodeAt, pathOfId, search } from "../extension-tree.ts";
+import type { ExtensionNode, ExtensionsInfo } from "@stesura/wordgard-dev-tools";
+import {
+  ancestorsOf,
+  facetsIdOf,
+  facetsTree,
+  folders,
+  linesOf,
+  nodeAt,
+  pathOfId,
+  search,
+} from "../extension-tree.ts";
 
-const node = (label: string, children: ExtensionNode[] = [], value: string | null = null) => ({
-  kind: "group" as const,
+const node = (
+  label: string,
+  children: ExtensionNode[] = [],
+  value: string | null = null
+): ExtensionNode => ({
+  kind: "group",
   label,
-  prec: "default" as const,
+  prec: "default",
   value,
   duplicate: false,
   field: null,
   source: null,
   facet: null,
+  order: null,
   children,
   more: 0,
 });
@@ -47,4 +61,34 @@ it("finds folders, nodes, matches and ancestors", () => {
   expect(ancestorsOf("1.0.2")).toEqual(["1", "1.0"]);
   expect(pathOfId("1.0")).toEqual([1, 0]);
   expect(pathOfId("")).toEqual([]);
+});
+
+it("regroups the rows by facet, each row standing for the tree's", () => {
+  const info: ExtensionsInfo = {
+    root,
+    count: 6,
+    capped: false,
+    facets: [
+      {
+        label: "Wordgard.updateListener",
+        wordgard: "Wordgard.updateListener",
+        values: [
+          { path: [1, 0], prec: "high", value: "ƒ b", from: "Feature" },
+          { path: [0, 1], prec: "default", value: "ƒ a", from: "" },
+        ],
+      },
+    ],
+  };
+  const tree = facetsTree(info);
+  expect(facetsTree(info)).toBe(tree);
+  expect(linesOf(tree.root, new Set()).map((l) => [l.id, l.node.label, l.node.value])).toEqual([
+    ["0", "Wordgard.updateListener", "2 values"],
+    ["0.0", "#1", "ƒ b · in Feature"],
+    ["0.1", "#2", "ƒ a"],
+  ]);
+  expect(tree.real.get("0")).toBe("1.0");
+  expect(tree.real.get("0.1")).toBe("0.1");
+  expect(facetsIdOf(tree, "0.1")).toBe("0.1");
+  expect(facetsIdOf(tree, "1.0")).toBe("0.0");
+  expect(facetsIdOf(tree, "2")).toBeNull();
 });

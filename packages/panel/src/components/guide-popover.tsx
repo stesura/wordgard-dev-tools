@@ -14,9 +14,18 @@ import { usePanelSettings } from "./panel-settings.tsx";
 
 const LINK = /^\[([^\]]+)\]\(([^)]+)\)$/;
 
-/** A guide's text: `code` spans and [links](href), as markdown (the README renders the same text). */
+/**
+ * A guide's text: `code` spans, **bold** (around a link too) and [links](href), as markdown (the
+ * README renders the same text).
+ */
 const Text = ({ text }: { text: string }) =>
-  text.split(/(`[^`]+`|\[[^\]]+\]\([^)]+\))/).map((part, i) => {
+  text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/).map((part, i) => {
+    if (part.length > 4 && part.startsWith("**") && part.endsWith("**"))
+      return (
+        <strong key={i} className="font-semibold">
+          <Text text={part.slice(2, -2)} />
+        </strong>
+      );
     const link = LINK.exec(part);
     if (link) {
       return (

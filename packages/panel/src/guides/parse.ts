@@ -1,7 +1,7 @@
 // A guide's markdown: `# Title`, one paragraph (the summary), an optional list (the notes: what it
 // shows, in Wordgard's terms), then an optional `## Tips` heading and list (how to use the panel:
-// clicks, right-clicks, toolbars). Inline, only `code` and [links](url), which is all the panel
-// renders. Shared with `scripts/readme.ts`, so plain TypeScript with no imports: Node runs it.
+// clicks, right-clicks, toolbars). Inline, only `code`, **bold** and [links](url), which is all the
+// panel renders. Shared with `scripts/readme.ts`, so plain TypeScript with no imports: Node runs it.
 export type Guide = {
   title: string;
   /** What it shows. */
@@ -12,7 +12,9 @@ export type Guide = {
   tips: string[];
 };
 
-const UNSUPPORTED = /\*\*|__|<\/?[a-z][^>]*>|!\[/i;
+const UNSUPPORTED = /__|<\/?[a-z][^>]*>|!\[/i;
+/** Bold spans; a `**` left once they're taken out is unclosed. */
+const BOLD = /\*\*[^*]+\*\*/g;
 const TIPS = "## Tips";
 
 /** Throws on anything else, naming `name`: a guide the panel can't show must fail the build's tests. */
@@ -48,7 +50,7 @@ export const parseGuide = (text: string, name = "guide"): Guide => {
   }
   if (rest.length) return fail(`after the summary: a list of notes, then ${TIPS} and a list`);
   const all = [title, summary, ...notes, ...tips];
-  if (all.some((part) => UNSUPPORTED.test(part)))
-    return fail("only `code` and [links](url) are rendered");
+  if (all.some((part) => UNSUPPORTED.test(part) || part.replace(BOLD, "").includes("**")))
+    return fail("only `code`, **bold** and [links](url) are rendered");
   return { title, summary: summary.split("\n").join(" "), notes, tips };
 };

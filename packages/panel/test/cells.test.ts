@@ -79,7 +79,6 @@ it("shows a cell selection's anchor and head cells in the bar", async () => {
   expect(shown.textContent).toContain("type: cell");
   expect(shown.textContent).toContain(`anchorCell: ${d}`);
   expect(shown.textContent).toContain(`headCell: ${b}`);
-  expect(shown.querySelector("[aria-label='Show the head cell in the Structure']")).not.toBeNull();
 });
 
 it("lists the cells in the Selection tab", async () => {
@@ -91,6 +90,15 @@ it("lists the cells in the Selection tab", async () => {
   expect(card.textContent).toContain(`anchorCell${d}[0, 1, 1]`);
   expect(card.textContent).toContain(`headCell${b}[0, 0, 1]`);
   expect(card.textContent).toContain("cells[0, 0, 1][0, 1, 1]");
+  // The node holding a cell selection: its head cell.
+  shadow()
+    .querySelector<HTMLButtonElement>("[aria-label='Show the node holding the selection']")
+    ?.click();
+  await until(() =>
+    shadow().querySelector(
+      "[aria-label='Document structure'] [data-path='0.0.1'][aria-selected='true']"
+    )
+  );
 });
 
 it("marks the selected cells in the Structure", async () => {

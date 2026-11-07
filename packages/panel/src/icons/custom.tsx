@@ -24,3 +24,12 @@ export const ChevronDownUpIcon = icon(
     <path fillRule="evenodd" d={chevronUp} clipRule="evenodd" transform="translate(0 8)" />
   </>
 );
+
+// A keyboard: a frame, four keys and a space bar cut out.
+export const KeyboardIcon = icon(
+  <path
+    fillRule="evenodd"
+    d="M2.5 3.5h11A1.5 1.5 0 0 1 15 5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 11V5a1.5 1.5 0 0 1 1.5-1.5ZM3.5 5.5V7H5V5.5H3.5Zm2.5 0V7h1.5V5.5H6Zm2.5 0V7H10V5.5H8.5Zm2.5 0V7h1.5V5.5H11ZM5 9v1.5h6V9H5Z"
+    clipRule="evenodd"
+  />
+);

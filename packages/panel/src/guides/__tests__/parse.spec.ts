@@ -47,7 +47,9 @@ it("refuses what the panel can't show", () => {
   expect(() => parseGuide(md("# T", "", "S", "", "## Tips", "", "- t", "", "- u"))).toThrow(
     "after the summary"
   );
-  expect(() => parseGuide(md("# T", "", "A **bold** word", "", "- tip"))).toThrow("only `code`");
+  expect(parseGuide(md("# T", "", "A **bold** word")).summary).toBe("A **bold** word");
+  expect(() => parseGuide(md("# T", "", "A **bold word", "", "- tip"))).toThrow("only `code`");
+  expect(() => parseGuide(md("# T", "", "A <b>bold</b> word"))).toThrow("only `code`");
   expect(() => parseGuide(md("# T", "", "Summary", "", "- tip", "  - nested"))).toThrow(
     "no nested"
   );

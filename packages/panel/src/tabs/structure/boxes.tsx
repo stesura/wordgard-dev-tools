@@ -75,46 +75,72 @@ const Content = ({
   );
 };
 
-/** Longer texts aren't split at their widgets. */
+/** Longer texts show their preview: widgets and decorated parts are drawn within it, the rest after. */
 const LONG_TEXT = 200;
 
 /** Widgets between the node's children (or in it, when it has none). */
 const hasWidgets = (node: StructureNode, index: DecorationIndex | null) =>
   index?.widgets.get(pathKey(node.path))?.some((w) => w.offset == null) ?? false;
 
-/** A text leaf's text, with the widgets inside it at their offsets. */
+// The characters a range decorates: a tint, and (not by colour alone) a dotted underline, which
+// forced colours keep.
+const decoratedText =
+  "bg-violet-500/15 underline decoration-violet-600 decoration-dotted underline-offset-2 dark:decoration-violet-400";
+
+/**
+ * A text leaf's text, with the widgets inside it at their offsets and the parts that ranges
+ * decorate marked.
+ */
 const TextWithWidgets = ({ node, marks }: { node: StructureNode; marks: Marks }) => {
   const index = marks.decorations;
-  const inside = (index?.widgets.get(pathKey(node.path)) ?? []).filter((w) => w.offset != null);
+  const key = pathKey(node.path);
+  const inside = (index?.widgets.get(key) ?? []).filter((w) => w.offset != null);
+  const parts = index?.parts.get(key) ?? [];
   const text = node.text;
-  if (!index || !inside.length || text == null)
+  if (!index || (!inside.length && !parts.length) || text == null)
     return <span className="whitespace-pre">{json(node.textPreview)}</span>;
-  // A long text stays truncated: its widgets follow it.
-  if (text.length > LONG_TEXT)
-    return (
-      <span className="whitespace-pre">
-        {json(node.textPreview)}
-        {inside.map((w, i) => (
-          <WidgetChip key={i} item={w} index={index} />
-        ))}
-      </span>
-    );
-  const cuts = [...new Set(inside.map((w) => w.offset ?? 0))].toSorted((a, b) => a - b);
-  const pieces = [0, ...cuts].map((start, i) => text.slice(start, cuts[i] ?? text.length));
+  // A long text stays truncated (its preview): what lies past it follows the "…".
+  const long = text.length > LONG_TEXT;
+  const shown = long ? text.slice(0, Math.max(0, (node.textPreview ?? "").length - 1)) : text;
+  const within = inside.filter((w) => (w.offset ?? 0) < shown.length);
+  const past = inside.filter((w) => (w.offset ?? 0) >= shown.length);
+  const cuts = [
+    ...new Set([
+      0,
+      ...within.map((w) => w.offset ?? 0),
+      ...parts.flatMap(({ from, to }) => [from, to]),
+    ]),
+  ]
+    .filter((at) => at >= 0 && at < shown.length)
+    .toSorted((a, b) => a - b);
   const quoted = (piece: string) => JSON.stringify(piece).slice(1, -1);
   return (
     <span className="whitespace-pre">
       &quot;
-      {pieces.map((piece, i) => (
-        <span key={i}>
-          {i > 0 &&
-            inside
-              .filter((w) => w.offset == cuts[i - 1])
-              .map((w, j) => <WidgetChip key={j} item={w} index={index} />)}
-          {quoted(piece)}
-        </span>
-      ))}
+      {cuts.map((start, i) => {
+        const end = cuts[i + 1] ?? shown.length;
+        const decorated = parts.some(({ from, to }) => from <= start && to >= end);
+        return (
+          <span key={start}>
+            {within
+              .filter((w) => w.offset == start)
+              .map((w, j) => (
+                <WidgetChip key={j} item={w} index={index} />
+              ))}
+            <span
+              data-decorated={decorated || undefined}
+              className={cn(decorated && decoratedText)}
+            >
+              {quoted(shown.slice(start, end))}
+            </span>
+          </span>
+        );
+      })}
+      {long && "…"}
       &quot;
+      {past.map((w, i) => (
+        <WidgetChip key={i} item={w} index={index} />
+      ))}
     </span>
   );
 };
@@ -173,7 +199,7 @@ const Chip = ({ node, marks }: { node: StructureNode; marks: Marks }) => {
       className={cn(
         "mr-1 mb-1 inline-flex cursor-default flex-wrap items-center gap-1 rounded border px-1 align-top",
         itemFocus,
-        node.name == "Text" && "border-r-2 border-r-slate-400 dark:border-r-slate-500",
+        node.name == "Text" && "border-l-2 border-l-slate-400 dark:border-l-slate-500",
         props["data-selection"] == "innermost" && "border-primary",
         matchClass(itemId(node.path), marks)
       )}

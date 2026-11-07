@@ -1,7 +1,7 @@
 // The wire protocol between the panel and the page agent. Everything here is
 // structured-cloneable: it crosses `postMessage` in the extension.
 
-export const PROTOCOL = 3;
+export const PROTOCOL = 4;
 export const SOURCE = "wordgard-devtools";
 
 /** Child indices from the document down to a node. `[]` is the document. */
@@ -457,6 +457,9 @@ export type DecorationKind =
   | "range wrapper"
   | "decoration";
 
+/** Part of a text leaf: `from` and `to` are offsets into its text. */
+export type TextPart = { path: Path; from: number; to: number };
+
 export type DecorationInfo = {
   source: number;
   /** Its place in its source's set, for `logDecoration`. */
@@ -472,10 +475,13 @@ export type DecorationInfo = {
   /** The node holding its position (a range's start); null outside the document. */
   at: Path | null;
   /**
-   * The nodes it applies to, as Wordgard draws them: a point's node starting at it, a range's
-   * nodes starting in it that its scope and query admit (capped). None for a widget.
+   * The nodes it applies to, as Wordgard draws them: a point's node starting at it; a range's
+   * nodes starting in it, and text leaves it overlaps, that its scope and query admit (capped).
+   * None for a widget.
    */
   paths: Path[];
+  /** A range's text leaves (also in `paths`): the part it decorates, as offsets into the text. */
+  parts: TextPart[];
   /** A widget inside a text leaf: the offset into its text. */
   offset: number | null;
   /** Why it applies to no node, or less than it seems. */
@@ -518,12 +524,31 @@ export type ExtensionNode = {
   field: number | null;
   /** A static decoration source's index, as the `decorations` request numbers sources. */
   source: number | null;
-  /** The first row providing a facet Wordgard exports: its resolved value is in `extension`. */
+  /** The first row providing a facet Wordgard exports or the app names: its resolved value is in `extension`. */
   facet: string | null;
+  /** A kept facet value's place among its facet's: `ExtensionsInfo.facets[facet].values[index]`. */
+  order: { facet: number; index: number; of: number } | null;
   children: ExtensionNode[];
   /** Children left out past the size cap. */
   more: number;
 };
+
+/** A facet value, in the order Wordgard gives the facet its values. */
+export type FacetValue = {
+  /** Its row in the tree, by child indices. */
+  path: Path;
+  prec: Precedence;
+  /** Its row's value. */
+  value: string | null;
+  /** The rows holding it, outermost first, unnamed arrays left out: "high › compartment #1". */
+  from: string;
+};
+
+/**
+ * A facet and its values, by precedence, then in configuration order. `wordgard`: its name when
+ * Wordgard exports it (the label may be the app's).
+ */
+export type FacetOrder = { label: string; wordgard: string | null; values: FacetValue[] };
 
 export type ExtensionsInfo = {
   root: ExtensionNode;
@@ -531,6 +556,8 @@ export type ExtensionsInfo = {
   count: number;
   /** Some were left out (see each node's `more`). */
   capped: boolean;
+  /** The facets with values in the tree: named ones by name, then numbered ones by number. */
+  facets: FacetOrder[];
 };
 
 /** A row's values in the current state. */
@@ -615,16 +642,19 @@ export type ViewNode = {
   children: ViewNode[];
 };
 
+/** The editor's view: where it lives, whether it's drawn, editable, focused, composing. */
+export type EditorStatus = {
+  connected: boolean;
+  editable: boolean;
+  focusable: boolean;
+  focused: boolean;
+  composing: boolean;
+  compositionStarted: boolean | null;
+  root: "document" | "shadow root";
+};
+
 export type ViewInfo = {
-  status: {
-    connected: boolean;
-    editable: boolean;
-    focusable: boolean;
-    focused: boolean;
-    composing: boolean;
-    compositionStarted: boolean | null;
-    root: "document" | "shadow root";
-  };
+  status: EditorStatus;
   /** The content element (`contentDOM`). */
   dom: ViewNode;
 };
@@ -648,6 +678,8 @@ export type Requests = {
   schema: { id: number };
   /** The editor's view: its status and its content's DOM. */
   view: { id: number };
+  /** The view's status alone (`view` without its DOM), for the panel's bottom bar. */
+  status: { id: number };
   /** Logs the editor (the `Wordgard` instance) in the page's console. */
   logEditor: { id: number };
   /** Logs the DOM element drawing a node, or its nearest ancestor's, in the page's console. */
@@ -688,6 +720,8 @@ export type Requests = {
   logField: { id: number; index: number; seq?: number; history?: boolean };
   /** Forgets the changes seen to a field, or to every field without `index`. */
   clearFieldHistory: { id: number; index?: number };
+  /** The fields whose name or value (its JSON, as `field` sends it) holds `query`, ignoring case. */
+  findFields: { id: number; query: string };
   /** Logs a node or mark type in the page's console, or with `json` its spec as the Schema tab shows
    * it; a group, its data. */
   logType: { id: number; kind: "node" | "mark" | "group"; name: string; json?: boolean };
@@ -743,6 +777,7 @@ export type Results = {
   structure: StructureNode;
   schema: SchemaInfo;
   view: ViewInfo;
+  status: EditorStatus;
   viewElement: null;
   viewHTML: string;
   selection: SelectionInfo;
@@ -764,6 +799,7 @@ export type Results = {
   fieldChange: FieldChangeDetail;
   logField: null;
   clearFieldHistory: null;
+  findFields: number[];
   logType: null;
   watchFields: null;
   record: null;

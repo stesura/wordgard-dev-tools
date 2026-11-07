@@ -5,6 +5,7 @@ import type {
   Push,
   Request,
   SelectionInfo,
+  EditorStatus,
 } from "@stesura/wordgard-dev-tools";
 import type { ColourKind } from "#lib/colours.ts";
 import { fire, type Transport } from "../transport.ts";
@@ -34,6 +35,8 @@ export type PanelState = {
   selected: number | null;
   /** The selected editor's selection. */
   selection: { id: number; info: SelectionInfo } | null;
+  /** The selected editor's view status (the bottom bar's Editor), loaded with the selection. */
+  status: { id: number; info: EditorStatus } | null;
   error: string | null;
   /** Problems with some frames, from the transport. */
   notices: string[];
@@ -99,6 +102,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     editors: [],
     selected: null,
     selection: null,
+    status: null,
     error: null,
     notices: [],
     picking: false,
@@ -148,17 +152,24 @@ export const createPanelStore = (transport: Transport): PanelStore => {
     const mine = ++selectionRun;
     const id = state.selected;
     if (id == null) {
-      set({ selection: null });
+      set({ selection: null, status: null });
       return;
     }
-    const info = await transport.send({ type: "selection", id });
+    const [info, status] = await Promise.all([
+      transport.send({ type: "selection", id }),
+      transport.send({ type: "status", id }),
+    ]);
     if (current(at) && mine == selectionRun && id == state.selected)
-      set({ selection: { id, info }, error: null });
+      set({ selection: { id, info }, status: { id, info: status }, error: null });
   };
 
   const attach = async (id: number | null) => {
     const at = run;
-    set({ selected: id, selection: state.selection?.id == id ? state.selection : null });
+    set({
+      selected: id,
+      selection: state.selection?.id == id ? state.selection : null,
+      status: state.status?.id == id ? state.status : null,
+    });
     try {
       await transport.send({ type: "select", id });
       if (current(at)) await loadSelection();

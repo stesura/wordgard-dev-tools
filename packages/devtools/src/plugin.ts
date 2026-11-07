@@ -2,7 +2,12 @@ import type { Wordgard } from "wordgard/editor";
 import * as wordgardEditor from "wordgard/editor";
 import type { GardState, Transaction } from "wordgard/state";
 import { isProduction } from "./production.ts";
-import { currentRegistry, ensureRegistry, type NamedFields } from "./registry.ts";
+import {
+  currentRegistry,
+  ensureRegistry,
+  type NamedExtensions,
+  type NamedFields,
+} from "./registry.ts";
 import { VERSION } from "./version.ts";
 
 export type DevtoolsOptions = {
@@ -10,6 +15,12 @@ export type DevtoolsOptions = {
   name?: string;
   /** Names for the editor's state fields in the Fields tab; unnamed ones show as "field #n". */
   fields?: NamedFields;
+  /**
+   * Names for the Extensions tab, by identity: a facet (each of its values), a compartment, a field
+   * (in the Fields tab too) or any extension. Unnamed ones show as Wordgard names them, by class
+   * name, or numbered.
+   */
+  names?: NamedExtensions;
   /**
    * Whether to register the editor. Defaults to off in production builds and on otherwise. Pass it
    * where `process.env.NODE_ENV` isn't set (no bundler), or to keep the devtools in production.
@@ -67,7 +78,7 @@ const sharedListeners = () =>
 export const wordgardDevtools = (options: DevtoolsOptions = {}): GardState.Extension => {
   if (failed || !(options.enabled ?? !isProduction())) return [];
   const register = guard((wg: Wordgard) => {
-    ensureRegistry()?.register(wg, options.name, options.fields);
+    ensureRegistry()?.register(wg, options.name, options.fields, options.names);
   });
   const unregister = guard((wg: Wordgard) => {
     currentRegistry()?.unregister(wg);

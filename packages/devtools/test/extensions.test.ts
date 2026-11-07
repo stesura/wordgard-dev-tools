@@ -199,3 +199,132 @@ it("finds the fields that fields provide and facets enable", async () => {
   const { fields } = await ask({ type: "fields", id });
   expect(fields.map((f) => f.preview)).toEqual(expect.arrayContaining(['"provided"', '"enabled"']));
 });
+
+const sequence = GardState.Facet.define<string>();
+const slot = GardState.Compartment.define();
+
+it("orders each facet's values as Wordgard does: by precedence, then configuration order", async () => {
+  const shared = sequence.of("shared");
+  const wg = Wordgard.create({
+    parent: document.body,
+    doc: "<p>Hi</p>",
+    config: [
+      sequence.of("a"),
+      GardState.prec.low(sequence.of("low")),
+      shared,
+      slot.of([sequence.of("in slot"), GardState.prec.highest(sequence.of("highest"))]),
+      // Moves `shared` up: Wordgard keeps the higher occurrence.
+      GardState.prec.high(shared),
+      sequence.of("b"),
+      basicSchema(),
+      wordgardDevtools({ names: { sequence, slot } }),
+    ],
+  });
+  editors.push(wg);
+  const id = registry().editors.get(wg)?.id ?? 0;
+  const { root, facets } = await ask({ type: "extensions", id });
+  const facetIndex = facets.findIndex((facet) => facet.label == "sequence");
+  const order = facets[facetIndex];
+  expect(order?.values.map((value) => value.value)).toEqual(
+    wg.state.facet(sequence).map((value) => JSON.stringify(value))
+  );
+  expect(order?.values.map((value) => value.prec)).toEqual([
+    "highest",
+    "high",
+    "default",
+    "default",
+    "default",
+    "low",
+  ]);
+  // Each value's row, its place, and what holds it.
+  for (const [index, value] of (order?.values ?? []).entries()) {
+    let node: ExtensionNode | undefined = root;
+    for (const i of value.path) node = node?.children[i];
+    expect(node?.order).toEqual({ facet: facetIndex, index, of: 6 });
+  }
+  expect(order?.values[0]?.from).toBe("slot › highest");
+  // The facet and the compartment by the app's names, the others as before.
+  expect(find(root, "slot")?.kind).toBe("compartment");
+  expect(facets.some((facet) => facet.label == "GardState.schemaElement")).toBe(true);
+  // Named ones first, by name; numbered ones after.
+  const labels = facets.map((facet) => facet.label);
+  const numbered = labels.findIndex((label) => label.startsWith("facet #"));
+  if (numbered >= 0)
+    expect(labels.slice(numbered).every((l) => l.startsWith("facet #"))).toBe(true);
+});
+
+it("names extensions by the app's names, and a plain object by its own name", async () => {
+  const group = [twice.of(1), twice.of(2)];
+  const lone = [twice.of(3)];
+  const derivedNamed = GardState.Field.Derived.define(() => 1);
+  class Named {
+    name = "not a label";
+    extension = twice.of(4);
+  }
+  const { id } = open([
+    group,
+    lone,
+    GardState.prec.high(twice.of(5)),
+    { name: "spellcheck", extension: twice.of(6) },
+    new Named(),
+    derivedNamed,
+    counter,
+  ]);
+  const entry = [...registry().editors.values()].find((e) => e.id == id);
+  if (!entry) throw new Error("No entry");
+  registry().register(entry.wg, undefined, undefined, {
+    group,
+    lone,
+    derivedNamed,
+    counter,
+    twice,
+  });
+  const { root, facets } = await ask({ type: "extensions", id });
+  expect(find(root, "group")).toMatchObject({ kind: "group", value: "2 extensions" });
+  // A named one-item array keeps its row.
+  expect(find(root, "lone")?.children).toHaveLength(1);
+  expect(find(root, "spellcheck")?.kind).toBe("object");
+  expect(find(root, "Named")?.kind).toBe("object");
+  expect(find(root, "not a label")).toBeUndefined();
+  expect(find(root, "derivedNamed")?.kind).toBe("derived field");
+  expect(find(root, "counter")?.kind).toBe("field");
+  // The facet's name: every value's label, and the order's.
+  expect(flat(root).filter((n) => n.label == "twice").length).toBeGreaterThanOrEqual(6);
+  const order = facets.find((facet) => facet.label == "twice");
+  expect(order?.values.map((value) => value.from)).toContain("spellcheck");
+  expect(order?.values[0]?.prec).toBe("high");
+  const fields = await ask({ type: "fields", id });
+  expect(fields.fields.some((field) => field.name == "counter")).toBe(true);
+});
+
+it("keeps a named array's row inside a wrapper, and Wordgard's name for a renamed facet", async () => {
+  const features = [twice.of(8), twice.of(9)];
+  const inSlot = [maybe.of("x"), maybe.of("y")];
+  const { wg, id } = open(
+    [
+      GardState.prec.low(features),
+      compartment.of(inSlot),
+      GardState.readOnly.of(false),
+      GardState.prec.high(GardState.readOnly.of(true)),
+      counter,
+    ],
+    { counter }
+  );
+  registry().register(wg, undefined, undefined, {
+    features,
+    inSlot,
+    locked: GardState.readOnly,
+    renamed: counter,
+  });
+  const { root, facets } = await ask({ type: "extensions", id });
+  expect(find(root, "low")?.children.map((n) => n.label)).toEqual(["features"]);
+  expect(find(root, "features")?.children).toHaveLength(2);
+  expect(find(root, "inSlot")?.kind).toBe("group");
+  expect(
+    facets.find((f) => f.values.some((v) => v.value == "8"))?.values.map((v) => v.from)
+  ).toEqual(["low › features", "low › features"]);
+  expect(facets.find((f) => f.label == "locked")?.wordgard).toBe("GardState.readOnly");
+  // `fields` names a field first, as in the Fields tab.
+  expect(find(root, "counter")?.kind).toBe("field");
+  expect(find(root, "renamed")).toBeUndefined();
+});

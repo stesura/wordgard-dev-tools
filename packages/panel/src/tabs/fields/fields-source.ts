@@ -1,3 +1,4 @@
+import { atom, type ReadableAtom } from "nanostores";
 import { createPromiseCache } from "#lib/promise-cache.ts";
 import type { FieldChangeDetail, FieldDetail, FieldsInfo } from "@stesura/wordgard-dev-tools";
 import { createResource, type ResourceSource } from "#stores/resource.ts";
@@ -22,14 +23,44 @@ export type FieldsSource = ResourceSource<FieldsInfo> & {
   logHistory: (index: number) => void;
   /** Logs a field's live value in the page's console. */
   logValue: (index: number) => void;
+  /** The search, and the fields matching it (by index), searched again on each load. `found` is
+   * null with no query, or until the first reply. */
+  search: ReadableAtom<{ query: string; found: ReadonlySet<number> | null }>;
+  setQuery: (query: string) => void;
 };
 
 export const createFieldsSource = (transport: Transport, id: number): FieldsSource => {
   const details = createPromiseCache<FieldResult>();
   const changes = createPromiseCache<ChangeResult>();
+  const resource = createResource(() => transport.send({ type: "fields", id }));
+  const search = atom<{ query: string; found: ReadonlySet<number> | null }>({
+    query: "",
+    found: null,
+  });
+  let asked = 0;
+  // The last matches stay shown until the next reply; a failure shows every field.
+  const find = async () => {
+    const at = ++asked;
+    const { query } = search.get();
+    if (!query.trim()) {
+      search.set({ query, found: null });
+      return;
+    }
+    const found = await transport.send({ type: "findFields", id, query }).then(
+      (indexes) => new Set(indexes),
+      () => null
+    );
+    if (at == asked) search.set({ query, found });
+  };
 
   return {
-    ...createResource(() => transport.send({ type: "fields", id })),
+    ...resource,
+    load: () => resource.load().then(find),
+    search,
+    setQuery: (query) => {
+      search.set({ ...search.get(), query });
+      void find();
+    },
     detail: (index, at) =>
       details.get(`${at}|${index}`, () =>
         transport.send({ type: "field", id, index }).then(

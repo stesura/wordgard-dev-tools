@@ -78,11 +78,8 @@ it("lists every frame's editors and attaches the first", async () => {
 it("shows the document's structure, live", async () => {
   await panel.getByLabel("Editor", { exact: true }).click();
   await panel.getByRole("option", { name: /plain/ }).click();
-  // basicSchema has no code mark: one text leaf up to the strong one.
-  await panel
-    .locator("[data-path='1.0']")
-    .getByText('"Created with Wordgard.create, named "')
-    .waitFor();
+  // The first paragraph opens with a strong text leaf.
+  await panel.locator("[data-path='1.0']").getByText('"Wordgard DevTools"').waitFor();
   await demo.locator("#plain wg-content").click();
   await demo.keyboard.press("Control+Home");
   await demo.keyboard.type("Edited ");
@@ -92,7 +89,7 @@ it("shows the document's structure, live", async () => {
 it("shows the state as JSON", async () => {
   const structure = panel.getByLabel("Document structure");
   await structure.locator("[data-path='1']").getByText("Paragraph").waitFor();
-  await structure.locator("[data-path='1.1']").getByText('"plain"').waitFor();
+  await structure.locator("[data-path='1.1']").getByText('" is a developer panel for "').waitFor();
   await panel.getByRole("tab", { name: "State" }).click();
   await panel
     .getByRole("tree", { name: "State" })

@@ -1,9 +1,9 @@
 import { cn } from "cn";
-import { ChevronDownIcon, ChevronUpIcon, ExclamationTriangleIcon } from "#icons";
+import { ExclamationTriangleIcon } from "#icons";
 import type { DecorationSummary, LogRow } from "@stesura/wordgard-dev-tools";
 import { Tag } from "#components/ui/badge";
-import { Tip } from "#components/tip";
-import { flags, flushTitle, isSlow, ms, slow, slowText } from "./log-format.ts";
+import type { SortBy } from "#components/sort-heading";
+import { FLAGS, flags, flushTitle, isSlow, ms, slow, slowText } from "./log-format.ts";
 import { clock } from "#lib/time.ts";
 
 /** A timing. A slow one is red, and (not by colour alone, WCAG 1.4.1) bold, signed and read as slow. */
@@ -104,18 +104,29 @@ export const Row = ({
   </div>
 );
 
-type SortKey = "index" | "time" | "annotations" | "dispatch" | "flush";
-export type Sort = { key: SortKey; descending: boolean };
+type SortKey =
+  "index" | "time" | "userEvent" | "changed" | "effects" | "annotations" | "dispatch" | "flush";
+export type Sort = SortBy<SortKey>;
 
-const sortValue: Record<SortKey, (row: LogRow) => number | null> = {
+// Flags as bits, the column's first flag the highest: rows group by what they changed, doc first.
+const changedBits = (row: LogRow) =>
+  flags(row).reduce((bits, flag) => bits + 2 ** (FLAGS.length - 1 - FLAGS.indexOf(flag)), 0);
+
+const sortValue: Record<SortKey, (row: LogRow) => number | string | null> = {
   index: (row) => row.index,
   time: (row) => row.time,
+  userEvent: (row) => row.userEvent ?? null,
+  changed: changedBits,
+  effects: (row) => row.effects,
   annotations: (row) => row.annotations.length,
   dispatch: (row) => row.dispatchMs,
   flush: (row) => row.flushMs,
 };
 
-/** Untimed rows last either way; ties in log order. */
+const compare = (x: number | string, y: number | string) =>
+  typeof x == "number" && typeof y == "number" ? x - y : String(x).localeCompare(String(y));
+
+/** Untimed rows, and rows without a user event, last either way; ties in log order. */
 export const sorted = (rows: LogRow[], { key, descending }: Sort) =>
   key == "index" && !descending
     ? rows
@@ -123,43 +134,5 @@ export const sorted = (rows: LogRow[], { key, descending }: Sort) =>
         const x = sortValue[key](a);
         const y = sortValue[key](b);
         if (x == null || y == null) return x == y ? a.index - b.index : x == null ? 1 : -1;
-        return (descending ? y - x : x - y) || a.index - b.index;
+        return (descending ? compare(y, x) : compare(x, y)) || a.index - b.index;
       });
-
-/** A column heading that sorts the rows: ascending first, then descending. */
-export const SortHeading = ({
-  sortKey,
-  label,
-  tip,
-  sort,
-  onSort,
-  right,
-}: {
-  sortKey: SortKey;
-  label: string;
-  tip: string;
-  sort: Sort;
-  onSort: (sort: Sort) => void;
-  right?: boolean;
-}) => {
-  const active = sort.key == sortKey;
-  return (
-    <Tip label={tip}>
-      <button
-        type="button"
-        aria-label={`Sort by ${tip.toLowerCase()}`}
-        aria-pressed={active}
-        data-sort={active ? (sort.descending ? "descending" : "ascending") : undefined}
-        onClick={() => onSort({ key: sortKey, descending: active && !sort.descending })}
-        className={cn(
-          "flex cursor-pointer items-center gap-0.5 hover:text-foreground [&_svg]:size-3",
-          right && "justify-end",
-          active && "text-foreground"
-        )}
-      >
-        {label}
-        {active && (sort.descending ? <ChevronDownIcon /> : <ChevronUpIcon />)}
-      </button>
-    </Tip>
-  );
-};

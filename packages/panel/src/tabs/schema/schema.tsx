@@ -242,6 +242,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
       <LoadError what="the schema" error={error} onRetry={() => void source.load()} />
       {/* Narrow: the filter on its own line, its buttons under it. */}
       <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-2 border-b bg-strip px-2 pb-1 text-xs @md:flex-nowrap @md:pb-0">
+        <h3 className="shrink-0 font-medium">Schema</h3>
         <SearchInput
           value={query}
           onChange={(event) => setFilters({ query: event.target.value })}

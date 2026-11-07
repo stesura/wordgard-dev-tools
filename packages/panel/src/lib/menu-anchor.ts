@@ -17,6 +17,8 @@ export type MenuAnchor<T> = {
   /** For the rows' container: a right-click, or Shift+F10 / the ContextMenu key on the focused row. */
   onContextMenu: (event: MouseEvent) => void;
   onKeyDown: (event: KeyboardEvent) => void;
+  /** Opens it on `row`, under it, as Shift+F10 would: for a view where Enter opens it too. */
+  openOn: (view: Element, row: HTMLElement) => void;
 };
 
 /** The focused row: the focused element's, or the one its `aria-activedescendant` names. */
@@ -75,6 +77,10 @@ export const createMenuAnchor = <T extends object>(
       event.preventDefault();
       const rect = row.getBoundingClientRect();
       open(event.currentTarget, row, rect.left + 16, rect.bottom);
+    },
+    openOn: (view, row) => {
+      const rect = row.getBoundingClientRect();
+      open(view, row, rect.left + 16, rect.bottom);
     },
   };
 };

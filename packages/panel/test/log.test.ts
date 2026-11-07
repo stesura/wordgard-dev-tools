@@ -370,6 +370,24 @@ it("sorts by a column, ascending then descending", async () => {
   await until(() => order().join() == "0,1,2");
 });
 
+it("sorts by user event (none last either way) and by what changed", async () => {
+  const editor = await setup();
+  await record();
+  type(editor, "a");
+  editor.dispatch({ selection: { anchor: 1 }, userEvent: "delete" });
+  editor.dispatch({ selection: { anchor: 2 } });
+  await until(() => rows().length == 3);
+  const sortBy = (label: string) =>
+    shadow().querySelector<HTMLButtonElement>(`[aria-label='Sort by ${label}']`);
+  sortBy("user event")?.click();
+  await until(() => order().join() == "1,0,2");
+  sortBy("user event")?.click();
+  await until(() => order().join() == "0,1,2");
+  // Ascending: selection only, then document and selection.
+  sortBy("changed")?.click();
+  await until(() => order().join() == "1,2,0");
+});
+
 it("skips select.pointer transactions when its box is unticked, and remembers it", async () => {
   const editor = await setup();
   await record();

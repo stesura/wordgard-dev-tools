@@ -155,6 +155,7 @@ export const createFramesTransport = (
     structure: ({ id }) => routed<"structure">(id, (page) => ({ type: "structure", id: page })),
     schema: ({ id }) => routed<"schema">(id, (page) => ({ type: "schema", id: page })),
     view: ({ id }) => routed<"view">(id, (page) => ({ type: "view", id: page })),
+    status: ({ id }) => routed<"status">(id, (page) => ({ type: "status", id: page })),
     viewElement: ({ id, path, action }) =>
       routed<"viewElement">(id, (page) => ({ type: "viewElement", id: page, path, action })),
     viewHTML: ({ id, path }) =>
@@ -188,6 +189,8 @@ export const createFramesTransport = (
       routed<"logField">(id, (page) => ({ type: "logField", id: page, index, seq, history })),
     clearFieldHistory: ({ id, index }) =>
       routed<"clearFieldHistory">(id, (page) => ({ type: "clearFieldHistory", id: page, index })),
+    findFields: ({ id, query }) =>
+      routed<"findFields">(id, (page) => ({ type: "findFields", id: page, query })),
     logType: ({ id, kind, name, json }) =>
       routed<"logType">(id, (page) => ({ type: "logType", id: page, kind, name, json })),
     watchFields: ({ id, on }) =>

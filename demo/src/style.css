@@ -43,3 +43,19 @@ iframe {
   color: #666;
   font-size: 0.8em;
 }
+
+/* The plain editor's photo: as wide as the editor at most. */
+.editor img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* The toolbar's "DevTools" highlight, a range decoration. */
+mark.highlight {
+  background: #ffe066;
+  color: inherit;
+  border-radius: 2px;
+}
+.toolbar button[aria-pressed="true"] {
+  font-weight: 600;
+}

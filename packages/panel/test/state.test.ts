@@ -132,6 +132,11 @@ it("keeps keys with a slash apart", async () => {
     doc: "<p>Hi</p>",
     config: [basicSchema(), odd, wordgardDevtools({ fields: { odd } })],
   });
+  // Tall enough for the lines it reads: the tree is virtualized.
+  localStorage.setItem(
+    "wordgard-devtools:dock",
+    JSON.stringify({ side: "bottom", size: 640, collapsed: false })
+  );
   mounted = mountDevtools();
   await mounted.ready;
   (await until(() => tab("State"))).click();
@@ -292,29 +297,34 @@ it("shows a node object in the Structure", async () => {
   );
 });
 
-it("shows the selection under every tab, to reveal, log or copy", async () => {
+it("shows the selection and the editor's view under every tab, and logs the editor", async () => {
   const editor = await setup();
   const bar = () => shadow().querySelector<HTMLElement>("[aria-label='Selection']");
-  const barButton = (label: string) =>
-    bar()?.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`);
+  const editorBar = () => shadow().querySelector<HTMLElement>("[aria-label='Editor status']");
   // On the State tab, not only the Structure.
   await until(() => bar()?.textContent?.includes("anchor: 1"));
+  // The selection's actions are in the Selection tab: the bar has none but its guide.
+  expect(bar()?.querySelector("[aria-label^='Log'], [aria-label^='Copy']")).toBeNull();
+  const status = await until(
+    () => editorBar()?.textContent?.includes("root: document") && editorBar()
+  );
+  expect(status.textContent).toContain("connected: yes");
+  expect(status.textContent).toContain("editable: yes");
+  // Focus follows the editor.
+  editor.focus();
+  await until(() => editorBar()?.textContent?.includes("focused: yes"));
   const logged: unknown[][] = [];
   vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
     logged.push(args);
   });
-  const copied: string[] = [];
-  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async (text) => {
-    copied.push(text);
-  });
-  (await until(() => barButton("Log the selection to the console"))).click();
-  await until(() => logged.some((args) => args[1] == editor.state.selection));
-  (await until(() => barButton("Copy the selection's JSON"))).click();
-  await until(() => copied.some((text) => text.includes('"anchor": 1')));
-  (
-    await until(() => barButton("Show the node holding the selection's head in the Structure"))
-  ).click();
-  await until(() => tab("Structure")?.getAttribute("aria-selected") == "true");
+  status.querySelector<HTMLButtonElement>("[aria-label='Log the editor to the console']")?.click();
+  await until(() => logged.some((args) => args[1] == editor));
+  // Its guide: each label bold, a link to Wordgard's reference.
+  status.querySelector<HTMLButtonElement>("[aria-label='About the editor bar']")?.click();
+  const link = await until(() =>
+    shadow().querySelector<HTMLAnchorElement>("strong > a[href$='#editor.Wordgard.hasFocus']")
+  );
+  expect(link.textContent).toBe("focused");
 });
 
 it("logs the state, live or as JSON, from the toolbar", async () => {

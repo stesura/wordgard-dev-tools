@@ -20,7 +20,7 @@ const MAIN: SplitKind = {
 /**
  * The content and a side pane, resizable (never collapsed): side by side when wide, stacked when
  * narrow, or as `orientation` says. `pane` can be given the orientation (for a split inside it);
- * null hides it.
+ * null or false removes it (its panel and handle, not only its content).
  */
 export const SplitPane = ({
   children,
@@ -67,7 +67,7 @@ export const SplitPane = ({
             {children}
           </ResizablePanel>
           {/* No pane: the content alone, not remounted (it keeps its scroll and state). */}
-          {pane != null && (
+          {pane != null && pane !== false && (
             <>
               <ResizableHandle />
               <ResizablePanel
