@@ -5,25 +5,15 @@ import { Dock } from "./panel/dock.tsx";
 import { createDockLayout } from "./panel/dock-layout.ts";
 import { createPanelStore } from "#stores/panel-store.ts";
 import css from "./styles.css?inline";
+import { shadowPropertiesRule } from "#lib/shadow-properties.ts";
 import { createThemeStore } from "#stores/theme.ts";
 import type { Transport } from "./transport.ts";
 
 const adoptStyles = (shadow: ShadowRoot) => {
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(css);
-  // Browsers ignore @property in shadow trees, and Tailwind relies on it for its --tw-*
-  // defaults (shadows, rings, transforms): restate the initial values as plain declarations.
-  const initial = [...sheet.cssRules].flatMap((rule) =>
-    rule instanceof CSSPropertyRule && rule.initialValue != null
-      ? [`${rule.name}: ${rule.initialValue}`]
-      : []
-  );
-  if (initial.length) {
-    sheet.insertRule(
-      `@layer properties { *, ::before, ::after, ::backdrop { ${initial.join("; ")} } }`,
-      sheet.cssRules.length
-    );
-  }
+  const properties = shadowPropertiesRule(sheet);
+  if (properties) sheet.insertRule(properties, sheet.cssRules.length);
   shadow.adoptedStyleSheets = [sheet];
 };
 

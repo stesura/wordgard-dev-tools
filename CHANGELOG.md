@@ -1,3 +1,9 @@
+## Unreleased
+
+### Bug fixes
+
+The panel docked in the page draws its focus and selection rings, and its menus' borders and shadows, again: the published build wrote a ring's default offset as a bare `0`, which made every ring and shadow invalid inside the panel's shadow root.
+
 ## 0.1.0 (2026-11-07)
 
 ### New features
