@@ -1,7 +1,9 @@
 import { whileShown } from "#stores/while-shown.ts";
 import { LoadError } from "#components/load-error";
 import { cn } from "cn";
-import { NoSymbolIcon, RecordIcon, PauseIcon } from "#icons";
+import { ClipboardDocumentIcon, NoSymbolIcon, RecordIcon, PauseIcon } from "#icons";
+import { CLOSING_MS, NoticeBar, type Notice } from "#components/notice-bar";
+import { copyRepro } from "./copy-repro.ts";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import { SLOW_MS } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
@@ -33,6 +35,22 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
   const view = useStore(source.state);
   const [selected, setSelected] = useState<number | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
+
+  // A copied repro, or why not: shown until closed, replaced, or the tab or editor changes. Its
+  // close eases out on a timer.
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const closingTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const notify = (next: Notice) => {
+    clearTimeout(closingTimer.current);
+    setNotice(next);
+  };
+  // Focus goes to the list: the button it was on goes.
+  const closeNotice = () => {
+    clearTimeout(closingTimer.current);
+    setNotice((shown) => shown && { ...shown, closing: true });
+    closingTimer.current = setTimeout(() => setNotice(null), CLOSING_MS);
+    scroller.current?.querySelector<HTMLElement>("[role='listbox']")?.focus();
+  };
   // State, not only a ref: the list may mount a render after this component (the split pane
   // measures first), and the rows are read from it when this component renders.
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
@@ -111,6 +129,11 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
         load: () => void source.load(),
         // An editor list change may be this editor reconnecting with a new log, under the same id.
         reconnect: true,
+        // The tabs stay mounted: the banner would wait for the tab's return.
+        onHide: () => {
+          clearTimeout(closingTimer.current);
+          setNotice(null);
+        },
         // An entry another tab links to (a field's change): selected once its rows are in.
         onReveal: () => {
           const index = store.takeLogReveal(editorId);
@@ -209,6 +232,16 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
         >
           <NoSymbolIcon /> Clear
         </Button>
+        <Tip label="Copy a Node script that replays these transactions on plain Wordgard, to report a bug">
+          <Button
+            variant="ghost"
+            size="xs"
+            disabled={!rows.length}
+            onClick={() => void copyRepro(source, notify)}
+          >
+            <ClipboardDocumentIcon /> Copy as repro
+          </Button>
+        </Tip>
         {checked && checked.checked < checked.flushes && (
           <span className="text-muted-foreground" aria-live="polite">
             decorations checked for {checked.checked} of {checked.flushes} flushes
@@ -245,6 +278,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
           />
         </span>
       </div>
+      <NoticeBar notice={notice} onClose={closeNotice} />
       <LoadError what="the log" error={view.error} onRetry={() => void source.load()} />
       <FilterBar
         rows={rows}

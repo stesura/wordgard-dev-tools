@@ -1,3 +1,4 @@
+import type { Notice } from "#components/notice-bar";
 import type { PanelStore } from "#stores/panel-store.ts";
 
 /** A file name from the editor's: letters, digits, dashes. */
@@ -16,11 +17,6 @@ export const download = (json: unknown, name: string) => {
   // After the click has started the download.
   setTimeout(() => URL.revokeObjectURL(url));
 };
-
-export type Notice = { ok: boolean; text: string; closing?: boolean };
-
-// The banner's close: its height eases to nothing, then it unmounts.
-export const CLOSING_MS = 300;
 
 // Outside the component: the React Compiler can't compile conditionals inside a try/catch yet.
 export const replaceFrom = async (

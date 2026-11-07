@@ -19,6 +19,7 @@ import type * as Keymap from "./keymap.ts";
 import type * as Fields from "./fields.ts";
 import type * as Inspect from "./inspect.ts";
 import type * as Log from "./log.ts";
+import type * as Repro from "./repro.ts";
 import type * as Schema from "./schema.ts";
 import type * as View from "./view.ts";
 import { byAgent } from "./reads.ts";
@@ -92,10 +93,6 @@ const createConsoleGlobals = (): ConsoleGlobals => {
   };
 };
 
-const notYet = (phase: number) => () => {
-  throw new Error(`Not implemented yet (plan phase ${phase})`);
-};
-
 const createHandlers = (
   registry: Registry,
   s: typeof Serialisers,
@@ -105,6 +102,7 @@ const createHandlers = (
   extensions: typeof Extensions,
   tags: typeof Tags,
   keymap: typeof Keymap,
+  repro: typeof Repro,
   inspector: Inspect.Inspector,
   recorder: Log.Recorder,
   tracker: Fields.FieldTracker,
@@ -331,7 +329,10 @@ const createHandlers = (
       globals.set(e.wg, index == null ? null : recorder.transaction(e, index));
       return null;
     },
-    repro: notYet(7),
+    repro: ({ id }) => {
+      const e = entry(id);
+      return repro.reproScript(recorder.transactions(e), { editor: e.name, version: VERSION });
+    },
   };
 };
 
@@ -398,8 +399,9 @@ export const createAgent = (registry: Registry): Agent => {
       import("./extensions.ts"),
       import("./tags.ts"),
       import("./keymap.ts"),
+      import("./repro.ts"),
     ]).then(
-      ([s, inspect, log, schema, fields, view, decorations, extensions, tags, keymap]) => {
+      ([s, inspect, log, schema, fields, view, decorations, extensions, tags, keymap, repro]) => {
         inspector = inspect.createInspector(registry, push);
         const logged = log.createRecorder(registry, push);
         recorder = logged;
@@ -413,6 +415,7 @@ export const createAgent = (registry: Registry): Agent => {
           extensions,
           tags,
           keymap,
+          repro,
           inspector,
           logged,
           tracker,

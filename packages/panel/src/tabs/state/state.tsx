@@ -5,14 +5,7 @@ import { IconButton } from "#components/icon-button";
 import { LoadError } from "#components/load-error";
 import { fire } from "../../transport.ts";
 import { useStore } from "@nanostores/react";
-import { cn } from "cn";
-import {
-  ArrowDownTrayIcon,
-  ArrowUpTrayIcon,
-  CodeBracketIcon,
-  CommandLineIcon,
-  XMarkIcon,
-} from "#icons";
+import { ArrowDownTrayIcon, ArrowUpTrayIcon, CodeBracketIcon, CommandLineIcon } from "#icons";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Path } from "@stesura/wordgard-dev-tools";
 import { CopyButton } from "#components/copy-button";
@@ -22,7 +15,8 @@ import { centreRow } from "#lib/dom.ts";
 import { createStateSource } from "./state-source.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { keepRowInView, useRows } from "#hooks/use-rows.ts";
-import { CLOSING_MS, type Notice, download, fileName, replaceFrom } from "./state-file.ts";
+import { download, fileName, replaceFrom } from "./state-file.ts";
+import { CLOSING_MS, NoticeBar, type Notice } from "#components/notice-bar";
 import { type Line, ROOT, childOf, containers, flatten, keysOf, search } from "./json-lines.ts";
 import { copy } from "#lib/clipboard.ts";
 import { selectedText } from "#lib/selected-text.ts";
@@ -270,36 +264,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
           </IconButton>
         </span>
       </div>
-      {notice && (
-        // Grid rows ease between 0fr and 1fr: a height transition to and from the content's own.
-        <div
-          data-closing={notice.closing || undefined}
-          className={cn(
-            "grid shrink-0 transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none starting:grid-rows-[0fr]",
-            notice.closing ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
-          )}
-        >
-          <div className="min-h-0 overflow-hidden">
-            {/* The button outside the live region: announced, it would read "Close the message". The
-              ghost button takes the tint's text colour. */}
-            <div
-              className={cn(
-                "flex items-center gap-2 border-b py-0.5 pr-1 pl-2 text-xs",
-                notice.ok
-                  ? "bg-green-500/15 text-green-800 dark:text-green-300"
-                  : "bg-destructive/10 text-destructive"
-              )}
-            >
-              <p role={notice.ok ? "status" : "alert"} className="min-w-0 flex-1">
-                {notice.text}
-              </p>
-              <IconButton label="Close the message" onClick={closeNotice}>
-                <XMarkIcon />
-              </IconButton>
-            </div>
-          </div>
-        </div>
-      )}
+      <NoticeBar notice={notice} onClose={closeNotice} />
       <div
         ref={container}
         role="tree"

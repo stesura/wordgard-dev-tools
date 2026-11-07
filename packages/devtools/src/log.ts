@@ -319,6 +319,8 @@ export type Recorder = {
   indexOf: (entry: Entry, tr: Transaction) => number | null;
   /** The transaction at an index, while the log holds it. */
   transaction: (entry: Entry, index: number) => Transaction;
+  /** The transactions the log holds, oldest first. */
+  transactions: (entry: Entry) => { index: number; tr: Transaction }[];
   /** Drops the logs of editors that left the registry (a disconnect), restoring their methods. */
   prune: () => void;
 };
@@ -508,6 +510,7 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
     },
     indexOf: (entry, tr) => logs.get(entry)?.items.find((item) => item.tr == tr)?.index ?? null,
     transaction: (entry, index) => held(entry, index).tr,
+    transactions: (entry) => (logs.get(entry)?.items ?? []).map(({ index, tr }) => ({ index, tr })),
     prune: () => {
       for (const [entry, log] of logs) {
         if (registry.editors.get(entry.wg) == entry) continue;

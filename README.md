@@ -189,6 +189,7 @@ Tips:
 - Press Record, then use the editor.
 - Filter by user event, what changed or annotation; sort by any timing column.
 - Right-click a row to log the transaction or copy it as JSON or text; right-click a part of its detail to log or copy that part.
+- Copy as repro copies a Node script that replays the transactions on plain Wordgard, from the state before the oldest, and checks the document it ends with: a bug report's schema, document and steps. Its header says what it leaves out.
 - Untick record select.pointer to leave out selections made with the pointer, and record focus to leave out focus changes.
 - In the page's console, `$tr` is the transaction shown here, `$wg` its editor.
 

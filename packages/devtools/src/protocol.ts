@@ -723,6 +723,7 @@ export type Requests = {
    * named field where it is one of those (unless `json`), its JSON otherwise. */
   logState: { id: number; keys: readonly string[]; json?: boolean };
   setConsole: { id: number; index?: number };
+  /** A Node script replaying the transactions the log holds on plain Wordgard (plan, feature 6). */
   repro: { id: number };
 };
 

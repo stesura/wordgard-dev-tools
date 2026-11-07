@@ -7,7 +7,8 @@ implementation notes for [0-2](#implementation-notes-phases-0-2-2026-11-04),
 [5](#implementation-notes-phase-5-2026-11-04) and [5b and 5c](#implementation-notes-phases-5b-and-5c-2026-11-04). Phase 9 partially
 executed on 2026-11-06 (npm side; the extension stores are parked), see
 [Packaging and publishing](#packaging-and-publishing-2026-11-06). Phase 6 done on 2026-11-07, see
-[its notes](#implementation-notes-phase-6-2026-11-07). Drafted 2026-11-04, revised
+[its notes](#implementation-notes-phase-6-2026-11-07). Phase 7 done on 2026-11-07, see
+[its notes](#implementation-notes-phase-7-2026-11-07). Drafted 2026-11-04, revised
 after a Fable review the same day, see [Review](#review-2026-11-04).
 
 A browser DevTools panel for [Wordgard](../../../wordgard) editors, the counterpart of
@@ -258,7 +259,9 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
   extra extensions. Custom selection types need their extension in the config, and the
   script's header says so.
 - Limits, stated in the script's header comment: the schema is a placeholder the user fills
-  in, and effects are dropped, because they have no stable names to serialise.
+  in, and effects are dropped, because they have no stable names to serialise. (As built, the
+  schema is rebuilt from `wordgard/types`, with placeholders only for the app's own types: see
+  [phase 7](#implementation-notes-phase-7-2026-11-07).)
 - The goal is the format that `react-wordgard/docs/wordgard-upstream-bugs.md` asks for: schema,
   doc and steps.
 
@@ -299,7 +302,8 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
    update, only while the tab is shown or the log records.
 6. **Executed** (2026-11-07). `$wg` / `$tr`. See
    [its notes](#implementation-notes-phase-6-2026-11-07).
-7. Copy as repro, tested by running the generated script in Node.
+7. **Executed** (2026-11-07). Copy as repro, tested by running the generated script in Node. See
+   [its notes](#implementation-notes-phase-7-2026-11-07).
 8. ~~react-wordgard automatic registration (react-wordgard repo).~~ Dropped (2026-11-05): apps
    add the plugin themselves. See [react-wordgard integration](#react-wordgard-integration).
 9. **Partially executed** (2026-11-06). Publishing: the npm packages are ready (metadata,
@@ -324,6 +328,8 @@ created before the panel opened, and picking without moving the caret.
    them, ask its author for a supported hook rather than patching deeper.
 4. **Effects in repro.** Is there a way to name effect types (e.g. a devtools-only registry)?
    Or do we accept dropping them?
+   Accepted for now (2026-11-07): dropped, and the script counts them, per transaction and in its
+   header. See [phase 7](#implementation-notes-phase-7-2026-11-07).
 5. **React in the in-page panel.** Should `wordgard-devtools-panel` bundle its own React, so it
    works on any page whatever React version the page uses (or none), or take React 19 as a
    peer? Bundling is simpler and costs nothing until `mountDevtools()` lazy-loads it.
@@ -1351,4 +1357,83 @@ that plan's phase 12 notes.
 
 ### Open points
 
-- Phase 7 (copy as repro) is next; `repro` still answers "not implemented".
+- ~~Phase 7 (copy as repro) is next.~~ Done, see [its notes](#implementation-notes-phase-7-2026-11-07).
+
+## Implementation notes: phase 7 (2026-11-07)
+
+**Executed.** Checks at the end: `npm run format:check`, `typecheck`, `lint`, `dependency-check`
+clean; `npm test` (devtools 27 files / 152 tests, panel 44 / 246, extension 3 / 27); `npm run
+build` and `compiler:check` (panel 130 compiled memo checks); `npm run e2e -w
+wordgard-devtools-extension` (11).
+
+### How it works
+
+- `repro(id)` (`packages/devtools/src/repro.ts`, loaded with the other handlers) builds the script
+  from the transactions the Log holds (`Recorder.transactions`, oldest first): the snapshot is the
+  oldest's `startState.toJSON()`, each transaction a step `{index, changes?, selection?,
+userEvent?}` (appended ones included), replayed with `state.update({changes:
+ChangeSet.fromJSON(...), selection: cx => GardSelection.fromJSON(cx, json), userEvent})` on
+  `GardState.fromJSON(snapshot, config)`. It ends with `assert.deepEqual` of the document and of the
+  selection against the newest transaction's state.
+- The header says what was recorded (editor, count, indices) and the limits: placeholders in the
+  schema, effects dropped (counted, and noted per step), custom selection types, the app's
+  extenders, filters and appenders not run, transactions left out.
+- Each step carries a comment: its index, user event, `appended`, effects dropped.
+- Panel: "Copy as repro" in the Log's toolbar (a button, disabled while the log is empty), then a
+  banner: `role="status"` on success, `role="alert"` with the page's error otherwise, its close
+  button outside the live region; closing moves focus to the list. The State tab's banner moved to
+  `components/notice-bar.tsx`, shared by both.
+- Test: `test/repro.test.ts` records real editors in Chromium and runs each script in Node through a
+  Vitest browser command (`test/node-command.ts`, `runNode`), which writes it under
+  `packages/devtools/node_modules/.cache/` so `wordgard` resolves. Covered: typing, marks,
+  deletions, selections, node and cell selections, an appender and an extender (applied once), a
+  wrapped ring buffer, a gap, a left-out selection (the script fails without its step), custom
+  types (TODOs), a document that differs (fails), an empty log.
+
+### Deviations
+
+- **The schema is rebuilt, not a blank placeholder.** Each element of the newest state's
+  `schema.elements` that is an export of `wordgard/types` (by identity: a type, or a tag's type) is
+  imported by name, in order. The app's own types and schema overrides become `/* TODO */`
+  placeholders, listed in the header. Most editors on Wordgard's types replay as copied.
+- **The newest unbroken run.** A transaction that doesn't start from the document the previous one
+  left (recording paused, the state replaced) cuts the log, and so does a schema change (the
+  transaction changing it can't replay on the new schema). The script starts after the cut; its
+  header counts the transactions left out and says why.
+- **Selections the log left out** (select.pointer or focus unticked): a selection-only step sets
+  the start selection of the next recorded transaction when it differs from the previous one's
+  result.
+- **Cell selections**: a `"cell"` selection imports `CellSelection` from `wordgard/table` and adds
+  `CellSelection.extension` to the config (its extender only normalises selections). Other custom
+  tags get a TODO.
+- **The final selection is checked too**, not only the document (the audit showed that a document
+  check alone couldn't tell a wrong selection step).
+
+### Audit (Fable)
+
+1. Plan: anchors to these notes missing, feature text stale. Accepted: this section, and a note in
+   [6. Copy as repro](#6-copy-as-repro).
+2. Selection steps untested: only the document was checked. Accepted: the script asserts the final
+   selection; the left-out-selection test fails without its step.
+3. A name or selection tag holding `*/` broke the `/* TODO */` placeholders. Accepted: escaped.
+4. A value JSON can't hold (a bigint parameter) failed with a bare `TypeError`. Accepted: the error
+   says which part (snapshot, step, document) couldn't be written.
+5. Two copies of `wordgard`, the devtools' not the editor's: every type becomes a TODO. Rejected
+   for code: the page side already needs one copy (`instanceof`, annotation lookups); noted below.
+6. The Log's banner could stay mounted, invisible, when the list's ref callback re-subscribed
+   while it was closing (the cleanup cleared its timer). Accepted: the cleanup leaves the timer.
+   The State tab has the same pattern (pre-existing): left, noted below.
+7. Info: a copy finishing after the tab is hidden shows its banner on return. Left as is.
+8. Info: `runNode`'s temp files, resolution, exit codes: nothing wrong.
+
+### Open points
+
+- With two copies of `wordgard` on a page (the devtools bundled with another), the schema comes
+  out as TODOs only.
+- A node selection on a node whose type isn't `selectable` (made by code: `GardSelection.node` on a
+  heading) serialises, but Wordgard's `fromJSON` refuses it: such a step fails to replay. Wordgard's
+  behaviour; the script names the step.
+- The State tab's banner: its ref callback's cleanup clears the closing timer (see audit item 6).
+- Effects stay dropped (open question 4); a devtools registry naming effect types would bring them.
+- Not covered by the extension's end-to-end test: copying a repro through the bridge (the request
+  is routed like the others).

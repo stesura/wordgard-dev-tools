@@ -43,6 +43,8 @@ export type LogSource = {
   /** Asks the page, now, whether the row leaves the editor's current document; reloads when not. */
   isCurrent: (index: number) => Promise<boolean>;
   clear: () => Promise<void>;
+  /** A Node script replaying the transactions the log holds on plain Wordgard. */
+  repro: () => Promise<string>;
   /** A promise per entry and flush (its timing arrives with the flush), cached: for `use()`. */
   detail: (index: number, flush: number | null) => Promise<EntryDetail>;
   /** Logs a transaction, or one of its parts, live in the page's console. */
@@ -204,6 +206,7 @@ export const createLogSource = (transport: Transport, id: number): LogSource => 
       return current;
     },
     clear: () => act(() => transport.send({ type: "clear", id })),
+    repro: () => transport.send({ type: "repro", id }),
     logEntry: (index, part) => {
       fire(transport, { type: "logEntry", id, index, part });
     },

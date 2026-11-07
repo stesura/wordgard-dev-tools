@@ -2,6 +2,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vitest/config";
 import { defaultClientConditions, searchForWorkspaceRoot } from "vite";
+import { runNode } from "./test/node-command.ts";
 
 // `import("../src/index.ts?copy=b")` loads a second copy of the package: the
 // query is carried to every relative import below it.
@@ -54,6 +55,7 @@ export default defineConfig({
       provider: playwright(),
       headless: true,
       instances: [{ browser: "chromium" }],
+      commands: { runNode },
     },
   },
 });

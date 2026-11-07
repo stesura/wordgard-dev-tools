@@ -289,7 +289,7 @@ describe("agent", () => {
     });
     expect(await agent().request({ type: "repro", id })).toEqual({
       ok: false,
-      error: "Not implemented yet (plan phase 7)",
+      error: "The log holds no transactions: record some first",
     });
   });
 });

@@ -154,6 +154,51 @@ it("loads only the rows it lacks, and clears", async () => {
   expect(rows()[0]?.textContent?.startsWith("2")).toBe(true);
 });
 
+it("copies the log as a repro from the keyboard, and says so until closed", async () => {
+  const editor = await setup();
+  const copied: string[] = [];
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(async (text) => {
+    copied.push(text);
+  });
+  expect(button("Copy as repro")?.disabled).toBe(true);
+  (await until(() => button("Record"))).click();
+  await until(() => button("Pause"));
+  type(editor, "a");
+  const copyButton = await until(
+    () => !button("Copy as repro")?.disabled && button("Copy as repro")
+  );
+  copyButton.focus();
+  await userEvent.keyboard("{Enter}");
+  await until(() => copied.length == 1);
+  expect(copied[0]).toMatch(/^\/\/ Wordgard repro: 1 transaction recorded/);
+  expect(copied[0]).toContain('"userEvent":"input.type"');
+  const status = await until(() => shadow().querySelector("[role='status']"));
+  expect(status.textContent).toContain("Copied a Node script replaying the log");
+  shadow().querySelector<HTMLElement>("[aria-label='Close the message']")?.click();
+  await until(() => !shadow().querySelector("[role='status']"));
+  expect(shadow().activeElement).toBe(list());
+});
+
+it("shows why a repro couldn't be copied", async () => {
+  const inner = inPageTransport();
+  const transport: Transport = {
+    send: (request) =>
+      request.type == "repro" ? Promise.reject(new Error("no luck")) : inner.send(request),
+    onPush: (listener) => inner.onPush(listener),
+  };
+  const editor = await setup(transport);
+  (await until(() => button("Record"))).click();
+  await until(() => button("Pause"));
+  type(editor, "a");
+  (await until(() => !button("Copy as repro")?.disabled && button("Copy as repro"))).click();
+  const alert = await until(() =>
+    [...shadow().querySelectorAll("[role='alert']")].find((element) =>
+      element.textContent?.includes("Couldn't copy a repro: no luck")
+    )
+  );
+  expect(alert).toBeTruthy();
+});
+
 it("doesn't load while another tab is shown", async () => {
   const { transport, sent } = recordingTransport();
   const editor = await setup(transport);
