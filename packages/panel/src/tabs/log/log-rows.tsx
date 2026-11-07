@@ -25,7 +25,8 @@ const flushLabel = (row: LogRow) =>
     ? flushTitle(row)
     : `${ms(row.flushMs)} ms${slow(row.flushMs) ? ", slow" : ""}, ${flushTitle(row)}`;
 
-export const ROW = 20;
+// 24: a row is a 24px target (WCAG 2.5.8).
+export const ROW = 24;
 export const COLUMNS =
   "grid grid-cols-[3rem_6.5rem_minmax(5rem,1fr)_4.5rem_2rem_2rem_3.5rem_3.5rem] gap-x-2";
 

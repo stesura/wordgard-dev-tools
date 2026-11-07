@@ -1,7 +1,9 @@
 import { cn } from "cn";
 import { SLOW_MS, type LogEntryDetail, type LogRow } from "@stesura/wordgard-dev-tools";
 
-export const ms = (value: number | null) => (value == null ? "–" : value.toFixed(1));
+// From a second on, whole milliseconds: "1234.5" overflows the Log's timing columns.
+export const ms = (value: number | null) =>
+  value == null ? "–" : value.toFixed(value >= 999.95 ? 0 : 1);
 export const slow = (value: number | null) => value != null && value > SLOW_MS;
 /** Slow timings: 4.5:1 or more on the slow rows' tint, in both themes. */
 export const slowText = "text-red-700 dark:text-red-300";

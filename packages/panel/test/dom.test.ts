@@ -71,6 +71,19 @@ it("shows the view's status and its DOM, mapped to the document, live", async ()
   await until(() => line("0.0")?.textContent == '"A Title"pos 1');
 });
 
+it("names its items without their chevrons, and numbers them among their siblings", async () => {
+  await setup();
+  const heading = await until(() => line("0"));
+  // <h1> and <p> in the content element.
+  expect([heading.getAttribute("aria-posinset"), heading.getAttribute("aria-setsize")]).toEqual([
+    "1",
+    "2",
+  ]);
+  expect(line("1")?.getAttribute("aria-posinset")).toBe("2");
+  expect(line("")?.getAttribute("aria-setsize")).toBe("1");
+  expect(heading.querySelector("button")?.getAttribute("aria-hidden")).toBe("true");
+});
+
 it("outlines a clicked element in the page, walks with the keys, and logs it", async () => {
   await setup();
   await userEvent.click(await until(() => line("1")));

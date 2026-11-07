@@ -45,15 +45,16 @@ export type Search = ReturnType<typeof useSearch>;
 // In dark, a yellow tint strong enough to see drowns the text: an outline marks the match instead.
 // The current match is outlined in light too (not by its tint alone, WCAG 1.4.1). Outlines, inset
 // (rows are flush), not rings: forced colours drop box shadows and draw outlines, even transparent
-// ones, in the text colour; there the others' is dashed.
+// ones, in the text colour; there the others' is dashed. `search-current` and `search-match` let
+// styles.css mark a match that is also selected.
 export const matchClass = (
   id: string,
   search: { all: ReadonlySet<string>; current: string | null }
 ) =>
   search.current == id
-    ? "bg-yellow-500/40 outline-2 -outline-offset-2 outline-yellow-700 dark:bg-yellow-500/15 dark:outline-yellow-500"
+    ? "search-current bg-yellow-500/40 outline-2 -outline-offset-2 outline-yellow-700 dark:bg-yellow-500/15 dark:outline-yellow-500"
     : search.all.has(id)
-      ? "bg-yellow-500/20 outline-1 -outline-offset-2 outline-transparent forced-colors:outline-dashed dark:bg-yellow-500/10 dark:outline-yellow-500/60"
+      ? "search-match bg-yellow-500/20 outline-1 -outline-offset-2 outline-transparent forced-colors:outline-dashed dark:bg-yellow-500/10 dark:outline-yellow-500/60"
       : "";
 
 /** The toolbar holding a search box. */

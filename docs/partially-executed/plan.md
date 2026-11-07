@@ -483,7 +483,7 @@ built demo in Chromium, now in CI). A Fable audit followed; its accepted finding
   theme, which Firefox reports only at load.
 - Not exercised by tests: a service-worker restart, a bfcache restore, an injection failure in a
   real browser (the transport's handling is unit-tested).
-- CI has still not run.
+- ~~CI has still not run.~~ It runs: see "CI (2026-11-04)".
 
 ## Implementation notes: phase 3 (2026-11-04)
 
@@ -1078,8 +1078,9 @@ Parked by the user (2026-11-06). To do before the first store release:
 
 - Publishing: the first release can go out by hand after `npm login` (no token, no provenance),
   then trusted publishing on npmjs.com for both packages, so the Release workflow needs no
-  `NPM_TOKEN`. Pinned by the user (2026-11-06); the workflow comment and CONTRIBUTING still
-  mention the token.
+  `NPM_TOKEN`. Pinned by the user (2026-11-06). Done 2026-11-07: the workflow has no token (it
+  makes sure of npm 11.5.1 or later), and CONTRIBUTING describes the first release by hand and
+  the trusted publisher to add.
 - When Wordgard v1 is released, the page side needs a release that accepts it (the README says
   so).
 
@@ -1298,8 +1299,9 @@ back to back (before the audit's fixes, which only add compiled code and a memo)
 
 ### Open points
 
-- Three Schema tests fail since commit `ea18c7c`, which removed the "node type" / "mark type"
-  label the tests wait for ("Paragraphnode type"). They fail with or without this change.
+- ~~Three Schema tests fail since commit `ea18c7c`, which removed the "node type" / "mark type"
+  label the tests wait for ("Paragraphnode type"). They fail with or without this change.~~ They
+  pass again (checked 2026-11-07).
 
 ### Every component compiled (2026-11-06)
 
@@ -1433,7 +1435,57 @@ ChangeSet.fromJSON(...), selection: cx => GardSelection.fromJSON(cx, json), user
 - A node selection on a node whose type isn't `selectable` (made by code: `GardSelection.node` on a
   heading) serialises, but Wordgard's `fromJSON` refuses it: such a step fails to replay. Wordgard's
   behaviour; the script names the step.
-- The State tab's banner: its ref callback's cleanup clears the closing timer (see audit item 6).
+- ~~The State tab's banner: its ref callback's cleanup clears the closing timer (see audit item 6).~~
+  Fixed, see [Small fixes](#small-fixes-2026-11-07).
 - Effects stay dropped (open question 4); a devtools registry naming effect types would bring them.
 - Not covered by the extension's end-to-end test: copying a repro through the bridge (the request
   is routed like the others).
+
+## Small fixes (2026-11-07)
+
+At the user's request: the small open points of the plan and of
+[the accessibility notes](../accessibility.md), each with a test (but the State banner's,
+whose case, a re-subscribe while it closes, no test can bring about).
+
+- **State tab banner**: the list's ref-callback cleanup no longer clears the closing timer, so a
+  re-subscribe while it closes can't leave it mounted and invisible (as fixed in the Log in phase 7).
+- **Log**: a jump to the Log ("Show #N in Log") focuses its list, not `<body>`. Timings from a
+  second on are whole milliseconds ("1235"): "1234.5" overflowed its column.
+- **Targets (24px)**: Log rows and the Log's column header; the Structure's box headers are 24px
+  high, so their chevrons' 14px icons get a 24px hit area (a box clips what overflows it); the
+  selection bar's mark links keep their look, with a 24px hit area from a pseudo-element. The
+  DOM's and State's chevrons, now hidden, never take focus on a click (as the Structure's).
+- **Screen readers**: the DOM and State trees give `aria-posinset` / `aria-setsize` (`withSiblings`,
+  `lib/siblings.ts`; the State's closing brackets aren't counted). Their chevrons are out of the
+  items' names (`aria-hidden`, as in the Structure). The Structure's decoration badges and widgets
+  are named in words; their tooltips stay the mouse's, and the node pane is the keyboard's way to
+  them.
+- **Reduced motion**: menus, popovers, selects and tooltips only fade (one rule in `styles.css`
+  resets tw-animate-css's zoom, slide, turn and blur).
+- **Forced colours**: a selected search match shows both, as a `Highlight` outline in the match's
+  style (double for the current match, dashed for others).
+- **Docs**: the Release workflow has no `NPM_TOKEN` (trusted publishing; it makes sure of npm 11.5.1
+  or later) and CONTRIBUTING describes the first release by hand; stale open points struck
+  (CI, the Schema tests); `docs/accessibility.md` updated.
+
+### Deviations
+
+- Type links elsewhere (the node pane, the Selection tab's cards) stay 16px: they sit in rows 16px
+  apart, where a larger hit area would overlap the next row's. Left in the accessibility to-do.
+
+### Audit (Fable)
+
+1. The Structure chevron's hit area was clipped to about 19px: the box is only that high, and
+   `content-visibility` clips to it. Accepted: box headers are 24px high (`min-h-6`), and a test
+   measures the target (it fails without the change).
+2. The DOM's and State's chevrons, now `aria-hidden`, took focus on a click, leaving the tree
+   unfocused and focus on a hidden element. Accepted: `mousedown` is prevented, as in the
+   Structure; tested.
+3. The State banner's fix has no test. Accepted for the docs only: its case can't be brought about
+   from a test; the wording above says so.
+4. The Log's tests still assumed 20px rows (looser bounds). Accepted: they use `ROW`.
+5. `TypeLink`'s target comment said "layout unchanged", but it widens short names to 24px.
+   Accepted: comment fixed.
+6. A State closing line repeats its opening's position, so two items read "1 of 2". Rejected:
+   closing lines as items predate this; counting them gave "1 of 4" for two keys, which misleads
+   more. Noted in `docs/accessibility.md`.

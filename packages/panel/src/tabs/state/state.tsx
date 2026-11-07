@@ -116,7 +116,6 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
       });
       return () => {
         outline.hide();
-        clearTimeout(closingTimer.current);
         stop();
         stopDoc();
       };

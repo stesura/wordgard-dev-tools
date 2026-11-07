@@ -1,6 +1,7 @@
 import type { Path } from "@stesura/wordgard-dev-tools";
 import { isRecord } from "#lib/json.ts";
 import { includes } from "#lib/text.ts";
+import { withSiblings } from "#lib/siblings.ts";
 
 export const ROOT = "$";
 
@@ -18,6 +19,9 @@ export type Line = {
   type: "string" | "number" | "boolean" | "null" | "bracket";
   /** An opening shown closed, its entries hidden. */
   collapsed: boolean;
+  /** Among its siblings, from 1, and their number: `aria-posinset`, `aria-setsize`. */
+  position: number;
+  siblings: number;
 };
 
 const typeOf = (value: unknown): Line["type"] =>
@@ -64,7 +68,7 @@ export const childOf = (value: unknown, key: string): unknown =>
   Array.isArray(value) ? value[Number(key)] : isRecord(value) ? value[key] : undefined;
 
 export const flatten = (value: unknown, collapsed: ReadonlySet<string>) => {
-  const lines: Line[] = [];
+  const lines: Omit<Line, "position" | "siblings">[] = [];
   const walk = (value: unknown, id: string, depth: number, key: string | null) => {
     const array = Array.isArray(value);
     const entries: [string | number, unknown][] | null = array
@@ -112,7 +116,14 @@ export const flatten = (value: unknown, collapsed: ReadonlySet<string>) => {
     });
   };
   walk(value, ROOT, 0, null);
-  return lines;
+  // Closing lines aren't counted: an object's keys are its children. Each takes its opening's.
+  const numbered = new Map(
+    withSiblings(lines.filter((line) => line.kind != "close")).map((line) => [line.id, line])
+  );
+  return lines.map((line): Line => {
+    const { position = 1, siblings = 1 } = numbered.get(line.id.replace(/#$/, "")) ?? {};
+    return { ...line, position, siblings };
+  });
 };
 
 /** Ids of the lines whose key or value holds the query, in display order, collapsed or not. */

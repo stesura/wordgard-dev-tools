@@ -485,6 +485,8 @@ it("shows a field's transaction in the log from its menu, its link out of the ta
   await until(() =>
     shadow().querySelector("[role='option'][aria-selected='true'][data-index='0']")
   );
+  // Focus goes to the Log's list, not <body>: the menu item that asked is gone.
+  await until(() => shadow().activeElement?.getAttribute("aria-label") == "Transactions");
 });
 
 it("moves through the history with the keys, and logs a change from its menu", async () => {

@@ -150,6 +150,23 @@ it("shows a pick in the Structure, whichever tab is open, outlined in the page",
   expect(document.querySelector("[data-wordgard-devtools-overlay]")?.textContent).toBe("Text");
 });
 
+it("gives a box's chevron a 24px target", async () => {
+  await setup();
+  const chevron = await until(() =>
+    box("1")?.querySelector<HTMLButtonElement>("button[aria-label='Collapse']")
+  );
+  // The target: a 24 × 24 pseudo-element around the 14px icon.
+  const target = getComputedStyle(chevron, "::before");
+  expect([target.position, target.width, target.height]).toEqual(["absolute", "24px", "24px"]);
+  // A box clips what overflows it (content-visibility): the header holds the whole target.
+  const icon = chevron.getBoundingClientRect();
+  const header = chevron.parentElement?.getBoundingClientRect();
+  const middle = icon.top + icon.height / 2;
+  expect(header && header.top <= middle - 12 + 0.5 && header.bottom >= middle + 12 - 0.5).toBe(
+    true
+  );
+});
+
 it("keeps its collapsed boxes across tab switches", async () => {
   await setup();
   box("1")?.querySelector<HTMLButtonElement>("button[aria-label='Collapse']")?.click();
@@ -603,11 +620,14 @@ it("shows decorations when asked, and follows the selection", async () => {
   await until(() => shadow().textContent?.includes("3 decorations from 2 sources"));
   expect(toggle.getAttribute("aria-pressed")).toBe("true");
   expect(box("0.0")?.querySelector("[data-widget='3']")).not.toBeNull();
-  expect(box("0.0")?.textContent).toContain('"Ti◆tle"');
+  // Read as "widget" where it sits: the glyph is hidden.
+  expect(box("0.0")?.textContent).toContain('"Ti◆widgettle"');
   // Between the paragraphs: in the document's content, not in either paragraph.
   const between = structure()?.querySelector("[data-widget='19']");
   expect(between?.closest("[data-path]")?.getAttribute("data-path")).toBe("");
-  expect(box("1")?.firstElementChild?.querySelector("[data-decorations]")?.textContent).toBe("◇ 1");
+  const badge = box("1")?.firstElementChild?.querySelector("[data-decorations]");
+  expect(badge?.querySelector("[aria-hidden='true']")?.textContent).toBe("◇ 1");
+  expect(badge?.querySelector(".sr-only")?.textContent).toBe("1 decoration");
 
   box("1")?.click();
   const section = await until(() => pane()?.querySelector("[aria-label='Decorations']"));

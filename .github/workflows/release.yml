@@ -31,6 +31,9 @@ jobs:
       - name: Versions match the tag
         working-directory: wordgard-devtools
         run: npm run release:check -- "$GITHUB_REF_NAME"
+      # Trusted publishing (no token: GitHub's OIDC identity) needs npm 11.5.1 or later.
+      - name: npm for trusted publishing
+        run: npm install -g npm@^11.5.1
       # prepack builds each package. The page side goes first: the panel peers on it.
       - name: Publish
         working-directory: wordgard-devtools
@@ -39,6 +42,3 @@ jobs:
           tag=latest
           case "$GITHUB_REF_NAME" in *-*) tag=next ;; esac
           npm publish -w packages/devtools -w packages/panel --provenance --tag "$tag"
-        env:
-          # Only needed until trusted publishing is set up on npmjs.com for both packages.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

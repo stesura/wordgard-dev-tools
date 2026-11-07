@@ -148,6 +148,16 @@
     outline: 2px solid Highlight;
     outline-offset: -2px;
   }
+  /* A selected search match (`matchClass`): the selection's colour, the match's style (double for
+     the current match, dashed for the others). One outline can't show both. */
+  :where([aria-selected="true"].search-current) {
+    outline: 4px double Highlight;
+    outline-offset: -4px;
+  }
+  :where([aria-selected="true"].search-match) {
+    outline: 2px dashed Highlight;
+    outline-offset: -2px;
+  }
   /* Not adjusted: forced, the text would keep its own colour on Highlight (and vanish). */
   :where([aria-pressed="true"], [data-pressed]) {
     forced-color-adjust: none;
@@ -157,5 +167,22 @@
   :focus-visible {
     outline: 2px solid CanvasText;
     outline-offset: -2px;
+  }
+}
+
+/* Reduced motion: menus, popovers, selects and tooltips (tw-animate-css) fade without zooming,
+   sliding or turning. Its properties don't inherit: set on every element. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    --tw-enter-scale: 1;
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-enter-rotate: 0;
+    --tw-enter-blur: 0;
+    --tw-exit-scale: 1;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    --tw-exit-rotate: 0;
+    --tw-exit-blur: 0;
   }
 }

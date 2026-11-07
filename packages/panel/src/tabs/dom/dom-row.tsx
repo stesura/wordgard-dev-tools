@@ -29,6 +29,8 @@ export const Row = ({
       id={`view-${line.id || "root"}`}
       role="treeitem"
       aria-level={line.depth + 1}
+      aria-posinset={line.position}
+      aria-setsize={line.siblings}
       aria-expanded={folder ? !line.collapsed : undefined}
       aria-selected={focused}
       data-dom={line.id}
@@ -47,15 +49,19 @@ export const Row = ({
         paddingLeft: line.depth * INDENT,
       }}
     >
-      {/* The target, empty on a leaf (for the alignment); -mr-1 takes back the row's gap: the
+      {/* The target, empty on a leaf (for the alignment), for the mouse: out of the item's name
+          (aria-expanded says it). -mr-1 takes back the row's gap: the
           icon, centred, already stands 6px off the text. */}
       <span className="-mr-1 flex size-6 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-3">
         {folder && (
           <button
             type="button"
             tabIndex={-1}
+            aria-hidden
             aria-label={line.collapsed ? "Expand" : "Collapse"}
             className="flex size-6 cursor-pointer items-center justify-center"
+            // Hidden: never focused (focus stays on the tree).
+            onMouseDown={(event) => event.preventDefault()}
             onClick={(event) => {
               event.stopPropagation();
               onToggle(line.id);

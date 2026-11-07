@@ -1,11 +1,20 @@
 import type { Path, ViewNode } from "@stesura/wordgard-dev-tools";
 import { includes } from "#lib/text.ts";
+import { withSiblings } from "#lib/siblings.ts";
 
 /** One DOM node: its id is its child indices from the content element (`""` for it), dot-separated. */
-export type Line = { id: string; depth: number; node: ViewNode; collapsed: boolean };
+export type Line = {
+  id: string;
+  depth: number;
+  node: ViewNode;
+  collapsed: boolean;
+  /** Among its siblings, from 1, and their number: `aria-posinset`, `aria-setsize`. */
+  position: number;
+  siblings: number;
+};
 
 export const flatten = (root: ViewNode, collapsed: ReadonlySet<string>) => {
-  const lines: Line[] = [];
+  const lines: Omit<Line, "position" | "siblings">[] = [];
   const walk = (node: ViewNode, id: string, depth: number) => {
     const shut = collapsed.has(id) && node.children.length > 0;
     lines.push({ id, depth, node, collapsed: shut });
@@ -15,7 +24,7 @@ export const flatten = (root: ViewNode, collapsed: ReadonlySet<string>) => {
       );
   };
   walk(root, "", 0);
-  return lines;
+  return withSiblings(lines);
 };
 
 /** The line of the element drawing the node at `path`, else its nearest ancestor's; the content element's for the document. */

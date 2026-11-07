@@ -74,6 +74,22 @@ it("shows the state as JSON, live", async () => {
   await until(() => line("$/doc/content/0/content/0/param")?.textContent == '"param":"Oh Hi"');
 });
 
+it("names its items without their chevrons, and numbers them among their siblings", async () => {
+  await setup();
+  const doc = await until(() => line("$/doc"));
+  // The root's keys: doc and selection; closing lines don't count.
+  expect([doc.getAttribute("aria-posinset"), doc.getAttribute("aria-setsize")]).toEqual(["1", "2"]);
+  const selection = line("$/selection");
+  expect(selection?.getAttribute("aria-posinset")).toBe("2");
+  expect(line("$/doc#")?.getAttribute("aria-posinset")).toBe("1");
+  const chevron = doc.querySelector("button");
+  expect(chevron?.getAttribute("aria-hidden")).toBe("true");
+  // Clicked, it toggles, and focus stays off it (on the tree): a hidden element can't hold it.
+  if (chevron) await userEvent.click(chevron);
+  await until(() => line("$/doc")?.getAttribute("aria-expanded") == "false");
+  expect(shadow().activeElement).not.toBe(chevron);
+});
+
 it("collapses and expands, all at once or by the keyboard", async () => {
   await setup();
   button("Collapse all")?.click();

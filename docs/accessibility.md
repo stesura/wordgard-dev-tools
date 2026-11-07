@@ -14,7 +14,7 @@ Every tab can be used without a mouse. One Tab stop per list; the arrows move in
 | Structure, DOM, State trees | ↑ ↓ previous and next visible item; → opens, or goes to the first child; ← closes, or goes to the parent; Home and End. Structure: Enter scrolls the node into view in the editor, Escape clears the selection. State: Ctrl+A, Ctrl+C. |
 | Schema cards                | Tab and ↑ ↓ go from card to card, across the sections; Home and End; → and ← move through a card's links and tags; Enter on a card shows its JSON; Escape closes the JSON (in the filter: clears it first).                            |
 | Extensions                  | The tree: as the trees above; Escape clears the selection. Key bindings: one Tab stop in the table, ↑ ↓ Home End between its rows' log buttons.                                                                                        |
-| Log                         | ↑ ↓ between transactions, Home and End.                                                                                                                                                                                                |
+| Log                         | ↑ ↓ between transactions, Home and End. A jump to the Log ("Show #N in Log") focuses the list.                                                                                                                                         |
 | Fields                      | The list: ↑ ↓ Home End pick a field. The history (a tree): ↑ ↓ Home End between changes; Enter or Space opens and closes one; → opens it, then steps through its links; ← steps back, then closes. Tab to the value for its menu.      |
 
 - Trees follow the [WAI-ARIA tree pattern](https://www.w3.org/WAI/ARIA/apg/patterns/treeview/).
@@ -26,7 +26,10 @@ Every tab can be used without a mouse. One Tab stop per list; the arrows move in
 - Focus is never left on `<body>`: closing a pane, a banner or a box moves it to what's left (the
   selected card, the list, the box).
 - An expand/collapse chevron is for the mouse: `tabIndex={-1}`, `aria-hidden` where the item's
-  `aria-expanded` says it.
+  `aria-expanded` says it (Structure, DOM, State), and `mousedown` prevented: a click leaves focus
+  on the tree, never on the hidden button.
+- A tooltip is the mouse's way to a detail; the keyboard has another. The Structure's decoration
+  badges and widgets: the node pane lists the selected node's decorations and the widgets in it.
 
 ## Focus and selection
 
@@ -39,7 +42,9 @@ Every tab can be used without a mouse. One Tab stop per list; the arrows move in
 - Pressed text toggles (`aria-pressed`: the Structure's and the Log's Decorations, the Extensions
   view switch): a 2px bar under them besides the tint
   (`aria-pressed:shadow-[inset_0_-2px_0_var(--color-ring)]`).
-- Virtualized trees give each item `aria-posinset` and `aria-setsize` (not every row is in the DOM).
+- Virtualized trees give each item `aria-posinset` and `aria-setsize` (not every row is in the DOM):
+  `withSiblings` in `lib/siblings.ts`. The State's closing brackets aren't counted (an object's
+  keys are its children); each takes its opening's numbers.
 - A control that switches views keeps its place in the toolbar, so React doesn't draw it anew and
   focus stays on it.
 - Search inputs have no ring: focus grows an underline from the centre (`SearchInput` in
@@ -52,6 +57,9 @@ Forced colours drop box shadows (every `ring-*`) and backgrounds. One block at t
 
 - focus: a `CanvasText` outline on `:focus-visible`;
 - selection: a `Highlight` outline on selected tree items, options and the active tab;
+- a selected search match: the selection's colour in the match's style, a 4px double `Highlight`
+  outline for the current match, dashed for the others (`matchClass` adds the plain classes
+  `search-current` and `search-match` for it);
 - pressed chips and toggles (`aria-pressed`, `data-pressed`): `Highlight` with `HighlightText`, not
   adjusted (adjusted, the text would vanish on it).
 
@@ -83,14 +91,24 @@ Check with Playwright: `browser.newContext({ forcedColors: "active", colorScheme
 ## Targets
 
 - Toolbar buttons: 24px (`size="icon-xs"`).
-- DOM and State rows: 24px, their chevron a 24×24 button around a 12px icon, no padding
-  (`state-row.tsx`, `dom-row.tsx`).
+- DOM, State and Log rows: 24px (the Log's column header too); the DOM's and State's chevron a
+  24×24 button around a 12px icon, no padding (`state-row.tsx`, `dom-row.tsx`).
+- A small element keeps its look and gets a 24px target from a `before:` pseudo-element: the
+  Structure's chevrons (14px icon, `before:-inset-[5px]`, in a 24px-high box header: a box clips
+  what overflows it), the selection bar's mark links
+  (`TypeLink`'s `target24`, 16px high). Only where nothing else sits inside that area: the selection
+  bar spaces its wrapped lines for it.
 
 ## Timing and motion
 
-- Messages stay until closed (the State tab's replace banner has a ×), or until the tab, the panel
-  or the editor changes.
+- Messages stay until closed (the State's and the Log's banners have a ×), or until the tab, the
+  panel or the editor changes.
 - Animations honour `prefers-reduced-motion` where the panel defines them (`motion-reduce:`).
+  Menus, popovers, selects and tooltips (shadcn's, through tw-animate-css) only fade then: a rule
+  at the end of `styles.css` resets their zoom, slide, turn and blur. Colour changes (the copy
+  flash, hover) stay: they don't move.
+- Check with CDP: `Emulation.setEmulatedMedia` with `prefers-reduced-motion` or `forced-colors`
+  (`test/media.test.ts`).
 
 ## Screen readers
 
@@ -99,33 +117,21 @@ Check with Playwright: `browser.newContext({ forcedColors: "active", colorScheme
   "Text node type", "Strong mark type".
 - Section bars are named by their title ("Nodes"), with `aria-expanded`; counts read "9 nodes".
 - Live results: `role="status"` for success, `role="alert"` for errors, with the close button
-  outside the live region.
+  outside the live region (`NoticeBar` in `components/notice-bar.tsx`).
+- Glyphs are hidden and named in words: the Structure's decoration badge "◇ 2" reads "2
+  decorations", a widget's "◆" reads "widget" where it sits; the Log's flush badges likewise.
 
 ## To do
 
-- **Not committed yet**: the Schema's and the Structure's keyboard work, the Schema's
-  screen-reader structure, the slow timings' sign and the Structure's opaque selection tint sit in
-  files shared with other work in progress; they go in with it.
-- **Log**: a jump to the Log ("Show #N in Log", a "#N" link) leaves focus on `<body>`: on a reveal,
-  the Log should focus its list, as the Structure focuses its item.
 - **Guides**: a "Keyboard" section in each tab's guide; Shift+F10 / the Menu key for menus.
 - **Automated checks**: an axe-core scan of every tab, light and dark, in the browser tests
   (contrast and ARIA), so regressions are caught. Needs `axe-core` as a dev dependency.
 - **Not yet reviewed** for keyboard and screen readers: the Selection tab, the Log tab's filters and
   entry pane, and the panel's own controls (dock, resize, editor picker, settings).
-- **Screen readers**: the DOM and State rows' names start with their chevron's label ("Collapse …");
-  the Structure's are fixed (chevron `aria-hidden`).
-- **Targets under 24px**: the Structure's chevrons (14px), the selection bar's mark links (16px), Log
-  rows (20px).
-- **Keyboard**: the decoration badges and widget tooltips in the Structure's boxes are mouse-only.
-- **Log**: a timing of 1000 ms or more overflows its column by about 1px.
-- **Motion**: menus and tooltips (tw-animate-css) ignore `prefers-reduced-motion`.
+- **Targets under 24px**: type links (`TypeLink`) in the node pane and the Selection tab's cards
+  (16px). They sit in rows 16px apart, so a larger hit area would overlap the next row's: the rows
+  need spacing first.
 - **Text size**: sizes are in px (in-page, rem would follow the host page), so the browser's default
   font size has no effect. A text size setting in the panel's settings would give it back.
 - **`prefers-contrast: more`**: a stronger theme (borders, muted text).
 - **Extension**: check that Ctrl+F reaches the panel inside DevTools.
-- **Forced colours**: a selected row that is also the current search match shows only the match's
-  outline (the utility outline beats the `:where` selection rule; the selection bar is a box
-  shadow, dropped). Every tree.
-- **Virtualized trees**: the DOM and State trees don't give `aria-posinset` / `aria-setsize` yet
-  (the Extensions tree does).

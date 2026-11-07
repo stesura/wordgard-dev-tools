@@ -134,14 +134,22 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
           clearTimeout(closingTimer.current);
           setNotice(null);
         },
-        // An entry another tab links to (a field's change): selected once its rows are in.
+        // An entry another tab links to (a field's change): selected once its rows are in, and
+        // the list focused (the link that asked is in a hidden tab).
         onReveal: () => {
           const index = store.takeLogReveal(editorId);
           if (index == null) return;
           // The entry may be filtered out.
           savedFilters.set(noFilters);
           setSelected(index);
-          void source.load().then(() => requestAnimationFrame(() => select(index)));
+          void source.load().then(() =>
+            requestAnimationFrame(() => {
+              select(index);
+              element
+                .querySelector<HTMLElement>("[role='listbox']")
+                ?.focus({ preventScroll: true });
+            })
+          );
         },
       });
       return () => {
@@ -303,7 +311,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
             <div
               className={cn(
                 COLUMNS,
-                "sticky top-0 z-10 h-5 items-center border-b bg-background px-2 text-xs text-muted-foreground"
+                "sticky top-0 z-10 h-6 items-center border-b bg-background px-2 text-xs text-muted-foreground"
               )}
             >
               <SortHeading sortKey="index" label="#" tip="Index" sort={sort} onSort={changeSort} />

@@ -13,7 +13,10 @@ const place = (item: DecorationInfo) =>
 const summary = (item: DecorationInfo, index: DecorationIndex) =>
   `${item.kind} ${place(item)}, from ${sourceLabel(index.sources[item.source])}`;
 
-/** A node's decorations, as one badge: how many, and which in its tooltip. */
+/**
+ * A node's decorations, as one badge: how many, and which in its tooltip (the mouse's; the node
+ * pane lists them for the keyboard).
+ */
 export const DecorationBadge = ({
   items,
   index,
@@ -35,12 +38,15 @@ export const DecorationBadge = ({
         data-decorations={items.length}
         className="bg-violet-500/15 text-violet-800 dark:text-violet-300"
       >
-        ◇ {items.length}
+        <span aria-hidden="true">◇ {items.length}</span>
+        <span className="sr-only">
+          {items.length} decoration{items.length == 1 ? "" : "s"}
+        </span>
       </Tag>
     </Tip>
   ) : null;
 
-/** A widget where it sits: between nodes, or in a text leaf at its offset. */
+/** A widget where it sits: between nodes, or in a text leaf at its offset. Its tooltip as the badge's. */
 export const WidgetChip = ({ item, index }: { item: DecorationInfo; index: DecorationIndex }) => {
   const param = item.details.find(([label]) => label == "param")?.[1];
   return (
@@ -51,7 +57,8 @@ export const WidgetChip = ({ item, index }: { item: DecorationInfo; index: Decor
         data-widget={item.from}
         className="mx-0.5 inline-flex items-center align-middle text-violet-600 dark:text-violet-400"
       >
-        ◆
+        <span aria-hidden="true">◆</span>
+        <span className="sr-only">widget</span>
       </span>
     </Tip>
   );

@@ -228,7 +228,7 @@ export const Box = ({ node, marks }: { node: StructureNode; marks: Marks }) => {
       aria-expanded={folder ? open : undefined}
       className={cn(
         // The browser skips laying out and painting boxes off-screen (it keeps their last size).
-        "mb-1 cursor-default rounded border border-l-4 border-l-[hsl(var(--hue)_60%_50%)] px-1.5 py-0.5 [contain-intrinsic-size:auto_1.75rem] [content-visibility:auto]",
+        "mb-1 cursor-default rounded border border-l-4 border-l-[hsl(var(--hue)_60%_50%)] px-1.5 py-0.5 [contain-intrinsic-size:auto_1.875rem] [content-visibility:auto]",
         itemFocus,
         // Opaque: a translucent tint would add up box in box, and nested deep, muted text on it
         // falls under 4.5:1.
@@ -236,17 +236,18 @@ export const Box = ({ node, marks }: { node: StructureNode; marks: Marks }) => {
       )}
       style={hue("node", node.name)}
     >
-      {/* -mx-0.5 px-0.5: a match's inset outline clears the chevron and the range. */}
-      <div className={cn("-mx-0.5 flex items-center gap-2 px-0.5", matchClass(id, marks))}>
+      {/* -mx-0.5 px-0.5: a match's inset outline clears the chevron and the range. 24px high: the
+          chevron's target (the box clips what overflows it). */}
+      <div className={cn("-mx-0.5 flex min-h-6 items-center gap-2 px-0.5", matchClass(id, marks))}>
         {folder && (
           // For the mouse: out of the item's name (aria-expanded says it) and never focused. Focus
-          // in the content it closes goes to the box.
+          // in the content it closes goes to the box. A 24px target around the 14px icon.
           <button
             type="button"
             tabIndex={-1}
             aria-hidden
             aria-label={open ? "Collapse" : "Expand"}
-            className="-mr-1 flex size-3.5 cursor-pointer items-center justify-center text-muted-foreground [&_svg]:size-3"
+            className="relative -mr-1 flex size-3.5 cursor-pointer items-center justify-center text-muted-foreground before:absolute before:-inset-[5px] [&_svg]:size-3"
             onMouseDown={(event) => event.preventDefault()}
             onClick={(event) => {
               // Toggles only: not a click on the box.

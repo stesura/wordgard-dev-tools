@@ -108,6 +108,12 @@ together, at one version.
    packages with provenance. Each one is built by its `prepack` script. A prerelease tag
    (`v0.2.0-beta.1`) publishes to the `next` dist-tag.
 
+The workflow publishes through npm's trusted publishing: no `NPM_TOKEN`, npm trusts this
+repository's Release workflow. That needs the packages on npm first, so the first release goes out
+by hand: `npm login`, then `npm publish -w packages/devtools -w packages/panel` (without
+provenance, which only CI can give). Then, on npmjs.com, add the trusted publisher (GitHub
+Actions, this repository, `release.yml`) to each package's settings.
+
 CI fails if the versions drift (`npm run release:check`).
 
 The page side accepts `wordgard` from a floor up to 1. CI tests that floor; a daily workflow tests

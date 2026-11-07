@@ -11,6 +11,8 @@ import {
   type MountedDevtools,
   type Transport,
 } from "../src/index.ts";
+// The rows' height, and the sticky column header's.
+import { ROW } from "../src/tabs/log/log-rows.tsx";
 
 const doc = "<h1>Title</h1><p>Alpha</p>";
 
@@ -598,7 +600,7 @@ const oldestDrawn = () => Math.min(...drawnIndices());
 const inView = (row: HTMLElement, scroller: HTMLElement) => {
   const shown = row.getBoundingClientRect();
   const view = scroller.getBoundingClientRect();
-  return shown.top >= view.top + 20 - 0.5 && shown.bottom <= view.bottom + 0.5;
+  return shown.top >= view.top + ROW - 0.5 && shown.bottom <= view.bottom + 0.5;
 };
 // Following scrolls to the bottom; its scroll event comes a frame later.
 const followed = async (scroller: HTMLElement) => {
@@ -612,7 +614,7 @@ const recordMany = async (editor: Wordgard, count: number) => {
   await until(() => button("Pause"));
   for (let n = 0; n < count; n++) type(editor, "x");
   const scroller = await until(logScroller);
-  await until(() => scroller.scrollHeight >= (count + 1) * 20);
+  await until(() => scroller.scrollHeight >= (count + 1) * ROW);
   return scroller;
 };
 
@@ -625,7 +627,7 @@ it("follows new rows while scrolled to the bottom, and stays put once scrolled u
   scroller.scrollTop = 0;
   await new Promise((resolve) => setTimeout(resolve, 50));
   for (let n = 0; n < 5; n++) type(editor, "y");
-  await until(() => scroller.scrollHeight >= 86 * 20);
+  await until(() => scroller.scrollHeight >= 86 * ROW);
   await new Promise((resolve) => setTimeout(resolve, 50));
   expect(scroller.scrollTop).toBe(0);
   const oldest = drawnRow(oldestDrawn());

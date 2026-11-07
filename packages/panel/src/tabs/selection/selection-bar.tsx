@@ -19,7 +19,7 @@ export const SelectionBar = ({ store, editorId }: { store: PanelStore; editorId:
   const info = selection?.id == editorId ? selection.info : null;
   return (
     <div
-      className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-3 border-t bg-strip px-2 font-mono text-xs whitespace-nowrap"
+      className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t bg-strip px-2 font-mono text-xs whitespace-nowrap"
       aria-label="Selection"
     >
       <span className="flex items-center gap-0.5">
@@ -49,7 +49,7 @@ export const SelectionBar = ({ store, editorId }: { store: PanelStore; editorId:
           )}
           {info.empty && <span className="text-muted-foreground">empty</span>}
           {(info.activeMarks.length > 0 || info.storedMarks) && (
-            <span className="inline-flex flex-wrap items-center gap-1" data-active-marks>
+            <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-2" data-active-marks>
               <span className="text-muted-foreground">activeMarks:</span>
               {info.activeMarks.length ? (
                 info.activeMarks.map((mark) => (
@@ -58,6 +58,7 @@ export const SelectionBar = ({ store, editorId }: { store: PanelStore; editorId:
                     kind="mark"
                     name={mark.name}
                     onShow={(kind, name) => store.showType(editorId, name, kind)}
+                    target24
                   />
                 ))
               ) : (

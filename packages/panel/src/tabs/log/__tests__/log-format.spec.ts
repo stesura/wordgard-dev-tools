@@ -21,6 +21,8 @@ const row = (patch: Partial<LogRow>): LogRow => ({
 it("formats a log row's timings and flags", () => {
   expect(ms(null)).toBe("–");
   expect(ms(2.345)).toBe("2.3");
+  expect(ms(999.94)).toBe("999.9");
+  expect(ms(1234.5)).toBe("1235");
   expect(isSlow(row({ dispatchMs: 17 }))).toBe(true);
   expect(isSlow(row({ dispatchMs: 3, flushMs: 16 }))).toBe(false);
   expect(flags(row({ docChanged: true, annotations: ["focus"], appended: true }))).toEqual([
