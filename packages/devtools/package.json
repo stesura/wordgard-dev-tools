@@ -1,6 +1,6 @@
 {
   "name": "@stesura/wordgard-dev-tools",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Page side of Wordgard DevTools: the editor registry and the agent",
   "keywords": [
     "wordgard",
