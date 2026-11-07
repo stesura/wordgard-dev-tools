@@ -2,6 +2,18 @@
   "name": "@stesura/wordgard-dev-tools-panel",
   "version": "0.0.0",
   "description": "Wordgard DevTools panel: React UI, transport-agnostic, mountable in-page",
+  "keywords": [
+    "wordgard",
+    "devtools",
+    "rich-text",
+    "editor",
+    "debugging"
+  ],
+  "homepage": "https://github.com/stesura/wordgard-devtools#readme",
+  "bugs": {
+    "url": "https://github.com/stesura/wordgard-devtools/issues"
+  },
+  "author": "Edoardo Caratti",
   "license": "MIT",
   "repository": {
     "type": "git",

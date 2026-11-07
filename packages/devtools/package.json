@@ -2,6 +2,18 @@
   "name": "@stesura/wordgard-dev-tools",
   "version": "0.0.0",
   "description": "Page side of Wordgard DevTools: the editor registry and the agent",
+  "keywords": [
+    "wordgard",
+    "devtools",
+    "rich-text",
+    "editor",
+    "debugging"
+  ],
+  "homepage": "https://github.com/stesura/wordgard-devtools#readme",
+  "bugs": {
+    "url": "https://github.com/stesura/wordgard-devtools/issues"
+  },
+  "author": "Edoardo Caratti",
   "license": "MIT",
   "repository": {
     "type": "git",

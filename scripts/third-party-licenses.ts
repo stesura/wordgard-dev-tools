@@ -139,4 +139,6 @@ export const cssAndCopiedCode = {
     "Its tailwind.css is compiled into the panel's CSS; the shadcn/ui components in packages/panel/src/components/ui are copied from it.",
   heroicons:
     "Its 16px icons are copied into packages/panel/src/icons (heroicons.tsx, and one adapted in custom.tsx).",
+  wordgard:
+    "The panel's guides (packages/panel/src/guides) adapt wording from its reference documentation, written in its source.",
 };

@@ -10,17 +10,32 @@ It runs in two ways:
 - **in the page**: a panel docked at the bottom of your app, for browsers without the extension
   or for a deployed demo.
 
-> Status: work in progress, not yet published to npm or the extension stores.
+[Try the demo](https://stesura.github.io/wordgard-devtools/): editors with the panel docked.
+
+Inspired by [prosemirror-dev-tools](https://github.com/d4rkr00t/prosemirror-dev-tools), rebuilt
+for Wordgard's model.
+
+> Status: 0.x until Wordgard reaches 1.0, so minor versions may break things. Feedback is welcome:
+> [open an issue](https://github.com/stesura/wordgard-devtools/issues). The extension isn't in the
+> browser stores yet.
 
 ## Contents
 
 - [Quick start](#quick-start)
 - [Features](#features)
-- [Inspiration](#inspiration)
 - [Usage](#usage)
   - [1. Register your editors](#1-register-your-editors)
   - [2. Mount the panel](#2-mount-the-panel)
   - [Keep it out of production](#keep-it-out-of-production)
+- [Tabs](#tabs)
+  - [Structure](#structure)
+  - [Selection](#selection)
+  - [State](#state)
+  - [DOM](#dom)
+  - [Schema](#schema)
+  - [Fields](#fields)
+  - [Extensions](#extensions)
+  - [Log](#log)
 - [Packages](#packages)
 - [Development](#development)
 - [License](#license)
@@ -50,12 +65,114 @@ production builds (see [Keep it out of production](#keep-it-out-of-production)).
 
 - **Editor picker**: every connected editor on the page, iframes included.
 - **Element picker**: click a node in the page to find it in the panel. Picking doesn't move the caret.
-- **Tabs**: Structure, Selection, State, DOM, Schema, Fields and Log, described [below](#tabs). The ?
+- **Tabs**: Structure, Selection, State, DOM, Schema, Fields, Extensions and Log, described [below](#tabs). The ?
   in the tab bar shows the same guide in the panel, with links to Wordgard's reference.
 - **Log the editor**: the button at the right of the tab bar logs the `Wordgard` instance to the
   console.
 
 Nothing runs until the panel opens, and nothing is recorded until you press record.
+
+## Usage
+
+### 1. Register your editors
+
+Editors register explicitly with the `wordgardDevtools()` plugin from `@stesura/wordgard-dev-tools`:
+
+```ts
+import { Wordgard } from "wordgard/editor";
+import { wordgardDevtools } from "@stesura/wordgard-dev-tools";
+
+Wordgard.create({
+  parent,
+  doc,
+  config: [basicSchema(), wordCount, wordgardDevtools({ name: "main", fields: { wordCount } })],
+});
+```
+
+| Option    | Type                                | Default                                        | Description                                                                                  |
+| --------- | ----------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `name`    | `string`                            | the editor's `aria-label`, then `editor #n`    | Shown in the panel's editor picker.                                                          |
+| `fields`  | `{[name: string]: GardState.Field}` | none: fields show as `field #n`                | Names the editor's state fields in the Fields tab.                                           |
+| `enabled` | `boolean`                           | `false` in production builds, `true` otherwise | Whether to register the editor. See [Keep it out of production](#keep-it-out-of-production). |
+
+With react-wordgard, add the plugin to the `config` you pass to `<WordgardEditor>`.
+
+`wordgard` (`>=0.6.2 <1`) is a peer dependency.
+If a newer Wordgard breaks the devtools, they turn themselves off
+with one console warning; your editor keeps working.
+Below 0.6.2, npm refuses the install: upgrade Wordgard, or use an older devtools release.
+On release of v1 of Wordgard, the devtools will need a release to support it.
+
+### 2. Mount the panel
+
+```ts
+import { mountDevtools } from "@stesura/wordgard-dev-tools-panel";
+
+mountDevtools();
+```
+
+The panel docks at the bottom of the page.
+
+| Option      | Type        | Default                                        | Description                                                                              |
+| ----------- | ----------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `parent`    | `Element`   | `document.body`                                | The element the panel goes in. Keep it outside your editors.                             |
+| `enabled`   | `boolean`   | `false` in production builds, `true` otherwise | Whether to mount the panel. See [Keep it out of production](#keep-it-out-of-production). |
+| `transport` | `Transport` | the in-page transport                          | How the panel talks to the page. Only for custom hosts.                                  |
+
+It returns a handle:
+
+| Field     | Type            | Description                                                              |
+| --------- | --------------- | ------------------------------------------------------------------------ |
+| `unmount` | `() => void`    | Removes the panel, for example on a route change in a single-page app.   |
+| `ready`   | `Promise<void>` | Resolves once the panel has rendered.                                    |
+| `host`    | `HTMLElement`   | The `<wordgard-devtools>` element; the panel renders in its shadow root. |
+
+The panel renders in a shadow root, so its styles and your page's styles don't affect each other.
+Its React UI is bundled with it and loaded lazily on the first `mountDevtools()` call. Your page
+doesn't need React.
+
+With React, there is no component to render: the panel brings its own React, so call
+`mountDevtools()` in your entry file. To show it only while a component is mounted, for example
+on one route:
+
+```tsx
+const WordgardDevtools = () => {
+  useEffect(() => mountDevtools().unmount, []);
+  return null;
+};
+```
+
+### Keep it out of production
+
+Both are off in production builds (when your bundler sets `process.env.NODE_ENV` to
+`"production"`, as Vite, webpack and Next do):
+
+- `wordgardDevtools()` adds nothing to the editor's config, so the editor isn't registered and
+  no panel sees it.
+- `mountDevtools()` mounts nothing and downloads nothing. The panel's chunks are still emitted but
+  never loaded.
+
+Pass `enabled` to either one to decide yourself:
+
+```ts
+wordgardDevtools({ enabled: true }); // keep it in production, e.g. on a staging build
+mountDevtools({ enabled: settings.debug }); // your own switch
+```
+
+Without a bundler (plain ES modules, import maps) or with one that doesn't set `NODE_ENV` (Rollup
+without `@rollup/plugin-replace`), every build counts as development: pass `enabled` there.
+
+Their small page-side code still ships. To drop it as well, gate the calls so your bundler removes
+them:
+
+```ts
+if (import.meta.env.DEV) {
+  const { mountDevtools } = await import("@stesura/wordgard-dev-tools-panel");
+  mountDevtools();
+}
+
+const config = [basicSchema(), ...(import.meta.env.DEV ? [wordgardDevtools()] : [])];
+```
 
 <!-- tabs:start: written from packages/panel/src/guides/ by `npm run readme`; edit there -->
 
@@ -195,131 +312,6 @@ Tips:
 
 <!-- tabs:end -->
 
-## Inspiration
-
-Inspired by [prosemirror-dev-tools](https://github.com/d4rkr00t/prosemirror-dev-tools), rebuilt for
-Wordgard's model. Changes to make it easier to use:
-
-- **Multiple editors**: one panel for every editor on the page, iframes included, with a picker.
-- **Element selector**: pick a node in the page to reveal it in the panel.
-- **Highlighting**: hovering or selecting a node outlines it in the page.
-- **Positions**: every node shows its from/to positions, and text in the DOM shows where it sits.
-- **Dock position**: dock the in-page panel at any side, with resizable panes.
-- **Pause**: stops the panel from reading the editor, so it doesn't affect performance.
-- **Low overhead**: nothing is injected until the panel opens, and nothing is recorded until you
-  press record.
-- **Timing**: each update is timed, and slow ones (over 16 ms) are flagged in the log.
-- **Fields**: plugin state with its history of changes, linked to the transaction log.
-- **DOM**: the content DOM, with the node each element draws.
-- **Filters and links**: search and filters in the tabs, links between them (a field change opens
-  its transaction).
-- **Isolation**: the in-page panel renders in a shadow root, so its styles and the page's don't
-  affect each other.
-- **Extension**: runs as a browser DevTools tab, or docked in the page.
-- **Light and dark mode**: follows the system or the DevTools theme, with a manual toggle.
-
-## Usage
-
-### 1. Register your editors
-
-Editors register explicitly with the `wordgardDevtools()` plugin from `@stesura/wordgard-dev-tools`:
-
-```ts
-import { Wordgard } from "wordgard/editor";
-import { wordgardDevtools } from "@stesura/wordgard-dev-tools";
-
-Wordgard.create({
-  parent,
-  doc,
-  config: [basicSchema(), wordCount, wordgardDevtools({ name: "main", fields: { wordCount } })],
-});
-```
-
-| Option    | Type                                | Default                                        | Description                                                                                  |
-| --------- | ----------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `name`    | `string`                            | the editor's `aria-label`, then `editor #n`    | Shown in the panel's editor picker.                                                          |
-| `fields`  | `{[name: string]: GardState.Field}` | none: fields show as `field #n`                | Names the editor's state fields in the Fields tab.                                           |
-| `enabled` | `boolean`                           | `false` in production builds, `true` otherwise | Whether to register the editor. See [Keep it out of production](#keep-it-out-of-production). |
-
-With react-wordgard, add the plugin to the `config` you pass to `<WordgardEditor>`.
-
-`wordgard` (`>=0.6.2 <1`) is a peer dependency.
-If a newer Wordgard breaks the devtools, they turn themselves off
-with one console warning; your editor keeps working.
-Below 0.6.2, npm refuses the install: upgrade Wordgard, or use an older devtools release.
-On release of v1 of Wordgard, the devtools will need a release to support it.
-
-### 2. Mount the panel
-
-```ts
-import { mountDevtools } from "@stesura/wordgard-dev-tools-panel";
-
-mountDevtools();
-```
-
-The panel docks at the bottom of the page.
-
-| Option      | Type        | Default                                        | Description                                                                              |
-| ----------- | ----------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `parent`    | `Element`   | `document.body`                                | The element the panel goes in. Keep it outside your editors.                             |
-| `enabled`   | `boolean`   | `false` in production builds, `true` otherwise | Whether to mount the panel. See [Keep it out of production](#keep-it-out-of-production). |
-| `transport` | `Transport` | the in-page transport                          | How the panel talks to the page. Only for custom hosts.                                  |
-
-It returns a handle:
-
-| Field     | Type            | Description                                                              |
-| --------- | --------------- | ------------------------------------------------------------------------ |
-| `unmount` | `() => void`    | Removes the panel, for example on a route change in a single-page app.   |
-| `ready`   | `Promise<void>` | Resolves once the panel has rendered.                                    |
-| `host`    | `HTMLElement`   | The `<wordgard-devtools>` element; the panel renders in its shadow root. |
-
-The panel renders in a shadow root, so its styles and your page's styles don't affect each other.
-Its React UI is bundled with it and loaded lazily on the first `mountDevtools()` call. Your page
-doesn't need React.
-
-With React, there is no component to render: the panel brings its own React, so call
-`mountDevtools()` in your entry file. To show it only while a component is mounted, for example
-on one route:
-
-```tsx
-const WordgardDevtools = () => {
-  useEffect(() => mountDevtools().unmount, []);
-  return null;
-};
-```
-
-### Keep it out of production
-
-Both are off in production builds (when your bundler sets `process.env.NODE_ENV` to
-`"production"`, as Vite, webpack and Next do):
-
-- `wordgardDevtools()` adds nothing to the editor's config, so the editor isn't registered and
-  no panel sees it.
-- `mountDevtools()` mounts nothing and downloads nothing. The panel's chunks are still emitted but
-  never loaded.
-
-Pass `enabled` to either one to decide yourself:
-
-```ts
-wordgardDevtools({ enabled: true }); // keep it in production, e.g. on a staging build
-mountDevtools({ enabled: settings.debug }); // your own switch
-```
-
-Without a bundler (plain ES modules, import maps) or with one that doesn't set `NODE_ENV` (Rollup
-without `@rollup/plugin-replace`), every build counts as development: pass `enabled` there.
-
-Their small page-side code still ships. To drop it as well, gate the calls so your bundler removes
-them:
-
-```ts
-if (import.meta.env.DEV) {
-  const { mountDevtools } = await import("@stesura/wordgard-dev-tools-panel");
-  mountDevtools();
-}
-
-const config = [basicSchema(), ...(import.meta.env.DEV ? [wordgardDevtools()] : [])];
-```
-
 ## Packages
 
 | Package                                               | What it is                                                                                                                                                                   |
@@ -362,4 +354,5 @@ vulnerability.
 [MIT](LICENSE). The panel package and the extension bundle third-party code; their builds include
 its licences in `THIRD_PARTY_LICENSES.txt`. The components in
 [packages/panel/src/components/ui](packages/panel/src/components/ui) are copied from shadcn/ui
-([MIT](packages/panel/src/components/ui/LICENSE.md)).
+([MIT](packages/panel/src/components/ui/LICENSE.md)). The tabs' guides adapt wording from
+Wordgard's reference documentation (MIT, Marijn Haverbeke).

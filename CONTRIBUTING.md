@@ -98,28 +98,8 @@ it was added, turn its `function`s into arrow functions, add its `@base-ui/react
 
 ## Releasing
 
-`@stesura/wordgard-dev-tools` and `@stesura/wordgard-dev-tools-panel` are always released
-together, at one version.
-
-1. `npm run release:version -- 0.2.0` sets that version in both packages, in every workspace
-   that refers to them, in the agent's `VERSION`, and in the lockfile.
-2. Commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
-3. The Release workflow runs CI, checks that the versions match the tag, then publishes both
-   packages with provenance. Each one is built by its `prepack` script. A prerelease tag
-   (`v0.2.0-beta.1`) publishes to the `next` dist-tag.
-
-The workflow publishes through npm's trusted publishing: no `NPM_TOKEN`, npm trusts this
-repository's Release workflow. That needs the packages on npm first, so the first release goes out
-by hand: `npm login`, then `npm publish -w packages/devtools -w packages/panel` (without
-provenance, which only CI can give). Then, on npmjs.com, add the trusted publisher (GitHub
-Actions, this repository, `release.yml`) to each package's settings.
-
-CI fails if the versions drift (`npm run release:check`).
-
-The page side accepts `wordgard` from a floor up to 1. CI tests that floor; a daily workflow tests
-the newest 0.x. When the page side starts using a newer Wordgard API, raise the floor in
-`packages/devtools/package.json` and the `wordgard` default in `.github/actions/setup/action.yml`
-together. `release:check` fails if they differ.
+Add a line about your change to `CHANGELOG.md` under `## Unreleased`. How releases are made is in
+[RELEASE.md](RELEASE.md).
 
 ## Security
 

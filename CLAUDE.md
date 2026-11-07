@@ -13,8 +13,11 @@ Wordgard DevTools: a DevTools panel for Wordgard editors. MIT. The plan is `docs
 - Checks: `npm run typecheck`, `npm run lint` (Rules of React), `npm test` (Vitest, Chromium
   through Playwright; run `npx playwright install chromium` once), `npm run build`,
   `npm run compiler:check` (after build), `npm run dependency-check` (dependency-cruiser; rules in
-  `.dependency-cruiser.cjs`), `npm run format:check` (Prettier; `npm run format` fixes). Demo:
-  `npm run dev`.
+  `.dependency-cruiser.cjs`), `npm run format:check` (Prettier; `npm run format` fixes).
+  `npm run check` runs the static ones. Demo: `npm run dev`.
+- Release: `npm run release:prepare -- X.Y.Z`, commit and push, `npm run release:publish`
+  (`scripts/release.ts`, react-wordgard's flow; see RELEASE.md). Changes go in `CHANGELOG.md`
+  under `## Unreleased`.
 - Panel layout (`packages/panel/src`): `tabs/<tab>/`, `panel/`, `components/` (shadcn in
   `components/ui/`), `hooks/`, `stores/` (nanostores), `lib/` (no React), `guides/*.md` (the
   guides, in markdown). Layers, tests and the `shadcn add` steps are in CONTRIBUTING.md.

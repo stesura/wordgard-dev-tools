@@ -1,0 +1,42 @@
+name: Demo
+
+# The demo of the latest release, on GitHub Pages: started by the release script
+# (scripts/release.ts) on main, the release commit, or by hand. The Pages environment deploys
+# from main only.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: wordgard-devtools
+      - uses: ./wordgard-devtools/.github/actions/setup
+
+      # Pages serves the site under /wordgard-devtools/.
+      - name: Build the demo
+        working-directory: wordgard-devtools
+        run: npm run build -w demo -- --base /wordgard-devtools/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: wordgard-devtools/demo/dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

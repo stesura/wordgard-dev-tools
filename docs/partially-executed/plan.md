@@ -306,9 +306,9 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
    [its notes](#implementation-notes-phase-7-2026-11-07).
 8. ~~react-wordgard automatic registration (react-wordgard repo).~~ Dropped (2026-11-05): apps
    add the plugin themselves. See [react-wordgard integration](#react-wordgard-integration).
-9. **Partially executed** (2026-11-06). Publishing: the npm packages are ready (metadata,
-   release workflow, lockstep versions, Wordgard version support); the extension stores are
-   parked. See [Packaging and publishing](#packaging-and-publishing-2026-11-06).
+9. **Partially executed** (2026-11-06, release flow 2026-11-07). Publishing: the npm packages are
+   ready (metadata, react-wordgard's release flow, lockstep versions, Wordgard version support,
+   the demo on GitHub Pages); the extension stores are parked. See [Packaging and publishing](#packaging-and-publishing-2026-11-06).
 
 E2E: Playwright with the built extension loaded (`--load-extension`, persistent context)
 against the demo. It covers two editors, switching between them, remounting, iframes, editors
@@ -996,9 +996,24 @@ release:version -- X.Y.Z` (`scripts/version.ts`) sets it in both packages, in ev
   that refers to them, in the agent's `VERSION` and in the lockfile, editing text to keep each
   file's formatting. `npm run release:check` fails on drift; CI runs it.
 - `prepack` builds each package, so a publish from a clean checkout can't ship an empty `dist/`.
-- `.github/workflows/release.yml`: on a `v*` tag it runs CI (`ci.yml` is now callable), checks
-  that the versions match the tag, then publishes the page side, then the panel, with
-  provenance. A prerelease tag publishes to the `next` dist-tag (npm 11 requires one).
+- ~~`.github/workflows/release.yml`: on a `v*` tag it runs CI, then publishes with provenance.~~
+  Replaced (2026-11-07, at the user's request) by react-wordgard's flow, `scripts/release.ts`:
+  `npm run release:prepare -- X.Y.Z` names CHANGELOG's `## Unreleased`, sets the versions
+  (`version.ts`) and runs `npm run check`, the tests, the build and the compiler check; the
+  maintainer commits and pushes; `npm run release:publish` waits for CI on that commit, asks,
+  publishes the page side then the panel from the maintainer's machine (`next` dist-tag for a
+  prerelease; a rerun publishes what's missing), tags, creates the GitHub release from the
+  CHANGELOG and starts `demo.yml`. Deviation: no provenance, since npm publishes locally.
+- `CHANGELOG.md` at the root, Wordgard's format, as react-wordgard's. `RELEASE.md` describes the
+  release, with recovery steps; CONTRIBUTING points to it.
+- `.github/workflows/demo.yml`: the demo on GitHub Pages (https://stesura.github.io/wordgard-devtools/),
+  built with `--base /wordgard-devtools/` (the iframe's `src` is relative for it). The repository
+  is public (2026-11-07), Pages deploys from Actions, private vulnerability reporting is on.
+- Both packages' metadata: keywords, homepage, bugs, author. Checked by packing both and
+  installing them in a scratch app: its typecheck (bundler and nodenext, `skipLibCheck` off) and a
+  Vite build pass.
+- `THIRD_PARTY_LICENSES.txt` credits `wordgard`: the guides adapt wording from its reference
+  documentation.
 - `.github/actions/setup`: Node, the sibling `wordgard` and `react-wordgard` folders from npm,
   and the install, shared by CI, Release and the latest-Wordgard run.
 - Steps are in `CONTRIBUTING.md` ("Releasing").
@@ -1076,11 +1091,10 @@ Parked by the user (2026-11-06). To do before the first store release:
 
 ### Open points
 
-- Publishing: the first release can go out by hand after `npm login` (no token, no provenance),
-  then trusted publishing on npmjs.com for both packages, so the Release workflow needs no
-  `NPM_TOKEN`. Pinned by the user (2026-11-06). Done 2026-11-07: the workflow has no token (it
-  makes sure of npm 11.5.1 or later), and CONTRIBUTING describes the first release by hand and
-  the trusted publisher to add.
+- ~~Publishing through trusted publishing (2026-11-06).~~ Superseded 2026-11-07: releases publish
+  locally with `npm run release:publish`, as react-wordgard's do. Needs `npm login` and `gh`.
+- The Demo workflow hasn't run on GitHub yet (CI has, on main): the first
+  `release:publish` (or a manual dispatch of Demo) deploys Pages.
 - When Wordgard v1 is released, the page side needs a release that accepts it (the README says
   so).
 

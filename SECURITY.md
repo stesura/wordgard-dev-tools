@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-Wordgard DevTools hasn't been released yet. Until it is, only the `main` branch is supported. After
-the first release, only the latest version of each package and of the extension gets security fixes.
+Only the latest version of the npm packages and the `main` branch get security fixes. The
+extension isn't in the browser stores yet.
 
 ## Reporting a vulnerability
 

@@ -19,8 +19,11 @@
     "format:check": "prettier --check .",
     "dependency-check": "depcruise packages demo scripts",
     "compiler:check": "node scripts/compiler-check.ts",
+    "check": "npm run release:check && npm run format:check && npm run dependency-check && npm run readme:check && npm run typecheck && npm run lint",
     "release:version": "node scripts/version.ts",
     "release:check": "node scripts/version.ts --check",
+    "release:prepare": "node scripts/release.ts prepare",
+    "release:publish": "node scripts/release.ts publish",
     "readme": "node scripts/readme.ts",
     "readme:check": "node scripts/readme.ts --check",
     "screenshots": "node scripts/screenshots.ts"

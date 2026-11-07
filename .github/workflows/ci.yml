@@ -1,12 +1,11 @@
 name: CI
 
+# The release script (scripts/release.ts) waits for it on the release commit before publishing.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-  # The release workflow runs it before publishing.
-  workflow_call:
 
 jobs:
   check:
