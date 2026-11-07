@@ -25,6 +25,13 @@ first `mountDevtools()` call. Your page doesn't need React. In production builds
 Options and details are in the
 [project README](https://github.com/stesura/wordgard-devtools#2-mount-the-panel).
 
+## For coding agents
+
+An [Agent Skill](https://agentskills.io) ships in the package, at
+`node_modules/@stesura/wordgard-dev-tools-panel/skills/wordgard-devtools/SKILL.md`: how to set up
+both packages, keep them out of production, and debug with the panel. Copy it to your agent's
+skills folder (for Claude Code, `.claude/skills/`) or point your agent at it.
+
 ## License
 
 MIT. Licenses of the bundled code are in `dist/THIRD_PARTY_LICENSES.txt`.

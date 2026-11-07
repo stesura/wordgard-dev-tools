@@ -61,6 +61,10 @@ mountDevtools();
 Run your dev server: the panel is docked at the bottom of the page. Both calls do nothing in
 production builds (see [Keep it out of production](#keep-it-out-of-production)).
 
+For coding agents, the panel package ships a skill with these steps: copy
+`node_modules/@stesura/wordgard-dev-tools-panel/skills/wordgard-devtools/` into your project's
+`.claude/skills/` (Claude Code), or point your agent at its `SKILL.md`.
+
 ## Features
 
 - **Editor picker**: every connected editor on the page, iframes included.

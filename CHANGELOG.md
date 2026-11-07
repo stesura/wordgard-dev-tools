@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.0 (2026-11-07)
 
 ### New features
 
@@ -15,3 +15,5 @@ The Extensions tab lists each facet's values in the order Wordgard gives them, b
 A recorded log copies as a Node script that replays it on plain Wordgard.
 
 In production builds both calls do nothing unless `enabled` is set, and the panel downloads nothing.
+
+The panel package ships an Agent Skill, `skills/wordgard-devtools/SKILL.md`, for coding agents setting up the devtools.
