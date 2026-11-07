@@ -34,7 +34,7 @@ On `main`, up to date with `origin/main`, nothing uncommitted:
    - asks, then publishes the page side, then the panel (each built by its `prepack`);
    - tags `v0.2.0` and pushes the tag;
    - creates the GitHub release from the CHANGELOG section;
-   - deploys the demo to [GitHub Pages](https://stesura.github.io/wordgard-devtools/).
+   - deploys the demo to [GitHub Pages](https://stesura.github.io/wordgard-dev-tools/).
 
 A prerelease (`0.2.0-beta.1`) publishes to the `next` dist-tag and is marked as a prerelease on
 GitHub.
@@ -55,7 +55,7 @@ forward with a patch release.
 
 ## The demo
 
-The Demo workflow (`.github/workflows/demo.yml`) builds `demo/` with the base `/wordgard-devtools/`
+The Demo workflow (`.github/workflows/demo.yml`) builds `demo/` with the base `/wordgard-dev-tools/`
 and deploys it to GitHub Pages. `release:publish` starts it. To deploy without a release:
 `gh workflow run demo.yml --ref main`.
 

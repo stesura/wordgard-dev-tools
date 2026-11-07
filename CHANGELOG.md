@@ -1,3 +1,9 @@
+## Unreleased
+
+### Bug fixes
+
+The packages' links, and the panel's link to the project, point to the renamed repository, github.com/stesura/wordgard-dev-tools.
+
 ## 0.1.1 (2026-11-07)
 
 ### Bug fixes

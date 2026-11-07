@@ -4,7 +4,7 @@ A DevTools panel for Wordgard editors. Use it to inspect the
 document, the state, the rendered DOM, the schema and the state fields, and to record transactions  
 with their timing.
 
-[Try the demo](https://stesura.github.io/wordgard-devtools/): editors with the panel docked.
+[Try the demo](https://stesura.github.io/wordgard-dev-tools/): editors with the panel docked.
 
 Inspired by [prosemirror-dev-tools](https://github.com/d4rkr00t/prosemirror-dev-tools), rebuilt
 for Wordgard's model.

@@ -175,7 +175,7 @@ const publish = async () => {
     ]);
   // Pages deploys from main only, which is the release commit now.
   gh("workflow", "run", "demo.yml", "--ref", branch);
-  console.log("Demo deploy started: https://stesura.github.io/wordgard-devtools/");
+  console.log("Demo deploy started: https://stesura.github.io/wordgard-dev-tools/");
   for (const dir of published)
     console.log(`Released: https://www.npmjs.com/package/${nameOf(dir)}/v/${version}`);
 };

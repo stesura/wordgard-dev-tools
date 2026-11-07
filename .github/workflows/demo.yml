@@ -29,10 +29,10 @@ jobs:
           path: wordgard-devtools
       - uses: ./wordgard-devtools/.github/actions/setup
 
-      # Pages serves the site under /wordgard-devtools/.
+      # Pages serves the site under /wordgard-dev-tools/.
       - name: Build the demo
         working-directory: wordgard-devtools
-        run: npm run build -w demo -- --base /wordgard-devtools/
+        run: npm run build -w demo -- --base /wordgard-dev-tools/
 
       - uses: actions/upload-pages-artifact@v3
         with:
