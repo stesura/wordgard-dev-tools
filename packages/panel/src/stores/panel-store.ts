@@ -73,6 +73,9 @@ export type PanelStore = {
   /** Shows the Fields tab with a field selected, by its index (taken once with `takeFieldReveal`). */
   showField: (id: number, index: number) => void;
   takeFieldReveal: (id: number) => number | null;
+  /** Shows the Extensions tab, which takes focus (taken once with `takeExtensionsReveal`). */
+  showExtensions: (id: number) => void;
+  takeExtensionsReveal: (id: number) => boolean;
   /** Shows the Log tab with an entry selected (taken once with `takeLogReveal`). */
   showLogEntry: (id: number, index: number) => void;
   takeLogReveal: (id: number) => number | null;
@@ -114,6 +117,7 @@ export const createPanelStore = (transport: Transport): PanelStore => {
   let reveal: { id: number; path: Path } | null = null;
   let decorationsReveal: number | null = null;
   let fieldReveal: { id: number; index: number } | null = null;
+  let extensionsReveal: number | null = null;
   let logReveal: { id: number; index: number } | null = null;
   let typeReveal: { id: number; kind: ColourKind; name: string } | null = null;
   let domReveal: { id: number; path: Path } | null = null;
@@ -329,6 +333,16 @@ export const createPanelStore = (transport: Transport): PanelStore => {
       const { index } = fieldReveal;
       fieldReveal = null;
       return index;
+    },
+    showExtensions: (id) => {
+      extensionsReveal = id;
+      set({ tab: "extensions" });
+      for (const listener of revealListeners) listener();
+    },
+    takeExtensionsReveal: (id) => {
+      if (extensionsReveal != id) return false;
+      extensionsReveal = null;
+      return true;
     },
     showLogEntry: (id, index) => {
       logReveal = { id, index };

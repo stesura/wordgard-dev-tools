@@ -58,3 +58,50 @@ export const isDerived = (ext: unknown): ext is GardState.Field.Derived<unknown>
 /** What a field provides (`provide` in its spec): internal in Wordgard's typings. */
 export const fieldProvides = (field: GardState.Field<unknown>): unknown =>
   "provides" in field ? field.provides : undefined;
+
+/** Wordgard's private tag decoration facets, each null when this Wordgard doesn't have it. */
+export type TagFacets = {
+  shape: GardState.Facet<unknown, unknown> | null;
+  wrapper: GardState.Facet<unknown, unknown> | null;
+  widget: GardState.Facet<unknown, unknown> | null;
+  attribute: GardState.Facet<unknown, unknown> | null;
+  markShape: GardState.Facet<unknown, unknown> | null;
+};
+
+/** A provider's facet: of the extension itself, or of an array's first item. */
+const facetOf = (make: () => unknown) => {
+  try {
+    const made = make();
+    return providerOf(Array.isArray(made) ? made[0] : made)?.facet ?? null;
+  } catch {
+    return null;
+  }
+};
+
+type TagFacetName = keyof TagFacets;
+const found: Partial<Record<TagFacetName, GardState.Facet<unknown, unknown>>> = {};
+
+/**
+ * The tag facets, from providers built with the public factories (they only allocate): `make`
+ * builds one per facet. Each is kept once found (a schema without marks can't build `Mark.shape`'s).
+ */
+export const tagFacetsOf = (make: Record<TagFacetName, () => unknown>): TagFacets => {
+  const get = (name: TagFacetName) => {
+    const facet = found[name] ?? facetOf(make[name]);
+    if (facet) found[name] = facet;
+    return facet ?? null;
+  };
+  return {
+    shape: get("shape"),
+    wrapper: get("wrapper"),
+    widget: get("widget"),
+    attribute: get("attribute"),
+    markShape: get("markShape"),
+  };
+};
+
+/** `Command.bind(command, param)`: its command and parameter. */
+export const boundOf = (value: unknown) =>
+  isObject(value) && "command" in value && typeof value.command == "function"
+    ? { command: value.command, param: "param" in value ? value.param : undefined }
+    : null;

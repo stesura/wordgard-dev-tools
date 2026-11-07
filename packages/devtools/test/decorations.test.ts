@@ -65,6 +65,9 @@ const config = [
 
 it("lists each source's decorations, where Wordgard applies them", async () => {
   const { wg, id } = open(config);
+  // The page's modules load on the first request: after that, a request runs in one task, and
+  // only our call meets the throwing source.
+  await ask({ type: "decorations", id });
   wg.flush();
   failing = true;
   const info = await ask({ type: "decorations", id }).finally(() => (failing = false));

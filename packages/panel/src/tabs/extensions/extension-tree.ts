@@ -1,7 +1,17 @@
 import type { ExtensionNode } from "@stesura/wordgard-dev-tools";
 
-/** A row of the tree as drawn: its node, its id (the child indices, dotted; "" is the root). */
-export type Line = { id: string; node: ExtensionNode; depth: number; collapsed: boolean };
+/**
+ * A row of the tree as drawn: its node, its id (the child indices, dotted; "" is the root), its
+ * place among its siblings (1-based; a virtualized tree says it, as not all rows are drawn).
+ */
+export type Line = {
+  id: string;
+  node: ExtensionNode;
+  depth: number;
+  collapsed: boolean;
+  position: number;
+  siblings: number;
+};
 
 export const pathOfId = (id: string) => (id ? id.split(".").map(Number) : []);
 const childId = (id: string, index: number) => (id ? `${id}.${index}` : String(index));
@@ -13,7 +23,14 @@ export const linesOf = (root: ExtensionNode, collapsed: ReadonlySet<string>) => 
     node.children.forEach((child, i) => {
       const at = childId(id, i);
       const closed = collapsed.has(at) && child.children.length > 0;
-      lines.push({ id: at, node: child, depth, collapsed: closed });
+      lines.push({
+        id: at,
+        node: child,
+        depth,
+        collapsed: closed,
+        position: i + 1,
+        siblings: node.children.length,
+      });
       if (!closed) walk(child, at, depth + 1);
     });
   };

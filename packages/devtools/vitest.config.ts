@@ -42,6 +42,8 @@ export default defineConfig({
       "wordgard/types",
       "wordgard/history",
       "wordgard/set",
+      "wordgard/command",
+      "wordgard/phrases",
     ],
   },
   test: {

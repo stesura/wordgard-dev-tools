@@ -171,6 +171,9 @@ export const createFramesTransport = (
       routed<"extension">(id, (page) => ({ type: "extension", id: page, path })),
     logExtension: ({ id, path, resolved }) =>
       routed<"logExtension">(id, (page) => ({ type: "logExtension", id: page, path, resolved })),
+    keymap: ({ id }) => routed<"keymap">(id, (page) => ({ type: "keymap", id: page })),
+    logKeyBinding: ({ id, index, shift }) =>
+      routed<"logKeyBinding">(id, (page) => ({ type: "logKeyBinding", id: page, index, shift })),
     resolve: ({ id, pos }) => routed<"resolve">(id, (page) => ({ type: "resolve", id: page, pos })),
     logPos: ({ id, pos }) => routed<"logPos">(id, (page) => ({ type: "logPos", id: page, pos })),
     logSlice: ({ id }) => routed<"logSlice">(id, (page) => ({ type: "logSlice", id: page })),

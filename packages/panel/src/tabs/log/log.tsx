@@ -222,7 +222,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
                 size="xs"
                 aria-pressed={view.decorations}
                 onClick={() => void source.setDecorations(!view.decorations)}
-                className="aria-pressed:bg-foreground/10"
+                className="aria-pressed:bg-foreground/10 aria-pressed:shadow-[inset_0_-2px_0_var(--color-ring)]"
               >
                 Decorations
               </Button>
@@ -259,7 +259,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
             source={source}
             row={selectedRow}
             onShowNode={(path) => store.showNode(editorId, path, { decorations: true })}
-            onShowExtensions={() => store.setTab("extensions")}
+            onShowExtensions={() => store.showExtensions(editorId)}
           />
         }
       >

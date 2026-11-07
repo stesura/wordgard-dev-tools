@@ -62,6 +62,7 @@ const noteText: Record<EffectiveSpec["notes"][string], string> = {
   default: "default",
   override: "override",
   schema: "from the schema",
+  decoration: "a decoration",
 };
 
 /** What applies to a type, as JSON, each value that isn't the spec's with a comment saying why. */

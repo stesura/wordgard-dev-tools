@@ -1,4 +1,5 @@
 import { afterEach, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 import { Decoration, Wordgard } from "wordgard/editor";
 import { basicSchema } from "wordgard/schema";
 import { GardState } from "wordgard/state";
@@ -119,6 +120,51 @@ it("moves through the tree with the keys", async () => {
   await until(
     () => tree()?.querySelector("[aria-selected='true']")?.getAttribute("data-extension") == "1"
   );
+  // A virtualized tree says where each row sits; the chevron isn't part of a row's name.
+  const second = tree()?.querySelector("[data-extension='1']");
+  expect(second?.getAttribute("aria-posinset")).toBe("2");
+  expect(Number(second?.getAttribute("aria-setsize"))).toBeGreaterThan(2);
+  expect(tree()?.querySelector("[role='treeitem'] button:not([aria-hidden='true'])")).toBeNull();
+  expect(tree()?.getAttribute("aria-activedescendant")).toBe("extension-1");
+  element.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await until(() => !tree()?.querySelector("[aria-selected='true']"));
+  expect(pane()?.textContent).toContain("Select an extension");
+});
+
+it("lists the key bindings, searchable, each command logged", async () => {
+  await setup();
+  const view = (name: string) =>
+    [
+      ...shadow().querySelectorAll<HTMLButtonElement>("[role='group'][aria-label='View'] button"),
+    ].find((element) => element.textContent == name);
+  // From the keyboard: the switch keeps focus (it isn't drawn anew).
+  (await until(() => view("Key bindings"))).focus();
+  await userEvent.keyboard("{Enter}");
+  const table = await until(() => shadow().querySelector<HTMLTableElement>("table"));
+  await until(() => table.querySelectorAll("tbody tr").length > 5);
+  expect(shadow().activeElement).toBe(view("Key bindings"));
+  // One Tab stop for the table's buttons; the arrows move between rows.
+  const stops = () => [...table.querySelectorAll<HTMLButtonElement>("tbody button[tabindex='0']")];
+  expect(stops()).toHaveLength(1);
+  stops()[0]?.focus();
+  const first = shadow().activeElement;
+  await userEvent.keyboard("{ArrowDown}");
+  expect(shadow().activeElement).not.toBe(first);
+  expect(shadow().activeElement?.closest("tbody")).toBe(table.querySelector("tbody"));
+  expect(stops()).toEqual([shadow().activeElement]);
+  expect(view("Key bindings")?.getAttribute("aria-pressed")).toBe("true");
+  expect(table.querySelector("tbody tr th[scope='row']")).not.toBeNull();
+  const search = await until(() =>
+    shadow().querySelector<HTMLInputElement>("[aria-label='Search the key bindings']")
+  );
+  await userEvent.fill(search, "selectAll");
+  const rows = () => [...(shadow().querySelector("tbody")?.querySelectorAll("tr") ?? [])];
+  await until(() => rows().length > 0 && rows().length < 5);
+  expect(rows().every((row) => row.textContent?.includes("selectAll"))).toBe(true);
+  const log = shadow().querySelector<HTMLButtonElement>("tbody button[aria-label^='Log']");
+  expect(log?.getAttribute("aria-label")).toMatch(/^Log .+'s command to the console$/);
+  view("Extensions")?.click();
+  await until(() => tree());
 });
 
 it("opens from a reconfigured entry in the Log", async () => {
@@ -148,4 +194,6 @@ it("opens from a reconfigured entry in the Log", async () => {
   );
   link.click();
   await until(() => tab("Extensions")?.getAttribute("aria-selected") == "true");
+  // Focus goes to the tree, not <body>.
+  await until(() => shadow().activeElement == tree());
 });

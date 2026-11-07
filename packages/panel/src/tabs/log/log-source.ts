@@ -47,6 +47,8 @@ export type LogSource = {
   detail: (index: number, flush: number | null) => Promise<EntryDetail>;
   /** Logs a transaction, or one of its parts, live in the page's console. */
   logEntry: (index: number, part?: EntryPart) => void;
+  /** Points the page console's `$tr` at a transaction (and `$wg` at its editor). */
+  setConsole: (index: number) => void;
   /** Drops a cached detail (a failed one, to retry). */
   forget: (index: number, flush: number | null) => void;
 };
@@ -204,6 +206,9 @@ export const createLogSource = (transport: Transport, id: number): LogSource => 
     clear: () => act(() => transport.send({ type: "clear", id })),
     logEntry: (index, part) => {
       fire(transport, { type: "logEntry", id, index, part });
+    },
+    setConsole: (index) => {
+      fire(transport, { type: "setConsole", id, index });
     },
     forget: (index, flush) => {
       details.delete(`${index}|${flush}`);

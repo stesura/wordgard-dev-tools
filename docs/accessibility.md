@@ -13,6 +13,7 @@ Every tab can be used without a mouse. One Tab stop per list; the arrows move in
 | Any list with a menu        | Shift+F10 or the Menu key opens the focused item's context menu.                                                                                                                                                                       |
 | Structure, DOM, State trees | ↑ ↓ previous and next visible item; → opens, or goes to the first child; ← closes, or goes to the parent; Home and End. Structure: Enter scrolls the node into view in the editor, Escape clears the selection. State: Ctrl+A, Ctrl+C. |
 | Schema cards                | Tab and ↑ ↓ go from card to card, across the sections; Home and End; → and ← move through a card's links and tags; Enter on a card shows its JSON; Escape closes the JSON (in the filter: clears it first).                            |
+| Extensions                  | The tree: as the trees above; Escape clears the selection. Key bindings: one Tab stop in the table, ↑ ↓ Home End between its rows' log buttons.                                                                                        |
 | Log                         | ↑ ↓ between transactions, Home and End.                                                                                                                                                                                                |
 | Fields                      | The list: ↑ ↓ Home End pick a field. The history (a tree): ↑ ↓ Home End between changes; Enter or Space opens and closes one; → opens it, then steps through its links; ← steps back, then closes. Tab to the value for its menu.      |
 
@@ -35,6 +36,12 @@ Every tab can be used without a mouse. One Tab stop per list; the arrows move in
   an outline (`focus-visible:outline-2 focus-visible:outline-offset-2 …`), so focus on a card
   shows apart from focus on a link inside it.
 - A selected row's `bg-accent` is 1.1:1 on the background: never the only sign of the selection.
+- Pressed text toggles (`aria-pressed`: the Structure's and the Log's Decorations, the Extensions
+  view switch): a 2px bar under them besides the tint
+  (`aria-pressed:shadow-[inset_0_-2px_0_var(--color-ring)]`).
+- Virtualized trees give each item `aria-posinset` and `aria-setsize` (not every row is in the DOM).
+- A control that switches views keeps its place in the toolbar, so React doesn't draw it anew and
+  focus stays on it.
 - Search inputs have no ring: focus grows an underline from the centre (`SearchInput` in
   `components/search-box.tsx`), at `ring/70`.
 
@@ -117,3 +124,8 @@ Check with Playwright: `browser.newContext({ forcedColors: "active", colorScheme
   font size has no effect. A text size setting in the panel's settings would give it back.
 - **`prefers-contrast: more`**: a stronger theme (borders, muted text).
 - **Extension**: check that Ctrl+F reaches the panel inside DevTools.
+- **Forced colours**: a selected row that is also the current search match shows only the match's
+  outline (the utility outline beats the `:where` selection rule; the selection bar is a box
+  shadow, dropped). Every tree.
+- **Virtualized trees**: the DOM and State trees don't give `aria-posinset` / `aria-setsize` yet
+  (the Extensions tree does).

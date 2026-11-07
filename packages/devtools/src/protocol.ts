@@ -294,7 +294,26 @@ export type SchemaParam = {
  */
 export type EffectiveSpec = {
   value: Record<string, unknown>;
-  notes: Record<string, "default" | "override" | "schema">;
+  /** "decoration": added by the editor's tag decorations, not the type. */
+  notes: Record<string, "default" | "override" | "schema" | "decoration">;
+};
+
+/**
+ * What the editor's tag decorations (`Decoration.Tag.*`) do to a node type. Functions of the tag
+ * are evaluated on the first node of the type in the document, at `at`, and never without one.
+ */
+export type TagDecorations = {
+  /** `Decoration.Tag.shape`: the shape drawn instead of the type's. */
+  shape: string | null;
+  wrappers: string[];
+  /** "before: ⟨widget …⟩" */
+  widgets: string[];
+  /** 'name="value"', with " on img" for a target. */
+  attributes: string[];
+  /** The node they were evaluated on; null when the document has none of the type. */
+  at: number | null;
+  /** What the app's functions threw. */
+  errors: string[];
 };
 
 export type SchemaNodeType = {
@@ -317,6 +336,10 @@ export type SchemaNodeType = {
   /** Its spec as JSON: groups, roles and queries by name, functions as `ƒ name(params)`. */
   spec: unknown;
   effective: EffectiveSpec;
+  /** Null when no tag decoration applies to it. */
+  decorations: TagDecorations | null;
+  /** Drawn as an atom (`state.isAtom`): a shape decoration can change it. */
+  atom: boolean;
 };
 
 export type SchemaMarkType = {
@@ -332,6 +355,8 @@ export type SchemaMarkType = {
   /** Its spec as JSON, as a node type's. */
   spec: unknown;
   effective: EffectiveSpec;
+  /** The shape a `Decoration.Mark.shape` draws it with instead, or null. */
+  decoration: string | null;
 };
 
 /** A node group: the node types in it, and where the schema names it. */
@@ -516,6 +541,38 @@ export type ExtensionDetail = {
   value: string | null;
 };
 
+/** A key binding, as Wordgard's keymap holds it. */
+export type KeyBindingInfo = {
+  /** Its place in the keymap: `logKeyBinding`'s. */
+  index: number;
+  /** As the spec says it: this platform's own key when the spec has one, else `key`. */
+  key: string | null;
+  /** `Mod-` spelled out for this platform. */
+  platformKey: string | null;
+  char: string | null;
+  /** An `any` handler: called for every key. */
+  any: boolean;
+  /** Its command's name ("anonymous" without one); a bound command's parameter. */
+  command: string | null;
+  param: string | null;
+  /** The command for `Shift-` plus its key. */
+  shift: string | null;
+  shiftParam: string | null;
+  description: string | null;
+  shiftDescription: string | null;
+  group: string | null;
+  allowDefault: boolean;
+  /** From Wordgard's default keymap, after the configuration's own. */
+  fromDefault: boolean;
+};
+
+/** The bindings in order: for a key, the first whose command returns true wins. */
+export type KeymapInfo = {
+  /** "other": a platform Wordgard doesn't tell, where only `key` applies. */
+  platform: "mac" | "win" | "linux" | "other";
+  bindings: KeyBindingInfo[];
+};
+
 export type FieldInfo = {
   /** Its place among the state's fields (in extension order). */
   index: number;
@@ -610,6 +667,10 @@ export type Requests = {
   extension: { id: number; path: Path };
   /** Logs a row's extension live in the page's console; with `resolved`, its facet's value. */
   logExtension: { id: number; path: Path; resolved?: boolean };
+  /** The editor's key bindings. */
+  keymap: { id: number };
+  /** Logs a binding's command (with `shift`, its shifted one) live in the page's console. */
+  logKeyBinding: { id: number; index: number; shift?: boolean };
   /** Resolves any position in the document. */
   resolve: { id: number; pos: number };
   /** Logs `doc.resolve(pos)` in the page's console. */
@@ -690,6 +751,8 @@ export type Results = {
   extensions: ExtensionsInfo;
   extension: ExtensionDetail;
   logExtension: null;
+  keymap: KeymapInfo;
+  logKeyBinding: null;
   resolve: ResolvedPos;
   logPos: null;
   logSlice: null;

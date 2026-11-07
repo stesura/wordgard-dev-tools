@@ -52,6 +52,7 @@ export default defineConfig(({ command }) => ({
       "react",
       "react-dom/client",
       "react-resizable-panels",
+      "wordgard/command",
       "wordgard/doc",
       "wordgard/editor",
       "wordgard/history",
@@ -59,6 +60,7 @@ export default defineConfig(({ command }) => ({
       "wordgard/set",
       "wordgard/state",
       "wordgard/table",
+      "wordgard/types",
     ],
   },
   build: {

@@ -14,6 +14,23 @@ import { hue, markColour, typeColour, type ColourKind } from "#lib/colours.ts";
 export type Kind = "node" | "mark" | "group";
 export type Go = (kind: Kind, name: string) => void;
 
+/** What tag decorations do to a type, in one line. */
+export const decorationSummary = (type: SchemaNodeType) => {
+  const d = type.decorations;
+  const count = (n: number, what: string) => `${n} ${what}${n == 1 ? "" : "s"}`;
+  return [
+    ...(d?.shape != null ? [`shape ${d.shape}`] : []),
+    ...(d?.wrappers.length ? [count(d.wrappers.length, "wrapper")] : []),
+    ...(d?.widgets ?? []).map((widget) => `widget ${widget}`),
+    ...(d?.attributes ?? []).map((attribute) => `attribute ${attribute}`),
+    // A shape decoration can change it.
+    ...(type.effective.notes.atom == "override"
+      ? [type.atom ? "drawn as an atom" : "drawn with content"]
+      : []),
+    ...(d?.errors.length ? [`${count(d.errors.length, "function")} threw`] : []),
+  ].join("; ");
+};
+
 /** A term and its value: a group in the card's `<dl>`. */
 const Line = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="grid grid-cols-[4.5rem_1fr] gap-2 py-0.5">
@@ -239,6 +256,14 @@ export const NodeCard = ({
       <Links kind="mark" names={type.marks} onGo={onGo} />
     </Line>
     <Param param={type.param} />
+    {type.flags.includes("decorated") && (
+      <Line label="decorated">
+        {decorationSummary(type)}
+        {type.decorations?.at != null && (
+          <span className="text-muted-foreground"> (for the node at {type.decorations.at})</span>
+        )}
+      </Line>
+    )}
   </Card>
 );
 
@@ -258,6 +283,7 @@ export const MarkCard = ({
     shape={type.shape}
     selected={selected}
   >
+    {type.decoration != null && <Line label="decorated">shape {type.decoration}</Line>}
     {type.target != null && (
       <Line label="target">
         {type.target} <span className="text-muted-foreground">(spec)</span>

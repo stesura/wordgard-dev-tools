@@ -30,6 +30,7 @@ export const Row = ({
   line: Line;
   start: number;
   selected: boolean;
+  /** A search match's tint, in place of the selection's. */
   match: string;
   onToggle: (id: string) => void;
 }) => {
@@ -42,20 +43,27 @@ export const Row = ({
       aria-level={line.depth + 1}
       aria-expanded={folder ? !line.collapsed : undefined}
       aria-selected={selected}
+      aria-posinset={line.position}
+      aria-setsize={line.siblings}
       data-extension={line.id}
       className={cn(
         "absolute inset-x-0 top-0 flex cursor-default items-center gap-1 pr-2 font-mono text-xs whitespace-nowrap",
         match || (selected && "bg-accent"),
-        selected && "shadow-[inset_3px_0_0_var(--color-ring)]"
+        // Not by its tint alone (1.1:1): a bar, wider under a match's inset outline.
+        selected &&
+          (match
+            ? "shadow-[inset_5px_0_0_var(--color-ring)]"
+            : "shadow-[inset_3px_0_0_var(--color-ring)]")
       )}
       style={{ height: ROW, transform: `translateY(${start}px)`, paddingLeft: line.depth * INDENT }}
     >
       <span className="-mr-1 flex size-6 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-3">
         {folder && (
+          // For the mouse: the item's aria-expanded says it, and its name mustn't start with it.
           <button
             type="button"
             tabIndex={-1}
-            aria-label={line.collapsed ? "Expand" : "Collapse"}
+            aria-hidden="true"
             className="flex size-6 cursor-pointer items-center justify-center"
             onClick={(event) => {
               event.stopPropagation();

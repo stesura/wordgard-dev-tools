@@ -14,3 +14,4 @@ The editor's [configuration](https://wordgard.net/docs/ref/#state.GardState.Exte
 - Log a row to the console to jump to its definition; log a facet's value to see what Wordgard combined.
 - Show a field in the Fields tab; a decoration source lists its decorations, each a link to the Structure.
 - Name unnamed fields with `wordgardDevtools({fields: {name: field}})`.
+- Key bindings lists the editor's [key bindings](https://wordgard.net/docs/ref/#editor.KeyBinding) in the order Wordgard tries them, the default keymap last; search by key, command or description, and log a command to jump to it.

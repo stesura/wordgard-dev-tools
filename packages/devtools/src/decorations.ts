@@ -115,7 +115,7 @@ export const renderElt = (node: unknown, depth = 6): string => {
   return `<${node.tagName}${attrs}>${inner}</${node.tagName}>`;
 };
 
-const selectorText = (selector: unknown) => {
+export const selectorText = (selector: unknown) => {
   if (typeof selector != "object" || selector == null) return null;
   const tag = "tag" in selector && typeof selector.tag == "string" ? selector.tag : "";
   const classes =

@@ -311,7 +311,7 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
               size="xs"
               aria-pressed={showing}
               onClick={toggleDecorations}
-              className="aria-pressed:bg-foreground/10"
+              className="aria-pressed:bg-foreground/10 aria-pressed:shadow-[inset_0_-2px_0_var(--color-ring)]"
             >
               Decorations
             </Button>

@@ -68,6 +68,8 @@ const fakeAgent = (ids: number[], delay = 20) => {
     extensions: unsupported,
     extension: unsupported,
     logExtension: unsupported,
+    keymap: unsupported,
+    logKeyBinding: unsupported,
     resolve: unsupported,
     logPos: unsupported,
     logSlice: unsupported,

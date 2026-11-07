@@ -6,7 +6,8 @@ implementation notes for [0-2](#implementation-notes-phases-0-2-2026-11-04),
 [4](#implementation-notes-phase-4-2026-11-04), [4b](#implementation-notes-phase-4b-2026-11-04),
 [5](#implementation-notes-phase-5-2026-11-04) and [5b and 5c](#implementation-notes-phases-5b-and-5c-2026-11-04). Phase 9 partially
 executed on 2026-11-06 (npm side; the extension stores are parked), see
-[Packaging and publishing](#packaging-and-publishing-2026-11-06). Drafted 2026-11-04, revised
+[Packaging and publishing](#packaging-and-publishing-2026-11-06). Phase 6 done on 2026-11-07, see
+[its notes](#implementation-notes-phase-6-2026-11-07). Drafted 2026-11-04, revised
 after a Fable review the same day, see [Review](#review-2026-11-04).
 
 A browser DevTools panel for [Wordgard](../../../wordgard) editors, the counterpart of
@@ -296,7 +297,8 @@ Wordgard.create({state: GardState.create({extensions: [..., wordgardDevtools({na
    unless the app names them: `wordgardDevtools({fields: {history: historyField}})` (the shape
    `GardState.toJSON(fields)` takes). Changes are found by comparing each field's value per
    update, only while the tab is shown or the log records.
-6. `$wg` / `$tr`.
+6. **Executed** (2026-11-07). `$wg` / `$tr`. See
+   [its notes](#implementation-notes-phase-6-2026-11-07).
 7. Copy as repro, tested by running the generated script in Node.
 8. ~~react-wordgard automatic registration (react-wordgard repo).~~ Dropped (2026-11-05): apps
    add the plugin themselves. See [react-wordgard integration](#react-wordgard-integration).
@@ -1325,3 +1327,28 @@ of the compiler because of TanStack Virtual, and they're where most rendering ha
 - Measured as before, all compiled against no compiler, back to back (the machine was slower
   than in the first run: compare the ratios): Log 2948 → 1544 ms (-48%), Structure 1975 → 1034
   (-48%), State 1921 → 1076 (-44%), View 1887 → 991 (-47%), collapsed 570 → 594 (noise).
+
+## Implementation notes: phase 6 (2026-11-07)
+
+**Executed**, in one change with phase 12 of
+[the decorations plan](../executed/decorations-and-extensions.md). Checks and test counts are in
+that plan's phase 12 notes.
+
+### How it works
+
+- The agent defines `window.$wg` and `window.$tr` as getters the first time a panel selects an
+  editor: `$wg` is the editor a panel shows (the other panel's when one deselects), `$tr` the
+  transaction the Log shows. Selecting another editor clears `$tr`; selecting the same one again (a
+  reconnect) keeps it.
+- `setConsole {id, index?}` (routed by the extension) sets them; the Log's entry pane sends it from
+  a ref callback whenever it shows an entry.
+- A page's own `$wg` / `$tr` is never replaced; a page assigning one after ours takes it over.
+- The guides (Structure, Log) mention them.
+
+### Deviations
+
+- No separate "log to console" button: the panes' log actions (node, entry, part) already do it.
+
+### Open points
+
+- Phase 7 (copy as repro) is next; `repro` still answers "not implemented".

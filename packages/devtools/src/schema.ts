@@ -7,8 +7,10 @@ import type {
   SchemaMarkType,
   SchemaNodeType,
   SchemaParam,
+  TagDecorations,
 } from "./protocol.ts";
 import { toSafe } from "./serialise.ts";
+import type { TypeDecorations } from "./tags.ts";
 
 // Loaded with the serialisers, on the first panel request.
 
@@ -154,7 +156,13 @@ export const createQueryNamer = (schema: Schema) => {
   return { groupName, describe, custom: () => [...custom.keys()] };
 };
 
-export const schemaInfo = (schema: Schema): SchemaInfo => {
+/** What the editor's state adds to its schema: tag decorations, atom-ness. */
+export type SchemaExtras = {
+  decorations: TypeDecorations;
+  isAtom: (type: Node.Type) => boolean;
+};
+
+export const schemaInfo = (schema: Schema, extras?: SchemaExtras): SchemaInfo => {
   const namer = createQueryNamer(schema);
   const { groupName, describe } = namer;
 
@@ -229,6 +237,39 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
       : "override";
   };
 
+  /** What applies, with the tag decorations: a shape and changed atom-ness as overrides. */
+  const withDecorations = (
+    effective: EffectiveSpec,
+    decorations: TagDecorations | null,
+    atom: boolean,
+    own: boolean
+  ): EffectiveSpec => {
+    const value: Record<string, unknown> = { ...effective.value, atom };
+    const notes: EffectiveSpec["notes"] = {
+      ...effective.notes,
+      atom: atom == own ? "default" : "override",
+    };
+    const add = (key: string, v: unknown, note: "override" | "decoration") => {
+      value[key] = v;
+      notes[key] = note;
+    };
+    if (decorations?.shape != null) add("decoration shape", decorations.shape, "override");
+    if (decorations?.wrappers.length)
+      add("decoration wrappers", decorations.wrappers, "decoration");
+    if (decorations?.widgets.length) add("decoration widgets", decorations.widgets, "decoration");
+    if (decorations?.attributes.length)
+      add("decoration attributes", decorations.attributes, "decoration");
+    return { value, notes };
+  };
+
+  const markDecoration = (effective: EffectiveSpec, decoration: string | null): EffectiveSpec =>
+    decoration == null
+      ? effective
+      : {
+          value: { ...effective.value, "decoration shape": decoration },
+          notes: { ...effective.notes, "decoration shape": "override" },
+        };
+
   const listed = () =>
     [...knownGroups.keys(), ...namer.custom()].filter((group) => !implied.has(group));
 
@@ -250,6 +291,10 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
       if (type.orientation == "row" && !type.isTextblock) flags.push("row");
     }
     if (type.isSelectable) flags.push("selectable");
+    const decorations = extras?.decorations.nodes.get(type) ?? null;
+    const own = type.isLeaf || ("isAtom" in type && type.isAtom === true);
+    const atom = extras ? extras.isAtom(type) : own;
+    if (decorations || atom != own) flags.push("decorated");
     const content =
       type.isPlot && type.spec.blockContent
         ? `block: ${describe(type.spec.blockContent)}`
@@ -300,7 +345,9 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
       flags,
       shape: shape(type.spec),
       spec,
-      effective,
+      effective: withDecorations(effective, decorations, atom, own),
+      decorations,
+      atom,
     };
   });
 
@@ -315,6 +362,9 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
       .filter((node) => schema.markAllowed(type, node))
       .map((node) => node.name);
     const spec = specJSON(type.name, type.spec);
+    const modified = extras?.decorations.marks.get(type);
+    const decoration = modified ? shape(modified) : null;
+    if (decoration != null) flags.push("decorated");
     return {
       name: type.name,
       target: type.spec.target ? describe(type.spec.target) : null,
@@ -324,12 +374,16 @@ export const schemaInfo = (schema: Schema): SchemaInfo => {
       flags,
       shape: shape(type.spec),
       spec,
+      decoration,
       // A mark's resolved rank is internal: not shown.
-      effective: effectiveOf(spec, [
-        ["inclusive", type.inclusive],
-        ["spanning", type.spanning],
-        ["targets", targets, "schema"],
-      ]),
+      effective: markDecoration(
+        effectiveOf(spec, [
+          ["inclusive", type.inclusive],
+          ["spanning", type.spanning],
+          ["targets", targets, "schema"],
+        ]),
+        decoration
+      ),
     };
   });
 

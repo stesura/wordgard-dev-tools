@@ -14,6 +14,8 @@ import {
 import type { Agent, Entry, Registry } from "./registry.ts";
 import type * as Decorations from "./decorations.ts";
 import type * as Extensions from "./extensions.ts";
+import type * as Tags from "./tags.ts";
+import type * as Keymap from "./keymap.ts";
 import type * as Fields from "./fields.ts";
 import type * as Inspect from "./inspect.ts";
 import type * as Log from "./log.ts";
@@ -50,6 +52,46 @@ const childOf = (value: unknown, key: string): unknown =>
       ? Reflect.get(value, key)
       : undefined;
 
+/**
+ * `$wg` and `$tr` in the page's console: the editor a panel shows, the transaction it opened.
+ * `tr` left out keeps the transaction while the editor stays the same.
+ */
+export type ConsoleGlobals = { set: (wg: Wordgard | null, tr?: unknown) => void };
+
+const createConsoleGlobals = (): ConsoleGlobals => {
+  let editor: Wordgard | null = null;
+  let transaction: unknown = null;
+  const getters: [string, () => unknown][] = [
+    ["$wg", () => editor ?? undefined],
+    ["$tr", () => transaction ?? undefined],
+  ];
+  const install = () => {
+    for (const [name, get] of getters) {
+      // The page's own `$wg` stays; ours is defined once, and a page assigning one takes it over.
+      if (Object.getOwnPropertyDescriptor(window, name)) continue;
+      const set = (value: unknown) =>
+        Object.defineProperty(window, name, {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value,
+        });
+      try {
+        Object.defineProperty(window, name, { configurable: true, get, set });
+      } catch {
+        // A frozen window: no globals.
+      }
+    }
+  };
+  return {
+    set: (wg, tr) => {
+      transaction = tr !== undefined ? tr : wg == editor ? transaction : null;
+      editor = wg;
+      if (wg) install();
+    },
+  };
+};
+
 const notYet = (phase: number) => () => {
   throw new Error(`Not implemented yet (plan phase ${phase})`);
 };
@@ -61,10 +103,13 @@ const createHandlers = (
   view: typeof View,
   decorations: typeof Decorations,
   extensions: typeof Extensions,
+  tags: typeof Tags,
+  keymap: typeof Keymap,
   inspector: Inspect.Inspector,
   recorder: Log.Recorder,
   tracker: Fields.FieldTracker,
-  select: (client: Client, id: number | null) => void
+  select: (client: Client, id: number | null) => void,
+  globals: ConsoleGlobals
 ): Handlers => {
   const entry = (id: number) => {
     for (const e of registry.editors.values()) if (e.id == id) return e;
@@ -84,7 +129,13 @@ const createHandlers = (
     replaceState: ({ id, json }) => s.replaceState(entry(id), json),
     node: ({ id, path }) => s.node(entry(id).wg.state.doc, path),
     structure: ({ id }) => s.structure(entry(id).wg.state.doc),
-    schema: ({ id }) => schema.schemaInfo(entry(id).wg.state.schema),
+    schema: ({ id }) => {
+      const { state } = entry(id).wg;
+      return schema.schemaInfo(state.schema, {
+        decorations: tags.typeDecorations(state),
+        isAtom: (type) => state.isAtom(type),
+      });
+    },
     view: ({ id }) => view.viewInfo(entry(id).wg),
     viewElement: ({ id, path, action }) => {
       const target = view.viewNode(entry(id).wg, path);
@@ -116,6 +167,11 @@ const createHandlers = (
     logExtension: ({ id, path, resolved }) => {
       const e = entry(id);
       extensions.logExtension(e.wg.state, e.fields, path, resolved);
+      return null;
+    },
+    keymap: ({ id }) => keymap.keymap(entry(id).wg.state),
+    logKeyBinding: ({ id, index, shift }) => {
+      keymap.logKeyBinding(entry(id).wg.state, index, shift);
       return null;
     },
     resolve: ({ id, pos }) => s.resolve(entry(id).wg.state.doc, pos),
@@ -270,7 +326,11 @@ const createHandlers = (
       console.log(`[wordgard-devtools] ${label}`, value);
       return null;
     },
-    setConsole: notYet(6),
+    setConsole: ({ id, index }) => {
+      const e = entry(id);
+      globals.set(e.wg, index == null ? null : recorder.transaction(e, index));
+      return null;
+    },
     repro: notYet(7),
   };
 };
@@ -303,9 +363,13 @@ export const createAgent = (registry: Registry): Agent => {
           tracker.watch(e, client, false);
     }
   };
+  const globals = createConsoleGlobals();
   const select = (client: Client, id: number | null) => {
     selected[client] = id;
     sync();
+    // The editor this panel shows, else the other panel's.
+    const shown = id ?? clients.map((c) => selected[c]).find((other) => other != null) ?? null;
+    globals.set([...registry.editors.values()].find((e) => e.id == shown)?.wg ?? null);
   };
 
   const post = (message: Message) => window.postMessage(message, "*");
@@ -332,8 +396,10 @@ export const createAgent = (registry: Registry): Agent => {
       import("./view.ts"),
       import("./decorations.ts"),
       import("./extensions.ts"),
+      import("./tags.ts"),
+      import("./keymap.ts"),
     ]).then(
-      ([s, inspect, log, schema, fields, view, decorations, extensions]) => {
+      ([s, inspect, log, schema, fields, view, decorations, extensions, tags, keymap]) => {
         inspector = inspect.createInspector(registry, push);
         const logged = log.createRecorder(registry, push);
         recorder = logged;
@@ -345,10 +411,13 @@ export const createAgent = (registry: Registry): Agent => {
           view,
           decorations,
           extensions,
+          tags,
+          keymap,
           inspector,
           logged,
           tracker,
-          select
+          select,
+          globals
         );
       },
       (e) => {

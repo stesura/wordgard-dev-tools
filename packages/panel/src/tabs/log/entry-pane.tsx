@@ -1,5 +1,5 @@
 import { CodeBracketIcon, CommandLineIcon } from "#icons";
-import { Suspense, use, useDeferredValue, useState, type ReactNode } from "react";
+import { Suspense, use, useCallback, useDeferredValue, useState, type ReactNode } from "react";
 import type { EntryPart, LogEntryDetail, LogRow, Path } from "@stesura/wordgard-dev-tools";
 import { useStore } from "@nanostores/react";
 import { Button } from "#components/ui/button";
@@ -119,6 +119,13 @@ const EntryView = ({
 }) => {
   const view = useStore(source.state);
   const detail = use(source.detail(index, flush));
+  // The entry shown is `$tr` in the page's console.
+  const shown = useCallback(
+    (element: HTMLDivElement | null) => {
+      if (element) source.setConsole(index);
+    },
+    [source, index]
+  );
   if (detail.error != null) {
     return (
       <p role="alert" className="flex items-center gap-2 text-destructive">
@@ -139,7 +146,7 @@ const EntryView = ({
   const { entry } = detail;
   const log = (part: EntryPart) => () => source.logEntry(entry.index, part);
   return (
-    <div className="font-mono text-xs">
+    <div ref={shown} className="font-mono text-xs">
       <Section title="Transaction" onLog={log("transaction")} copied={() => json(entry)}>
         <Field label="index">{entry.index}</Field>
         <Field label="time">{clock(entry.time)}</Field>

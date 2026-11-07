@@ -76,6 +76,7 @@ Tips:
 - Click a box for its detail and JSON; Escape clears it.
 - Right-click a box for more actions.
 - Use the pick button, then click in the page, to find a node.
+- In the page's console, `$wg` is the editor the panel shows.
 - Decorations shows the editor's [decorations](https://wordgard.net/docs/ref/#editor.Decoration): ◆ marks a widget, ◇ 2 a node with two decorations.
 - By default a range decoration applies to the text in its range, not the paragraph around it; a point decoration to the node starting at it.
 
@@ -134,6 +135,7 @@ Tips:
 - Type names link between cards. Double-click a card to see its spec as JSON.
 - Order marks by rank to see how they nest.
 - Each section's guide explains its cards.
+- `decorated`: the editor draws the type differently, through [tag decorations](https://wordgard.net/docs/ref/#editor.Decoration.Tag) (a shape, wrappers, widgets, attributes) or [`Decoration.Mark.shape`](https://wordgard.net/docs/ref/#editor.Decoration.Mark.shape); the Effective view lists them. Functions of the node are evaluated on the first node of the type in the document.
 
 ### Fields
 
@@ -170,6 +172,7 @@ Tips:
 - Log a row to the console to jump to its definition; log a facet's value to see what Wordgard combined.
 - Show a field in the Fields tab; a decoration source lists its decorations, each a link to the Structure.
 - Name unnamed fields with `wordgardDevtools({fields: {name: field}})`.
+- Key bindings lists the editor's [key bindings](https://wordgard.net/docs/ref/#editor.KeyBinding) in the order Wordgard tries them, the default keymap last; search by key, command or description, and log a command to jump to it.
 
 ### Log
 
@@ -187,6 +190,7 @@ Tips:
 - Filter by user event, what changed or annotation; sort by any timing column.
 - Right-click a row to log the transaction or copy it as JSON or text; right-click a part of its detail to log or copy that part.
 - Untick record select.pointer to leave out selections made with the pointer, and record focus to leave out focus changes.
+- In the page's console, `$tr` is the transaction shown here, `$wg` its editor.
 
 <!-- tabs:end -->
 

@@ -1,12 +1,14 @@
 # Decorations, Extensions tab and keymap — plan
 
-Status: PARTIALLY EXECUTED. Phase 9b done on 2026-11-06, see
+Status: EXECUTED. Phase 9b done on 2026-11-06, see
 [its implementation notes](#implementation-notes-phase-9b-2026-11-06), phase 10, see
-[its notes](#implementation-notes-phase-10-2026-11-06), and phase 10b on 2026-11-07, see
-[its notes](#implementation-notes-phase-10b-2026-11-07), and phase 11 on 2026-11-07, see
-[its notes](#implementation-notes-phase-11-2026-11-07); phase 12 not started.
+[its notes](#implementation-notes-phase-10-2026-11-06), phase 10b on 2026-11-07, see
+[its notes](#implementation-notes-phase-10b-2026-11-07), phase 11 on 2026-11-07, see
+[its notes](#implementation-notes-phase-11-2026-11-07), and phase 12 on 2026-11-07, see
+[its notes](#implementation-notes-phase-12-2026-11-07). Open points are listed in each phase's
+notes.
 Drafted 2026-11-06, revised the same day after Fable reviews (see [Review](#review-2026-11-06)).
-Follows the main plan ([plan.md](plan.md)), whose scope listed "facet inspector"
+Follows the main plan ([plan.md](../partially-executed/plan.md)), whose scope listed "facet inspector"
 and "decorations view" as out of scope; the user asked for them (2026-11-06). Phases 9b–12
 continue the main plan's numbering. Paths follow the current layout (CONTRIBUTING.md): the panel's
 `tabs/<tab>/`, `lib/`, `guides/*.md`; unit tests in `__tests__/`, integration tests in `test/`.
@@ -429,6 +431,9 @@ toA, fromB) => old.compareRange(fromA, new, fromB, toA - fromA, add))`, the edit
 
 ## Phase 12: tag decorations in the Schema; keymap
 
+**Executed (2026-11-07)**, with deviations: see
+[its implementation notes](#implementation-notes-phase-12-2026-11-07).
+
 ### Tag decorations (internals)
 
 - `internals.ts`: get the private facets from a provider built through the public factory:
@@ -830,3 +835,91 @@ Not acted on: the plan update (done here).
 - After a reconfigure, the selected row's path may point at another extension: the pane shows
   that one.
 - Phase 12's tag facet names in this tab are still to come.
+
+## Implementation notes: phase 12 (2026-11-07)
+
+**Executed**, with the accessibility pass on the Extensions tab the user asked for, and the main
+plan's phase 6 (`$wg` / `$tr`) in the same change. Checks: `format:check`, `lint`, `typecheck`,
+`dependency-check`, `readme:check`, `build`, `compiler:check` pass; tests: devtools 142 (stable
+over six runs), panel 244, extension 27, e2e 11, all passing.
+
+### How it works
+
+- Page side `internals.ts`: `tagFacetsOf` takes the private tag facets from providers the public
+  factories build (`Tag.shape` with a function shape, `Tag.wrapper`, `Tag.widget`, `Tag.attribute`,
+  `Mark.shape`), each kept once found; `boundOf` reads `Command.bind`'s `{command, param}`.
+- `tags.ts`: `typeDecorations(state)`: per node type its shape override, wrappers (with their
+  target), widgets (with their place), attributes; per mark type the shape `Mark.shape` gives it.
+  Functions of the tag are called with the tag of the first node of the type in the document
+  (walked once, only when a function needs it), never without one; Wordgard's wrappers around
+  constants (no argument) are read without one. What the app's functions throw is collected.
+- `schema.ts`: `schemaInfo(schema, extras)` adds `decorations`, `atom` (`state.isAtom`), a
+  `decorated` flag (so the Schema's flag filter has it), and Effective entries: "decoration shape"
+  and a changed `atom` as overrides, wrappers, widgets and attributes with a new note,
+  "decoration".
+- `keymap.ts`: the `KeyBinding.source` bindings, then the default keymap unless
+  `useDefaultKeymap` is false: this platform's key (`mac`/`win`/`linux` over `key`; on a platform
+  Wordgard doesn't tell, `key` only), `Mod-` spelled out, `char`, `any`, the Shift command,
+  commands by name (a bound one with its parameter), descriptions and groups (phrase references
+  resolved with the state), `allowDefault`, from the default keymap or not. `logKeyBinding` logs a
+  command. `extensions.ts` names the tag facets and `GardState.isAtom`.
+- Panel: Schema cards get the `decorated` tag and a summary line ("for the node at n" when a
+  function was evaluated); the Effective view's new note. The Extensions tab gets a view switch,
+  Extensions | Key bindings: a searchable table in the keymap's order, each command logged.
+
+### Accessibility pass (Extensions tab)
+
+- The virtualized tree's items carry `aria-posinset` / `aria-setsize`; the chevron is
+  `aria-hidden`; the selection bar widens under a search match; Escape clears the selection.
+- "Show the extensions" from a reconfigured Log entry goes through `store.showExtensions`: the tab
+  focuses its tree (focus was left on `<body>`).
+- The view switch keeps its place in one toolbar, so switching keeps focus on it; a pressed toggle
+  is marked by a bar besides its tint (also the Structure's and the Log's Decorations toggles).
+- The key bindings table is one Tab stop; ↑ ↓ Home End move between its rows' log buttons.
+- `docs/accessibility.md` records these and the open points.
+
+### Deviations
+
+- **Key bindings** are a view of the Extensions tab (a switch), not a section under the tree.
+- **Constants**: Wordgard wraps a constant shape or attribute in a function of no argument; those
+  are read without a node, so a constant shows even with no node of its type in the document.
+- **`decorated` is a flag** (the cards' tags come from the flags), so it filters with the others.
+- `wordgard/command`, `wordgard/types` and `wordgard/phrases` joined `optimizeDeps`: a second
+  pre-bundled copy of Wordgard broke type identity in the panel's tests.
+- `PROTOCOL` stays 3: nothing was published since it went to 3.
+
+### Audit (Fable)
+
+Accepted and fixed:
+
+1. A test was flaky (an unhandled "boom" from the editor calling a throwing function while the
+   test's flag was set): the request is warmed up and the editor flushed first. The same race in
+   phase 10's decorations test, found while checking: fixed the same way.
+2. The "page's own `$wg`" test asserted nothing (the first test had installed ours): it removes
+   ours first, and now also checks that a page assigning `$wg` takes it over.
+3. A page assigning `$wg` after ours was defined threw (getter only): the setter makes it the page's.
+4. Any `select` cleared `$tr`, a reconnect included: the same editor keeps its transaction.
+5. `logKeyBinding`'s label left `Mod-` unexpanded: spelled out as in the table.
+6. The platform fell back to Linux where Wordgard uses `key` only; an empty platform key counted:
+   both as Wordgard does.
+7. The document was walked on every schema load: only when a function of the tag needs it.
+8. Constants read as "no node to evaluate it on": read without a node (see Deviations).
+9. A displaced doc comment.
+10. Accessibility: the view switch lost focus (remounted), 100+ Tab stops in the key bindings
+    table, the pressed state by its tint alone: fixed as above.
+
+Not acted on:
+
+- The 128 → 127 compiled memo checks: Fable traced it to a memo block of `Extensions` that now
+  depends on the view; every component still compiles.
+- Forced colours, a selected row that is also the current search match shows only the match's
+  outline: pre-existing in every tree, a change to the shared forced-colours block; recorded in
+  `docs/accessibility.md`.
+
+### Open points
+
+- Open question 4 (ask Wordgard's author to export the tag facets) stands: phase 12 relies on
+  internals.
+- Tag functions are evaluated when the Schema loads (on reconfigure), on the document of that
+  moment: "for the node at n" can go stale until the next load.
+- No e2e of the Schema's decorations or the key bindings view.

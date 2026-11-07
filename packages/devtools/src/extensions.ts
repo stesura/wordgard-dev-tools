@@ -23,6 +23,7 @@ import {
 } from "./protocol.ts";
 import type { NamedFields } from "./registry.ts";
 import { preview } from "./serialise.ts";
+import { tagFacets } from "./tags.ts";
 
 // Loaded with the serialisers, on the first panel request. The tree replays Wordgard's own walk
 // of a configuration (`flatten` in wordgard/state): what it keeps, at which precedence.
@@ -83,6 +84,7 @@ const KNOWN: [unknown, string][] = [
   [wordgardEditor, "Panel.show"],
   [wordgardEditor, "Tooltip.show"],
   [wordgardState, "GardState.readOnly"],
+  [wordgardState, "GardState.isAtom"],
   [wordgardState, "GardState.schemaElement"],
   [wordgardState, "GardState.textLTR"],
   [wordgardState, "GardState.textblockLTR"],
@@ -168,6 +170,17 @@ const build = (state: GardState, names: NamedFields | undefined): Shape => {
   const pointSource = read(wordgardEditor, ["Decoration", "Point", "source"]);
   const rangeSource = read(wordgardEditor, ["Decoration", "Range", "source"]);
   const facetsShown = new Set<unknown>();
+  // Wordgard's private tag facets, named by the factories that provide them.
+  const tagged = tagFacets(state);
+  const facetNames = new Map(knownFacets());
+  for (const [facet, name] of [
+    [tagged.shape, "Decoration.Tag.shape"],
+    [tagged.wrapper, "Decoration.Tag.wrapper"],
+    [tagged.widget, "Decoration.Tag.widget"],
+    [tagged.attribute, "Decoration.Tag.attribute"],
+    [tagged.markShape, "Decoration.Mark.shape"],
+  ] satisfies [unknown, string][])
+    if (facet) facetNames.set(facet, name);
   let count = 0;
 
   const shape = (
@@ -254,8 +267,7 @@ const build = (state: GardState, names: NamedFields | undefined): Shape => {
       return named ?? `field #${fields.indexOf(ext) + 1}`;
     }
     if (isDerived(ext)) return `derived field #${derivedNumber(ext)}`;
-    if (provider)
-      return knownFacets().get(provider.facet) ?? `facet #${facetNumber(provider.facet)}`;
+    if (provider) return facetNames.get(provider.facet) ?? `facet #${facetNumber(provider.facet)}`;
     if (isObject(ext) && "extension" in ext && ext.extension)
       return className(ext) ?? "extension object";
     return "unknown extension";
@@ -275,7 +287,7 @@ const build = (state: GardState, names: NamedFields | undefined): Shape => {
       node.field = index < 0 ? null : index;
     } else if (isDerived(ext)) made.field = ext;
     else if (provider) {
-      const name = knownFacets().get(provider.facet) ?? null;
+      const name = facetNames.get(provider.facet) ?? null;
       node.value = provider.isStatic
         ? (preview(provider.value) ?? String(provider.value))
         : "computed";
