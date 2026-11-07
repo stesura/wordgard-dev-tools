@@ -1,6 +1,6 @@
 # @stesura/wordgard-dev-tools
 
-The page side of [Wordgard DevTools](https://github.com/stesura/wordgard-devtools): the
+The page side of [Wordgard DevTools](https://github.com/stesura/wordgard-dev-tools): the
 `wordgardDevtools()` plugin that registers your editors and the agent that answers the panel.
 It doesn't use any framework.
 
@@ -25,7 +25,7 @@ If a newer Wordgard breaks the devtools, they turn themselves off
 with one console warning; your editor keeps working.
 
 Options and details are in the
-[project README](https://github.com/stesura/wordgard-devtools#usage).
+[project README](https://github.com/stesura/wordgard-dev-tools#usage).
 
 ## License
 

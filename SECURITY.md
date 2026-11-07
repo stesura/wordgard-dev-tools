@@ -8,7 +8,7 @@ extension isn't in the browser stores yet.
 ## Reporting a vulnerability
 
 Please report vulnerabilities privately, through
-[GitHub's private vulnerability reporting](https://github.com/stesura/wordgard-devtools/security/advisories/new).
+[GitHub's private vulnerability reporting](https://github.com/stesura/wordgard-dev-tools/security/advisories/new).
 Don't open a public issue.
 
 Include the affected package or extension, the version or commit, and the steps to reproduce. You

@@ -26,7 +26,7 @@ export const ThemeMenu = ({ theme }: { theme: ThemeStore }) => {
   return <ChoiceMenu label="Theme" value={choice} choices={themes} onChange={theme.set} />;
 };
 
-const REPOSITORY = "https://github.com/stesura/wordgard-devtools";
+const REPOSITORY = "https://github.com/stesura/wordgard-dev-tools";
 
 /** The panel's settings; `extra`: more groups, first (the in-page dock's reopen button). */
 export const SettingsMenu = ({ extra }: { extra?: ReactNode }) => {

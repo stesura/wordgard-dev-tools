@@ -126,6 +126,6 @@ it("links the repository from Settings", async () => {
       (item) => item.textContent == "GitHub repository"
     )
   );
-  expect(link.href).toBe("https://github.com/stesura/wordgard-devtools");
+  expect(link.href).toBe("https://github.com/stesura/wordgard-dev-tools");
   expect(link.target).toBe("_blank");
 });

@@ -21,9 +21,6 @@ To try the browser extension, load it unpacked from `packages/extension/.output/
 (Chrome) or `firefox-mv3` (Firefox) after `npm run build`, then open the **Wordgard** tab in
 DevTools.
 
-The design and its progress are in
-[docs/partially-executed/plan.md](docs/partially-executed/plan.md).
-
 ## Checks
 
 Run these before opening a pull request. CI runs the same ones.

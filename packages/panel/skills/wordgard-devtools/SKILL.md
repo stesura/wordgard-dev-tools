@@ -110,4 +110,4 @@ the plugin adds nothing, the panel mounts and downloads nothing.
 - Fields tab, amber "kept, not mapped": a `PointSet` or `RangeSet` field wasn't mapped through a
   change; usually a missing `set.map(tr.changes)` in the field's update.
 - Each tab has a guide behind the ? in the tab bar; the project README has them too:
-  https://github.com/stesura/wordgard-devtools#tabs
+  https://github.com/stesura/wordgard-dev-tools#tabs

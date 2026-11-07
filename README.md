@@ -10,7 +10,7 @@ Inspired by [prosemirror-dev-tools](https://github.com/d4rkr00t/prosemirror-dev-
 for Wordgard's model.
 
 > Status: 0.x until Wordgard reaches 1.0, so minor versions may break things. Feedback is welcome:
-> [open an issue](https://github.com/stesura/wordgard-devtools/issues). The extension isn't in the
+> [open an issue](https://github.com/stesura/wordgard-dev-tools/issues). The extension isn't in the
 > browser stores yet.
 
 ## Contents

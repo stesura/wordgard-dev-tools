@@ -56,7 +56,7 @@ const plainEditor = plain(
     "<p><strong>Wordgard DevTools</strong> is a developer panel for <em>Wordgard</em> editors, " +
     "in the page (below) or in the browser's DevTools. It shows the document, the selection, " +
     "the schema, the <em>state</em> and its fields, and <strong>every transaction</strong> with " +
-    'its timing; a recorded log copies as a repro. See the <a href="https://github.com/stesura/wordgard-devtools#readme">README</a>.</p>' +
+    'its timing; a recorded log copies as a repro. See the <a href="https://github.com/stesura/wordgard-dev-tools#readme">README</a>.</p>' +
     "<p>This editor is made with <em>Wordgard.create</em> and named <strong>plain</strong>: " +
     "pick it in the panel, press <em>Record</em> in the Log, then type here.</p>" +
     "<table><tr><th>Tab</th><th>Shows</th></tr>" +

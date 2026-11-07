@@ -9,15 +9,15 @@
     "editor",
     "debugging"
   ],
-  "homepage": "https://github.com/stesura/wordgard-devtools#readme",
+  "homepage": "https://github.com/stesura/wordgard-dev-tools#readme",
   "bugs": {
-    "url": "https://github.com/stesura/wordgard-devtools/issues"
+    "url": "https://github.com/stesura/wordgard-dev-tools/issues"
   },
   "author": "Edoardo Caratti",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/stesura/wordgard-devtools.git",
+    "url": "git+https://github.com/stesura/wordgard-dev-tools.git",
     "directory": "packages/panel"
   },
   "publishConfig": {

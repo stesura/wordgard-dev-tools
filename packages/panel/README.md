@@ -1,6 +1,6 @@
 # @stesura/wordgard-dev-tools-panel
 
-The [Wordgard DevTools](https://github.com/stesura/wordgard-devtools) panel, docked in your page.
+The [Wordgard DevTools](https://github.com/stesura/wordgard-dev-tools) panel, docked in your page.
 Use it where the browser extension isn't available, or on a deployed demo.
 
 ```sh
@@ -23,7 +23,7 @@ first `mountDevtools()` call. Your page doesn't need React. In production builds
 `mountDevtools()` mounts nothing and downloads nothing.
 
 Options and details are in the
-[project README](https://github.com/stesura/wordgard-devtools#2-mount-the-panel).
+[project README](https://github.com/stesura/wordgard-dev-tools#2-mount-the-panel).
 
 ## For coding agents
 
