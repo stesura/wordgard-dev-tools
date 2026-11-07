@@ -19,8 +19,8 @@
   "dependencies": {
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "@stesura/wordgard-dev-tools": "0.0.0",
-    "@stesura/wordgard-dev-tools-panel": "0.0.0"
+    "@stesura/wordgard-dev-tools": "0.1.0",
+    "@stesura/wordgard-dev-tools-panel": "0.1.0"
   },
   "devDependencies": {
     "@wxt-dev/module-react": "^1.2.2",

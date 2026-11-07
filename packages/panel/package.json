@@ -1,6 +1,6 @@
 {
   "name": "@stesura/wordgard-dev-tools-panel",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Wordgard DevTools panel: React UI, transport-agnostic, mountable in-page",
   "keywords": [
     "wordgard",
@@ -64,12 +64,12 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@stesura/wordgard-dev-tools": "0.0.0"
+    "@stesura/wordgard-dev-tools": "0.1.0"
   },
   "devDependencies": {
     "@base-ui/react": "^1.9.0",
     "@nanostores/react": "^2.0.1",
-    "@stesura/wordgard-dev-tools": "0.0.0",
+    "@stesura/wordgard-dev-tools": "0.1.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.2",
     "heroicons": "^2.2.0",
