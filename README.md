@@ -1,14 +1,8 @@
 # Wordgard DevTools
 
-A DevTools panel for Wordgard editors. Use it to inspect the
-document, the state, the rendered DOM, the schema and the state fields, and to record transactions
+A DevTools panel for Wordgard editors. Use it to inspect the  
+document, the state, the rendered DOM, the schema and the state fields, and to record transactions  
 with their timing.
-
-It runs in two ways:
-
-- **as a browser extension**: a "Wordgard" tab in Chrome or Firefox DevTools;
-- **in the page**: a panel docked at the bottom of your app, for browsers without the extension
-  or for a deployed demo.
 
 [Try the demo](https://stesura.github.io/wordgard-devtools/): editors with the panel docked.
 
@@ -37,7 +31,7 @@ for Wordgard's model.
   - [Extensions](#extensions)
   - [Log](#log)
 - [Packages](#packages)
-- [Development](#development)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Quick start
@@ -69,12 +63,11 @@ For coding agents, the panel package ships a skill with these steps: copy
 
 - **Editor picker**: every connected editor on the page, iframes included.
 - **Element picker**: click a node in the page to find it in the panel. Picking doesn't move the caret.
-- **Tabs**: Structure, Selection, State, DOM, Schema, Fields, Extensions and Log, described [below](#tabs). The ?
-  in the tab bar shows the same guide in the panel, with links to Wordgard's reference.
+- **Tabs**: Structure, Selection, State, DOM, Schema, Fields, Extensions and Log, described [below](#tabs).
 - **Log the editor**: the button at the right of the tab bar logs the `Wordgard` instance to the
   console.
-
-Nothing runs until the panel opens, and nothing is recorded until you press record.
+- **Guidance**: Guidance for how to use and links to the wordgard documentation can be found accross the devtools under a question mark icon. Disable guidance from the panel's settings.
+- **Off when closed**: So it doesn't hinder performance, nothing runs until the panel opens.
 
 ## Usage
 
@@ -100,8 +93,6 @@ Wordgard.create({
 | `names`   | `{[name: string]: facet, compartment, field or extension}` | none: as Wordgard names them, or numbered      | Names them in the Extensions tab, by identity (a field in the Fields tab too).               |
 | `enabled` | `boolean`                                                  | `false` in production builds, `true` otherwise | Whether to register the editor. See [Keep it out of production](#keep-it-out-of-production). |
 
-With react-wordgard, add the plugin to the `config` you pass to `<WordgardEditor>`.
-
 `wordgard` (`>=0.6.2 <1`) is a peer dependency.
 If a newer Wordgard breaks the devtools, they turn themselves off
 with one console warning; your editor keeps working.
@@ -117,6 +108,14 @@ mountDevtools();
 ```
 
 The panel docks at the bottom of the page.
+
+Call it once, anywhere in your app's startup code (your entry file is a good place), before or
+after creating your editors: the panel lists editors as they register and drop out. Where it goes
+in the DOM doesn't matter either: the dock is fixed to the window, above everything, whatever
+element holds it. The default, `document.body`, suits almost every page. Pass `parent` only to
+keep it out of an element your app manages (one a framework re-renders, or an editor's), or out of
+an ancestor with a `transform`, `filter` or `contain`, which would make it fixed to that element
+instead of the window.
 
 | Option      | Type        | Default                                        | Description                                                                              |
 | ----------- | ----------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -157,20 +156,26 @@ Both are off in production builds (when your bundler sets `process.env.NODE_ENV`
 - `mountDevtools()` mounts nothing and downloads nothing. The panel's chunks are still emitted but
   never loaded.
 
-Pass `enabled` to either one to decide yourself:
+With Vite, webpack or Next.js there's nothing to do. Pass `enabled` to either one to decide
+yourself:
 
 ```ts
-wordgardDevtools({ enabled: true }); // keep it in production, e.g. on a staging build
-mountDevtools({ enabled: settings.debug }); // your own switch
-```
+// Keep it in production, e.g. on a staging build; or your own switch.
+wordgardDevtools({ enabled: true });
+mountDevtools({ enabled: settings.debug });
 
-Without a bundler (plain ES modules, import maps) or with one that doesn't set `NODE_ENV` (Rollup
-without `@rollup/plugin-replace`), every build counts as development: pass `enabled` there.
+// Without a bundler (plain ES modules, import maps), or with one that doesn't set NODE_ENV
+// (Rollup without @rollup/plugin-replace), every build counts as development: say when it's on.
+const dev = location.hostname == "localhost";
+wordgardDevtools({ enabled: dev });
+mountDevtools({ enabled: dev });
+```
 
 Their small page-side code still ships. To drop it as well, gate the calls so your bundler removes
 them:
 
 ```ts
+// Vite's flag; with webpack or Next.js, process.env.NODE_ENV != "production".
 if (import.meta.env.DEV) {
   const { mountDevtools } = await import("@stesura/wordgard-dev-tools-panel");
   mountDevtools();
@@ -325,33 +330,10 @@ Tips:
 | [`packages/extension`](packages/extension)            | The WXT extension shell around the panel.                                                                                                                                    |
 | [`demo`](demo)                                        | A Vite page with several editors and the in-page panel docked.                                                                                                               |
 
-## Development
+## Contributing
 
-This repository expects `wordgard` and
-[`react-wordgard`](https://github.com/stesura/react-wordgard) to be checked out next to it. They are
-local path dependencies.
-
-```sh
-(cd ../wordgard && npm install --no-package-lock)   # builds its dist/
-npm install
-npx playwright install chromium                      # once, for the tests
-
-npm run dev          # the demo, with the panel docked
-npm run typecheck
-npm test             # Vitest in Chromium
-npm run build        # packages, extension (Chrome and Firefox) and demo
-npm run e2e -w wordgard-devtools-extension   # the extension's panel against the demo
-```
-
-To try the browser extension, load it unpacked from `packages/extension/.output/chrome-mv3`
-(Chrome) or `firefox-mv3` (Firefox) after `npm run build`, then open the **Wordgard** tab in
-DevTools.
-
-Node 22.12 or later. The design and its progress are in
-[docs/partially-executed/plan.md](docs/partially-executed/plan.md).
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute, and [SECURITY.md](SECURITY.md) to report a
-vulnerability.
+See [CONTRIBUTING.md](CONTRIBUTING.md) to set up the repository, run the demo and the checks, and
+contribute; [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## License
 
