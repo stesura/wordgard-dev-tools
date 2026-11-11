@@ -30,7 +30,8 @@ On `main`, up to date with `origin/main`, nothing uncommitted:
    - runs `npm run check`, `npm test`, `npm run build` and `npm run compiler:check`.
 2. Review the changes, commit and push.
 3. `npm run release:publish`
-   - waits for CI on the pushed commit (the end-to-end tests run there);
+   - starts CI on the pushed commit and waits for it (the end-to-end tests run there); CI runs
+     only from here or by hand (`gh workflow run ci.yml`), not on push;
    - asks, then publishes the page side, then the panel (each built by its `prepack`);
    - tags `v0.2.0` and pushes the tag;
    - creates the GitHub release from the CHANGELOG section;
@@ -45,8 +46,8 @@ The script is `scripts/release.ts`.
 
 - **A check fails in `release:prepare`**: restore the release changes (`git restore .`), commit
   the fix, and run it again.
-- **CI fails in `release:publish`**: nothing was published. Fix it, or rerun the CI run if it was
-  flaky (`gh run rerun <id>`), then run `release:publish` again.
+- **CI fails in `release:publish`**: nothing was published. Fix it, or, if it was flaky, run
+  `release:publish` again: it starts a new CI run.
 - **`release:publish` stops halfway** (a publish, the tag, the GitHub release): run it again. It
   skips what's done: packages already on npm, a tag already pushed, a release already created.
 
@@ -61,7 +62,7 @@ and deploys it to GitHub Pages. `release:publish` starts it. To deploy without a
 
 ## Wordgard versions
 
-The page side accepts `wordgard` from a floor up to 1. CI tests that floor; a daily workflow tests
-the newest 0.x. When the page side starts using a newer Wordgard API, raise the floor in
-`packages/devtools/package.json` and the `wordgard` default in `.github/actions/setup/action.yml`
-together. `npm run release:check` fails if they differ, or if the versions drift.
+The page side accepts `wordgard` from a floor up to 1. CI tests that floor; the Latest Wordgard
+workflow, run by hand (`gh workflow run wordgard-latest.yml`), tests the newest 0.x. When the page
+side starts using a newer Wordgard API, raise the floor in `packages/devtools/package.json` and the
+`wordgard` default in `.github/actions/setup/action.yml` together. `npm run release:check` fails if they differ, or if the versions drift.

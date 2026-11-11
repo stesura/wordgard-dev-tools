@@ -1,10 +1,8 @@
 name: Latest Wordgard
 
 # The page side accepts any wordgard below 1. This runs its and the panel's tests against the
-# newest one every day, so a release that breaks the devtools shows up before users report it.
+# newest one, by hand: gh workflow run wordgard-latest.yml.
 on:
-  schedule:
-    - cron: "0 6 * * *"
   workflow_dispatch:
 
 jobs:

@@ -1,10 +1,8 @@
 name: CI
 
-# The release script (scripts/release.ts) waits for it on the release commit before publishing.
+# By hand, or by the release script (scripts/release.ts), which starts it on the release commit
+# and waits for it before publishing.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 jobs:

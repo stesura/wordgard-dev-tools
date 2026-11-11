@@ -3,7 +3,7 @@
 //
 //   npm run release:prepare -- <version>   CHANGELOG named, versions set, checks and tests run
 //   (commit and push)
-//   npm run release:publish                CI on the pushed commit, then npm publish, tag,
+//   npm run release:publish                CI started on the pushed commit, then npm publish, tag,
 //                                          GitHub release, demo deployed to GitHub Pages
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -115,27 +115,19 @@ const ciRuns = (sha: string): Run[] =>
 
 const watch = ({ databaseId }: Run) => {
   if (!succeeds(() => run("gh", ["run", "watch", String(databaseId), "--exit-status"])))
-    fail(`CI failed: nothing was published. Rerun it with gh run rerun ${databaseId}.`);
+    fail("CI failed: nothing was published. Fix it, or run this again if it was flaky.");
 };
 
 const pause = () => new Promise((done) => setTimeout(done, 2000));
 
-// Waits for CI on `sha`: the run the push started, or one started here.
+// CI runs only by hand: starts it on `sha` and waits for it.
 const runCI = async (sha: string) => {
-  // A run started by the push takes a few seconds to be listed.
-  for (let tries = 0; tries < 5; tries++) {
-    const existing = ciRuns(sha)[0];
-    if (existing) {
-      console.log("Waiting for CI on the release commit.");
-      return watch(existing);
-    }
-    await pause();
-  }
+  const earlier = new Set(ciRuns(sha).map(({ databaseId }) => databaseId));
   gh("workflow", "run", "ci.yml", "--ref", branch);
   console.log("CI started on the release commit.");
   for (let tries = 0; tries < 30; tries++) {
     await pause();
-    const started = ciRuns(sha)[0];
+    const started = ciRuns(sha).find(({ databaseId }) => !earlier.has(databaseId));
     if (started) return watch(started);
   }
   fail("CI didn't start within a minute: check the Actions tab.");
