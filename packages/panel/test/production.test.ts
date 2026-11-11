@@ -19,8 +19,8 @@ it("mounts nothing in production", async () => {
   env.production = true;
   mounted = mountDevtools();
   await mounted.ready;
-  expect(mounted.host.isConnected).toBe(false);
-  expect(mounted.host.shadowRoot).toBe(null);
+  expect(mounted.host?.isConnected).toBe(false);
+  expect(mounted.host?.shadowRoot).toBe(null);
   expect(document.querySelector("wordgard-devtools")).toBe(null);
 });
 
@@ -28,13 +28,13 @@ it("mounts in production when enabled", async () => {
   env.production = true;
   mounted = mountDevtools({ enabled: true });
   await mounted.ready;
-  expect(mounted.host.isConnected).toBe(true);
-  expect(mounted.host.shadowRoot?.childElementCount).toBeGreaterThan(0);
+  expect(mounted.host?.isConnected).toBe(true);
+  expect(mounted.host?.shadowRoot?.childElementCount).toBeGreaterThan(0);
 });
 
 it("mounts nothing when disabled", async () => {
   mounted = mountDevtools({ enabled: false });
   await mounted.ready;
-  expect(mounted.host.isConnected).toBe(false);
+  expect(mounted.host?.isConnected).toBe(false);
   expect(document.querySelector("wordgard-devtools")).toBe(null);
 });

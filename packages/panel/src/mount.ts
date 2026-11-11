@@ -14,8 +14,8 @@ export type MountOptions = {
 };
 
 export type MountedDevtools = {
-  /** The host element; the dock renders in its shadow root. */
-  host: HTMLElement;
+  /** The host element; the dock renders in its shadow root. Null where there's no DOM (on a server). */
+  host: HTMLElement | null;
   /** Resolves once the panel has rendered. */
   ready: Promise<void>;
   /** Releases this handle. The dock goes when every handle to it is released. */
@@ -25,7 +25,8 @@ export type MountedDevtools = {
 type Dock = {
   host: HTMLElement;
   ready: Promise<void>;
-  parent: Element;
+  /** Null: the body. */
+  parent: Element | null;
   transport: Transport | undefined;
   refs: number;
   warned: boolean;
@@ -35,14 +36,26 @@ type Dock = {
 /** At most one dock per document, shared by every handle. */
 let live: Dock | null = null;
 
-const createDock = (parent: Element, transport: Transport | undefined): Dock => {
+const body = () => document.querySelector("body");
+
+const createDock = (parent: Element | null, transport: Transport | undefined): Dock => {
   const host = document.createElement("wordgard-devtools");
   // Nothing the page sets on its ancestors is inherited into the panel.
   host.setAttribute("style", "all: initial");
-  parent.append(host);
   const shadow = host.attachShadow({ mode: "open" });
   let unmountDock: (() => void) | null = null;
   let disposed = false;
+  const target = parent ?? body();
+  if (target) target.append(host);
+  // Called from a script in <head>: the body isn't parsed yet.
+  else
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        if (!disposed) (body() ?? document.documentElement).append(host);
+      },
+      { once: true }
+    );
   const ready = import("./app.tsx").then(({ renderDock }) => {
     if (!disposed) unmountDock = renderDock(shadow, transport ?? inPageTransport());
   });
@@ -62,8 +75,12 @@ const createDock = (parent: Element, transport: Transport | undefined): Dock => 
  * and their `parent` and `transport` are ignored (with a warning when they differ). The dock is
  * removed when every handle has been unmounted, so a caller that mounts from an effect should still
  * return `unmount` from it.
+ *
+ * Without a DOM (server rendering) it does nothing, and the handle's `host` is null.
  */
 export const mountDevtools = (options: MountOptions = {}): MountedDevtools => {
+  if (typeof document == "undefined")
+    return { host: null, ready: Promise.resolve(), unmount: () => {} };
   if (!(options.enabled ?? !isProduction())) {
     return {
       host: document.createElement("wordgard-devtools"),
@@ -71,7 +88,7 @@ export const mountDevtools = (options: MountOptions = {}): MountedDevtools => {
       unmount: () => {},
     };
   }
-  const parent = options.parent ?? document.body;
+  const parent = options.parent && options.parent != body() ? options.parent : null;
   if (!live) live = createDock(parent, options.transport);
   else if (!live.warned && (parent != live.parent || options.transport != live.transport)) {
     live.warned = true;

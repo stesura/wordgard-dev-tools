@@ -41,7 +41,7 @@ const until = async <T>(get: () => T | null | undefined | false, timeout = 2000)
 };
 
 const shadow = () => {
-  const root = mounted?.host.shadowRoot;
+  const root = mounted?.host?.shadowRoot;
   if (!root) throw new Error("No shadow root");
   return root;
 };
@@ -139,9 +139,9 @@ it("shares one dock between calls, until the last handle unmounts", async () => 
   expect(b.host).toBe(a.host);
   expect(hosts()).toBe(1);
   await b.ready;
-  expect(b.host.shadowRoot?.childElementCount).toBeGreaterThan(0);
+  expect(b.host?.shadowRoot?.childElementCount).toBeGreaterThan(0);
   a.unmount();
-  expect(a.host.isConnected).toBe(true);
+  expect(a.host?.isConnected).toBe(true);
   b.unmount();
   expect(hosts()).toBe(0);
 });
@@ -153,8 +153,8 @@ it("leaves one dock after mount, unmount, mount, and cancels the first render", 
   expect(b.host).not.toBe(a.host);
   await Promise.all([a.ready, b.ready]);
   expect(hosts()).toBe(1);
-  expect(a.host.shadowRoot?.childElementCount).toBe(0);
-  expect(b.host.shadowRoot?.childElementCount).toBeGreaterThan(0);
+  expect(a.host?.shadowRoot?.childElementCount).toBe(0);
+  expect(b.host?.shadowRoot?.childElementCount).toBeGreaterThan(0);
 });
 
 it("releases one reference per handle, however often it's unmounted", () => {
@@ -162,7 +162,7 @@ it("releases one reference per handle, however often it's unmounted", () => {
   const b = mount();
   a.unmount();
   a.unmount();
-  expect(b.host.isConnected).toBe(true);
+  expect(b.host?.isConnected).toBe(true);
   b.unmount();
   expect(hosts()).toBe(0);
 });
@@ -173,10 +173,10 @@ it("neither counts nor mounts a disabled call", () => {
   const a = mount();
   const offToo = mount({ enabled: false });
   expect(offToo.host).not.toBe(a.host);
-  expect(offToo.host.isConnected).toBe(false);
+  expect(offToo.host?.isConnected).toBe(false);
   off.unmount();
   offToo.unmount();
-  expect(a.host.isConnected).toBe(true);
+  expect(a.host?.isConnected).toBe(true);
   a.unmount();
   expect(hosts()).toBe(0);
 });
@@ -190,11 +190,31 @@ it("keeps the dock, and warns once, when a call asks for another parent or trans
     expect(mount({ parent: elsewhere }).host).toBe(a.host);
     expect(mount({ transport: inPageTransport() }).host).toBe(a.host);
     expect(mount({ parent: document.body }).host).toBe(a.host);
-    expect(a.host.parentElement).toBe(document.body);
+    expect(a.host?.parentElement).toBe(document.body);
     expect(warn).toHaveBeenCalledTimes(1);
   } finally {
     elsewhere.remove();
   }
+});
+
+it("waits for the body when called before it exists", () => {
+  const noBody = vi.spyOn(document, "querySelector").mockReturnValue(null);
+  const early = mount();
+  const dropped = mountDevtools({ enabled: false });
+  expect(early.host?.isConnected).toBe(false);
+  noBody.mockRestore();
+  document.dispatchEvent(new Event("DOMContentLoaded"));
+  expect(early.host?.parentElement).toBe(document.body);
+  expect(dropped.host?.isConnected).toBe(false);
+});
+
+it("stays out of the page when unmounted before the body exists", () => {
+  const noBody = vi.spyOn(document, "querySelector").mockReturnValue(null);
+  const early = mountDevtools();
+  early.unmount();
+  noBody.mockRestore();
+  document.dispatchEvent(new Event("DOMContentLoaded"));
+  expect(hosts()).toBe(0);
 });
 
 it("follows the picked editor through a remount", async () => {

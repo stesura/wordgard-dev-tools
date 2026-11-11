@@ -29,7 +29,7 @@ const until = async <T>(get: () => T | null | undefined | false, timeout = 2000)
 };
 
 const shadow = () => {
-  const root = mounted?.host.shadowRoot;
+  const root = mounted?.host?.shadowRoot;
   if (!root) throw new Error("No shadow root");
   return root;
 };

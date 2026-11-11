@@ -4,6 +4,8 @@
 
 Requires `wordgard` ~0.7.0 (0.7.x): each Wordgard minor release, which may break its API, needs a devtools release.
 
+`mountDevtools()` returns `host` as `HTMLElement | null`: it is `null` where there is no DOM (server rendering). In a browser it is always the element, as before.
+
 ### New features
 
 The panel shows the debug names Wordgard 0.7 adds: of state fields and derived fields, facets, compartments, node groups and roles, effects and annotations. Unnamed ones are still numbered; the `fields` and `names` options override debug names.
@@ -15,6 +17,8 @@ The Log names a transaction's effects by their debug names, not just "effect", a
 `mountDevtools()` mounts at most one panel per page: while one is mounted, later calls return handles to it, and the panel is removed when every handle has been unmounted. A page that called it from a React effect without returning `unmount` got two panels in development, where Strict Mode runs effects twice.
 
 The DOM tab marks widgets as chrome again: Wordgard 0.7 no longer makes them uneditable, so an element is now chrome when it draws no node and holds none of the document's text.
+
+`mountDevtools()` no longer throws during server rendering (Next.js, Remix): without a DOM it does nothing. Called before the page's body exists (a script in `<head>`), it mounts once the body is there.
 
 The extension takes a reply only from the frame it asked: a frame of the page could answer a request sent to another frame's editor.
 

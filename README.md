@@ -143,15 +143,18 @@ instead of the window.
 
 It returns a handle:
 
-| Field     | Type            | Description                                                              |
-| --------- | --------------- | ------------------------------------------------------------------------ |
-| `unmount` | `() => void`    | Releases the handle; the panel goes when every handle is released.       |
-| `ready`   | `Promise<void>` | Resolves once the panel has rendered.                                    |
-| `host`    | `HTMLElement`   | The `<wordgard-devtools>` element; the panel renders in its shadow root. |
+| Field     | Type            | Description                                                        |
+| --------- | --------------- | ------------------------------------------------------------------ |
+| `unmount` | `() => void`    | Releases the handle; the panel goes when every handle is released. |
+| `ready`   | `Promise<void>` | Resolves once the panel has rendered.                              |
+| `host`    | `HTMLElement    | null`                                                              | The `<wordgard-devtools>` element; the panel renders in its shadow root. `null` on a server. |
 
 A page has at most one panel. While one is mounted, `mountDevtools()` returns another handle to
 it, and ignores a different `parent` or `transport` (with a warning). The panel is removed when
 every handle has been unmounted, for example on a route change in a single-page app.
+
+It is safe to call where there's no DOM: during server rendering (Next.js, Remix) it does nothing.
+Called from a script in `<head>`, it mounts once the page's body exists.
 
 The panel renders in a shadow root, so its styles and your page's styles don't affect each other.
 Its React UI is bundled with it and loaded lazily on the first `mountDevtools()` call. Your page

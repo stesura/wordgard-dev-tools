@@ -87,6 +87,7 @@ mountDevtools();
   panel: repeat calls return handles to the mounted one, and it goes when every handle is
   unmounted.
 - `parent` (default `document.body`) must be outside every editor.
+- On a server (no DOM) it does nothing, and `host` is `null`: no guard is needed around the call.
 - The panel brings its own React, lazily loaded, in a shadow root: the page needs no React, and
   the page's CSS doesn't reach it. There is no React component to render. To show it only while a
   component is mounted (one route):
