@@ -1,13 +1,7 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node", "vite/client"],
-    // ../react-wordgard's typings would otherwise resolve its own wordgard and React 18 types.
-    "paths": {
-      "wordgard/*": ["../node_modules/wordgard/dist/*"],
-      "react": ["../node_modules/@types/react"],
-      "react/*": ["../node_modules/@types/react/*"]
-    }
+    "types": ["node", "vite/client"]
   },
   "include": ["src", "*.ts"]
 }

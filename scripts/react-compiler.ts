@@ -12,7 +12,7 @@ export const reactCompiler = () => {
   // A component the compiler can't compile fails the build, instead of silently staying
   // uncompiled. Opt one out with a "use no memo" directive.
   const preset = reactCompilerPreset({ panicThreshold: "all_errors" });
-  // This repo's sources only: ../wordgard and ../react-wordgard resolve outside node_modules.
+  // This repo's sources only: ../wordgard resolves outside node_modules.
   // The drive letter's case varies on Windows.
   preset.rolldown.filter = {
     ...preset.rolldown.filter,

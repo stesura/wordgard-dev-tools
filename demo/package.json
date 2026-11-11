@@ -9,7 +9,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
-    "@stesura/react-wordgard": "file:../../react-wordgard",
+    "@stesura/react-wordgard": "^0.3.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "wordgard": "file:../../wordgard",

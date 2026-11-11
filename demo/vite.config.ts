@@ -12,17 +12,11 @@ export default defineConfig({
   plugins: [react(), reactCompiler(), tailwindcss()],
   resolve: {
     conditions: ["source", ...defaultClientConditions],
-    // ../react-wordgard has its own node_modules: one copy of each, or instanceof checks fail.
-    dedupe: ["wordgard", "react", "react-dom"],
   },
   optimizeDeps: { include: ["@stesura/react-wordgard > use-sync-external-store/with-selector"] },
   server: {
     fs: {
-      allow: [
-        searchForWorkspaceRoot(process.cwd()),
-        sibling("wordgard"),
-        sibling("react-wordgard"),
-      ],
+      allow: [searchForWorkspaceRoot(process.cwd()), sibling("wordgard")],
     },
   },
   build: {

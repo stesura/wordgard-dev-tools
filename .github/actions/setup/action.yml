@@ -1,5 +1,5 @@
 name: Setup
-description: Node, the sibling wordgard and react-wordgard folders, and npm ci. Expects the repo checked out at wordgard-devtools/.
+description: Node, the sibling wordgard folder, and npm ci. Expects the repo checked out at wordgard-devtools/.
 
 inputs:
   registry-url:
@@ -22,13 +22,11 @@ runs:
       with:
         node-version: 24
         registry-url: ${{ inputs.registry-url }}
-    # wordgard and @stesura/react-wordgard are local path dependencies on ../wordgard and
-    # ../react-wordgard. These folders are filled from their npm releases.
-    - name: Sibling packages
+    # wordgard is a local path dependency on ../wordgard, filled from its npm release.
+    - name: Sibling wordgard
       shell: bash
       env:
         WORDGARD_VERSION: ${{ inputs.wordgard }}
-        REACT_WORDGARD_VERSION: 0.3.0
       run: |
         fetch() {
           mkdir -p "$2"
@@ -39,7 +37,6 @@ runs:
           (cd "$2" && npm pkg delete scripts.prepare && npm install --omit=dev --ignore-scripts --no-package-lock --no-audit --no-fund)
         }
         fetch "wordgard@$WORDGARD_VERSION" wordgard
-        fetch "@stesura/react-wordgard@$REACT_WORDGARD_VERSION" react-wordgard
     - name: Install
       shell: bash
       working-directory: wordgard-devtools

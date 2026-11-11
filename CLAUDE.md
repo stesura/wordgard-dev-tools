@@ -5,8 +5,8 @@ Wordgard DevTools: a DevTools panel for Wordgard editors. MIT. The plan is `docs
 - Layout: npm workspaces. `packages/devtools` (`@stesura/wordgard-dev-tools`, page side, framework-free),
   `packages/panel` (`@stesura/wordgard-dev-tools-panel`, the React panel and `mountDevtools()`),
   `packages/extension` (WXT shell), `demo/` (Vite page with the in-page panel docked).
-- `wordgard` and `@stesura/react-wordgard` are local path dependencies on `../wordgard` and
-  `../react-wordgard`. Wordgard's source in `../wordgard` is documentation: read it, never edit
+- `wordgard` is a local path dependency on `../wordgard`; the demo takes `@stesura/react-wordgard`
+  from npm. Wordgard's source in `../wordgard` is documentation: read it, never edit
   it. `../wordgard` needs `npm install --no-package-lock` once (builds its `dist/`).
 - Before writing code against Wordgard, read `../react-wordgard/skills/react-wordgard/SKILL.md`
   and its `references/wordgard.md`.

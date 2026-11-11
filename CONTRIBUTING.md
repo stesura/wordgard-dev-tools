@@ -4,9 +4,8 @@ Thanks for helping. Bug reports, ideas and pull requests are welcome.
 
 ## Setup
 
-This repository expects `wordgard` and
-[`react-wordgard`](https://github.com/stesura/react-wordgard) checked out next to it: they are local
-path dependencies (`../wordgard`, `../react-wordgard`).
+This repository expects `wordgard` checked out next to it: it is a local path dependency
+(`../wordgard`).
 
 ```sh
 (cd ../wordgard && npm install --no-package-lock)   # builds its dist/
