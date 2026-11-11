@@ -8,6 +8,7 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,8 +20,8 @@ jobs:
       - name: Wordgard version
         run: node -p '"wordgard " + require("./wordgard/package.json").version'
       - name: Playwright
-        working-directory: wordgard-devtools
-        run: npx playwright install --with-deps chromium
+        uses: ./wordgard-devtools/.github/actions/playwright
+        timeout-minutes: 5
       - name: Typecheck
         working-directory: wordgard-devtools
         run: npm run typecheck -w packages/devtools -w packages/panel

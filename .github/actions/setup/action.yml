@@ -22,6 +22,8 @@ runs:
       with:
         node-version: 24
         registry-url: ${{ inputs.registry-url }}
+        cache: npm
+        cache-dependency-path: wordgard-devtools/package-lock.json
     # wordgard is a local path dependency on ../wordgard, filled from its npm release.
     - name: Sibling wordgard
       shell: bash
