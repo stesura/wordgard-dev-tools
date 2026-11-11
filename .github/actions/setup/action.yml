@@ -28,7 +28,7 @@ runs:
       shell: bash
       env:
         WORDGARD_VERSION: ${{ inputs.wordgard }}
-        REACT_WORDGARD_VERSION: 0.1.0
+        REACT_WORDGARD_VERSION: 0.3.0
       run: |
         fetch() {
           mkdir -p "$2"
