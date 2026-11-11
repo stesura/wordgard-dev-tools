@@ -217,6 +217,32 @@ it("stays out of the page when unmounted before the body exists", () => {
   expect(hosts()).toBe(0);
 });
 
+it("keeps keys typed in the panel from the page's shortcuts, Escape aside", async () => {
+  open("first", "<p>Alpha</p>");
+  mounted = mountDevtools();
+  await mounted.ready;
+  const seen: string[] = [];
+  const shortcut = (event: KeyboardEvent) => seen.push(`${event.type} ${event.key}`);
+  const types = ["keydown", "keypress", "keyup"] satisfies (keyof DocumentEventMap)[];
+  for (const type of types) document.addEventListener(type, shortcut);
+  try {
+    const tab = await until(() => shadow().querySelector<HTMLElement>("[role='tab']"));
+    tab.focus();
+    await userEvent.keyboard("a/");
+    expect(seen).toEqual([]);
+    // The panel's own popups still close on Escape.
+    for (const label of ["[aria-label='Editor']", "[aria-label^='Dock: ']"]) {
+      const trigger = await until(() => shadow().querySelector<HTMLElement>(label));
+      trigger.click();
+      await until(() => trigger.getAttribute("aria-expanded") == "true");
+      await userEvent.keyboard("{Escape}");
+      await until(() => trigger.getAttribute("aria-expanded") == "false");
+    }
+  } finally {
+    for (const type of types) document.removeEventListener(type, shortcut);
+  }
+});
+
 it("follows the picked editor through a remount", async () => {
   open("first", "<p>Alpha</p>");
   const b = open("second", "<p>Beta</p>");

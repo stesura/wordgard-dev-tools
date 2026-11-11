@@ -43,6 +43,12 @@ const createDock = (parent: Element | null, transport: Transport | undefined): D
   // Nothing the page sets on its ancestors is inherited into the panel.
   host.setAttribute("style", "all: initial");
   const shadow = host.attachShadow({ mode: "open" });
+  // Keys typed in the panel stay out of the page's shortcuts, which see the host as their target,
+  // not the panel's input. Escape goes on: the panel's popups close on it from the document.
+  const contain = (event: Event) => {
+    if (event instanceof KeyboardEvent && event.key != "Escape") event.stopPropagation();
+  };
+  for (const type of ["keydown", "keypress", "keyup"]) host.addEventListener(type, contain);
   let unmountDock: (() => void) | null = null;
   let disposed = false;
   const target = parent ?? body();

@@ -20,6 +20,8 @@ The DOM tab marks widgets as chrome again: Wordgard 0.7 no longer makes them une
 
 `mountDevtools()` no longer throws during server rendering (Next.js, Remix): without a DOM it does nothing. Called before the page's body exists (a script in `<head>`), it mounts once the body is there.
 
+Keys typed in the panel docked in the page no longer reach the page's own keyboard shortcuts. Escape still does, so the panel's menus close on it.
+
 The extension takes a reply only from the frame it asked: a frame of the page could answer a request sent to another frame's editor.
 
 ## 0.1.2 (2026-11-07)
