@@ -226,7 +226,7 @@ it("orders each facet's values as Wordgard does: by precedence, then configurati
   const facetIndex = facets.findIndex((facet) => facet.label == "sequence");
   const order = facets[facetIndex];
   expect(order?.values.map((value) => value.value)).toEqual(
-    wg.state.facet(sequence).map((value) => JSON.stringify(value))
+    wg.state.facet(sequence.reader).map((value) => JSON.stringify(value))
   );
   expect(order?.values.map((value) => value.prec)).toEqual([
     "highest",
@@ -251,6 +251,38 @@ it("orders each facet's values as Wordgard does: by precedence, then configurati
   const numbered = labels.findIndex((label) => label.startsWith("facet #"));
   if (numbered >= 0)
     expect(labels.slice(numbered).every((l) => l.startsWith("facet #"))).toBe(true);
+});
+
+it("names fields, facets and compartments by their debug names; the app's names win", async () => {
+  const wordCount = GardState.Field.define<number>({
+    name: "wordCount",
+    create: () => 0,
+    update: (v) => v,
+  });
+  const renamed = GardState.Field.define<number>({
+    name: "debugName",
+    create: () => 0,
+    update: (v) => v,
+  });
+  const size = GardState.Field.Derived.define((state) => state.doc.length, { name: "size" });
+  const spellcheck = GardState.Facet.define<boolean>({ name: "spellcheck" });
+  const language = GardState.Compartment.define("language");
+  const { id } = open([wordCount, renamed, size, spellcheck.of(true), language.of(twice.of(1))], {
+    appName: renamed,
+  });
+  const { root, facets } = await ask({ type: "extensions", id });
+  expect(find(root, "wordCount")?.kind).toBe("field");
+  expect(find(root, "appName")?.kind).toBe("field");
+  expect(find(root, "debugName")).toBeUndefined();
+  expect(find(root, "size")?.kind).toBe("derived field");
+  expect(find(root, "spellcheck")?.facet).toBe("spellcheck");
+  expect(find(root, "language")?.kind).toBe("compartment");
+  // A debug-named facet sorts with the named ones, not after the numbered.
+  const labels = facets.map((facet) => facet.label);
+  const numbered = labels.findIndex((label) => label.startsWith("facet #"));
+  expect(labels.indexOf("spellcheck")).toBeLessThan(numbered < 0 ? Infinity : numbered);
+  // Wordgard's exported facets keep their qualified names.
+  expect(labels).toContain("GardState.schemaElement");
 });
 
 it("names extensions by the app's names, and a plain object by its own name", async () => {

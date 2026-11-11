@@ -23,7 +23,9 @@ Signatures: `node_modules/@stesura/wordgard-dev-tools/dist/plugin.d.ts` and
 npm install -D @stesura/wordgard-dev-tools @stesura/wordgard-dev-tools-panel
 ```
 
-- Peer: `wordgard` `>=0.6.2 <1`, **one copy** in the app. If a newer Wordgard breaks the
+- Peer: `wordgard` `~0.7.0` (0.7.x), **one copy** in the app. A newer Wordgard minor needs a
+  devtools release that supports it: until then npm refuses the install (an `ERESOLVE` peer
+  conflict). Don't force it with `--legacy-peer-deps`. If a Wordgard patch release breaks the
   devtools, they turn themselves off with one console warning; the editor keeps working.
 - Dev dependencies: both calls do nothing in production builds (below).
 
@@ -49,11 +51,29 @@ editors register when they connect, so the one StrictMode drops never shows.
 Options, all optional:
 
 - `name`: the editor's name in the panel's picker. Default: its `aria-label`, then `editor #n`.
-- `fields`: `{name: GardState.Field}`. Names the app's fields in the Fields tab; unnamed ones
-  show as `field #n`. Pass the same field objects the config uses.
+- `fields`: `{name: GardState.Field}`. Names the app's fields in the Fields tab and adds them, by
+  that name, to the State tab's JSON. Pass the same field objects the config uses.
 - `names`: `{name: facet | compartment | field | extension}`. Names them in the Extensions tab,
   by identity. A config entry can also be named in place: `{ name: "spellcheck", extension }`.
+- Both override debug names (below), so they're rarely needed for naming alone.
 - `enabled`: see production, below.
+
+## Naming what the panel shows
+
+Give fields, facets, compartments, effects, annotations and node groups a debug name where you
+define them; the panel shows it. Unnamed ones show numbered (`field #n`, `facet #n`).
+
+```ts
+const wordCount = GardState.Field.define({ name: "wordCount", create: …, update: … });
+const spellcheckOn = GardState.Facet.define<boolean, boolean>({ name: "spellcheckOn", … });
+const language = GardState.Compartment.define("language");
+const setLanguage = Transaction.Effect.define<string>({ name: "setLanguage" });
+const fromServer = Transaction.Annotation.define<boolean>("fromServer");
+const Asides = Node.Group.define({ name: "Asides" });
+```
+
+The plugin's `fields` and `names` options override these, and only `fields` adds a field to the
+State tab's JSON.
 
 ## 2. Dock the panel
 

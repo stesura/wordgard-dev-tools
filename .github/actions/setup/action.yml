@@ -9,7 +9,7 @@ inputs:
   wordgard:
     description: The wordgard version or range to test against.
     required: false
-    default: 0.6.2
+    default: 0.7.0
   locked:
     description: Install from the lockfile (npm ci). Off for a wordgard other than the locked one.
     required: false

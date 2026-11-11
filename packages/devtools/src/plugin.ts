@@ -13,12 +13,15 @@ import { VERSION } from "./version.ts";
 export type DevtoolsOptions = {
   /** Shown in the panel's editor picker. Defaults to the editor's `aria-label`, then `editor #n`. */
   name?: string;
-  /** Names for the editor's state fields in the Fields tab; unnamed ones show as "field #n". */
+  /**
+   * Names for the editor's state fields: in the Fields tab, and as their keys in the State tab's
+   * JSON. Without one, a field shows by its debug name (`Field.define({name})`), else "field #n".
+   */
   fields?: NamedFields;
   /**
    * Names for the Extensions tab, by identity: a facet (each of its values), a compartment, a field
-   * (in the Fields tab too) or any extension. Unnamed ones show as Wordgard names them, by class
-   * name, or numbered.
+   * (in the Fields tab too) or any extension. They override debug names; unnamed ones show by
+   * their debug name (`Facet.define({name})`, `Compartment.define(name)`…), class name, or numbered.
    */
   names?: NamedExtensions;
   /**

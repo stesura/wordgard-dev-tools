@@ -149,10 +149,11 @@ export const createFieldTracker = (
   const info = (entry: Entry, fields: Field[], index: number): FieldInfo => {
     const field = fields[index];
     if (!field) throw new Error(`No field ${index}`);
-    const named = [
-      ...Object.entries(entry.fields ?? {}),
-      ...Object.entries(entry.names ?? {}),
-    ].find(([, f]) => f == field)?.[0];
+    // The app's name, else the field's debug name (`Field.define({name})`).
+    const named =
+      [...Object.entries(entry.fields ?? {}), ...Object.entries(entry.names ?? {})].find(
+        ([, f]) => f == field
+      )?.[0] ?? field.name;
     const history = tracked.get(entry)?.history.get(field) ?? [];
     const last = history.at(-1);
     return {

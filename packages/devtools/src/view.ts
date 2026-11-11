@@ -17,6 +17,24 @@ const drawn = (wg: Wordgard, element: Element): ViewNode["node"] => {
   return { name: found.node.name, path, from: found.pos, to: found.pos + found.node.length };
 };
 
+/** Text the document holds: it maps to a position and back. A widget's own text doesn't. */
+const isDocText = (wg: Wordgard, text: Text) => {
+  if (!text.data) return false;
+  try {
+    const pos = wg.posAtDOM(text, 0);
+    return wg.domAtPos(pos, 1).node == text || wg.domAtPos(pos + 1, -1).node == text;
+  } catch {
+    return false;
+  }
+};
+
+const holdsDocText = (wg: Wordgard, element: Element) => {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  for (let text = walker.nextNode(); text; text = walker.nextNode())
+    if (text instanceof Text && isDocText(wg, text)) return true;
+  return false;
+};
+
 const position = (wg: Wordgard, text: Text) => {
   try {
     return wg.posAtDOM(text, 0);
@@ -48,13 +66,16 @@ const describe = (wg: Wordgard, dom: Node): ViewNode => {
     text: null,
     node,
     pos: null,
-    // Inside the content, uneditable and drawing no node (an atom's own element draws its node).
-    // A read-only editor marks the content element itself uneditable: that isn't chrome.
+    // Drawing no node (an atom's own element draws its node), and uneditable or holding none of
+    // the document's text: a mark or wrapper decoration holds it. Since Wordgard 0.7 only void
+    // widgets are made uneditable. A read-only editor marks the content element itself
+    // uneditable: that isn't chrome.
     chrome:
+      element != null &&
+      element != wg.contentDOM &&
       !node &&
-      uneditable != null &&
-      uneditable != wg.contentDOM &&
-      wg.contentDOM.contains(uneditable),
+      ((uneditable != null && uneditable != wg.contentDOM && wg.contentDOM.contains(uneditable)) ||
+        !holdsDocText(wg, element)),
     children: listed(dom).map((child) => describe(wg, child)),
   };
 };

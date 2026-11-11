@@ -89,15 +89,33 @@ Wordgard.create({
 | Option    | Type                                                       | Default                                        | Description                                                                                  |
 | --------- | ---------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `name`    | `string`                                                   | the editor's `aria-label`, then `editor #n`    | Shown in the panel's editor picker.                                                          |
-| `fields`  | `{[name: string]: GardState.Field}`                        | none: fields show as `field #n`                | Names the editor's state fields in the Fields tab.                                           |
-| `names`   | `{[name: string]: facet, compartment, field or extension}` | none: as Wordgard names them, or numbered      | Names them in the Extensions tab, by identity (a field in the Fields tab too).               |
+| `fields`  | `{[name: string]: GardState.Field}`                        | none: their debug names, or `field #n`         | Names the editor's state fields in the Fields tab, and adds them to the State tab's JSON.    |
+| `names`   | `{[name: string]: facet, compartment, field or extension}` | none: their debug names, or numbered           | Names them in the Extensions tab, by identity (a field in the Fields tab too).               |
 | `enabled` | `boolean`                                                  | `false` in production builds, `true` otherwise | Whether to register the editor. See [Keep it out of production](#keep-it-out-of-production). |
 
-`wordgard` (`>=0.6.2 <1`) is a peer dependency.
-If a newer Wordgard breaks the devtools, they turn themselves off
-with one console warning; your editor keeps working.
-Below 0.6.2, npm refuses the install: upgrade Wordgard, or use an older devtools release.
-On release of v1 of Wordgard, the devtools will need a release to support it.
+#### Naming what the panel shows
+
+Fields, facets, compartments, effects, annotations and node groups show by the debug name they
+were defined with; unnamed ones are numbered (`field #n`, `facet #n`, `annotation #n`). Name them
+where you define them:
+
+```ts
+const wordCount = GardState.Field.define({ name: "wordCount", create: …, update: … });
+const spellcheckOn = GardState.Facet.define<boolean, boolean>({ name: "spellcheckOn", … });
+const language = GardState.Compartment.define("language");
+const setLanguage = Transaction.Effect.define<string>({ name: "setLanguage" });
+const fromServer = Transaction.Annotation.define<boolean>("fromServer");
+const Asides = Node.Group.define({ name: "Asides" });
+```
+
+The `fields` and `names` options override debug names. Pass `fields` to see a field in the State
+tab's JSON as well, by its name there.
+
+`wordgard` (`~0.7.0`: 0.7.x) is a peer dependency. Wordgard's minor releases break its API,
+and the devtools read some of its internals, so each minor needs a devtools release: until
+then, npm refuses the install. Keep Wordgard on the minor the devtools support, or upgrade both.
+If a Wordgard patch release breaks the devtools, they turn themselves off with one console
+warning; your editor keeps working.
 
 ### 2. Mount the panel
 
@@ -240,7 +258,7 @@ Tips:
 
 The editor's [content DOM](https://wordgard.net/docs/ref/#editor.Wordgard.contentDOM): the editable DOM element holding the editor content. Each element shows the document node it draws; text shows its position.
 
-- Elements that draw no node (widgets, decorations) are marked as chrome.
+- Elements that draw no node and hold none of the document's text, such as widgets, are marked as chrome. Marks and wrapper decorations hold the document's text: they aren't.
 - Whether the editor is connected, editable, focused or composing: the bottom bar's Editor.
 
 Tips:
@@ -275,7 +293,8 @@ Each [`GardState.Field`](https://wordgard.net/docs/ref/#state.GardState.Field): 
 
 Tips:
 
-- Name unnamed fields ("field #n") with `wordgardDevtools({fields: {name: field}})`.
+- Fields show by their debug name: `GardState.Field.define({name: "wordCount", …})`. Unnamed ones show as "field #n".
+- `wordgardDevtools({fields: {name: field}})` names a field too, overriding its debug name, and adds it to the State tab's JSON.
 - Search filters the fields by name or by value, the whole value, not just its preview.
 - Expand a change to see its value; right-click to log or copy it.
 - For a [`PointSet` or `RangeSet`](https://wordgard.net/docs/ref/#set), click a position to show its node in the Structure.
@@ -297,7 +316,7 @@ Tips:
 - Click a row to select it; double-click it, or click the + button, to open its details.
 - Click the keyboard button to open the key bindings.
 - Click "By facet" to list each facet with its values in the order Wordgard gives them.
-- Name what shows as `facet #n` or `compartment #n` with `wordgardDevtools({names: {name: value}})`, or a plain `{name: "spellcheck", extension}` object.
+- Name what shows as `facet #n` or `compartment #n` where you define it: `GardState.Facet.define({name: "spellcheckOn"})`, `GardState.Compartment.define("language")`. Or by identity with `wordgardDevtools({names: {name: value}})`, which overrides debug names, or with a plain `{name: "spellcheck", extension}` object.
 - Right-click a row, the details or a key binding (or Shift+F10) to log it to the console, show it in Fields or copy it.
 
 ### Log
@@ -314,6 +333,7 @@ Tips:
 
 - Press Record, then use the editor.
 - Filter by user event, what changed or annotation; sort by any column.
+- Effects and annotations show by their debug name: `Transaction.Effect.define({name: "setLanguage"})`, `Transaction.Annotation.define("fromServer")`. Unnamed effects show as `effect`, unnamed annotations as `annotation #n`.
 - Right-click a row to log the transaction or copy it as JSON or text; right-click a part of its detail to log or copy that part.
 - Copy as repro copies a Node script that replays the transactions on plain Wordgard, from the state before the oldest, and checks the document it ends with: a bug report's schema, document and steps. Its header says what it leaves out.
 - Untick record select.pointer to leave out selections made with the pointer, and record focus to leave out focus changes.

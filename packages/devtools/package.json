@@ -42,7 +42,7 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "wordgard": ">=0.6.2 <1"
+    "wordgard": "~0.7.0"
   },
   "devDependencies": {
     "wordgard": "file:../../../wordgard"

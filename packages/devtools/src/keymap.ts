@@ -41,8 +41,8 @@ const bindingsOf = (state: GardState): Binding[] => {
   let own: readonly unknown[];
   let useDefault: unknown;
   try {
-    own = state.facet(KeyBinding.source);
-    useDefault = state.facet(KeyBinding.useDefaultKeymap);
+    own = state.facet(KeyBinding.source.reader);
+    useDefault = state.facet(KeyBinding.useDefaultKeymap.reader);
   } catch {
     // A Wordgard without them.
     return [];

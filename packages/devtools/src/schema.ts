@@ -16,17 +16,17 @@ import type { TypeDecorations } from "./tags.ts";
 
 const { Group, Role } = wordgardDoc.Node;
 
-// Node groups have no names: Wordgard's own are named here, others numbered per schema.
-const knownGroups = new Map<Node.Group, string>([
-  [Group.All, "All"],
-  [Group.Inline, "Inline"],
-  [Group.Block, "Block"],
-  [Group.Leaf, "Leaf"],
-  [Group.Plot, "Plot"],
-  [Group.Textblock, "Textblock"],
-  [Group.Content, "Content"],
-  [Group.TableCell, "TableCell"],
-  [Group.ListItem, "ListItem"],
+// Wordgard's own groups, always listed.
+const builtInGroups = new Set([
+  Group.All,
+  Group.Inline,
+  Group.Block,
+  Group.Leaf,
+  Group.Plot,
+  Group.Textblock,
+  Group.Content,
+  Group.TableCell,
+  Group.ListItem,
 ]);
 // Wordgard assigns these itself, by a type's kind, inline flag and content (its `Group.builtin`, which
 // is internal): not listed among a type's groups, whatever its spec says.
@@ -39,11 +39,7 @@ const implied = new Set([
   Group.Textblock,
 ]);
 
-const roles = new Map<Node.Role, string>([
-  [Role.Code, "Code"],
-  [Role.List, "List"],
-  [Role.LineBreak, "LineBreak"],
-]);
+const roles = [Role.Code, Role.List, Role.LineBreak];
 
 type Spec = {
   defaultParam?: unknown;
@@ -107,7 +103,7 @@ const hasToHTML = (value: object): value is { toHTML: () => unknown } =>
 const plain = (value: unknown, depth = 6): unknown => {
   if (typeof value == "function") return fnSummary(value);
   if (typeof value != "object" || value == null) return toSafe(value);
-  if (value instanceof Group) return "a group";
+  if (value instanceof Group) return value.name ?? "a group";
   if (hasToHTML(value)) {
     try {
       return String(value.toHTML());
@@ -126,15 +122,16 @@ const plain = (value: unknown, depth = 6): unknown => {
 };
 
 /**
- * Names for a schema's groups and queries, as the Schema tab shows them: Wordgard's groups by
- * name, the schema's numbered in the order its specs mention them (groups have no names).
+ * Names for a schema's groups and queries, as the Schema tab shows them: groups by their debug
+ * name (`Group.define({name})`), unnamed ones numbered in the order the schema's specs mention them.
  */
 export const createQueryNamer = (schema: Schema) => {
   const custom = new Map<Node.Group, string>();
+  let unnamed = 0;
   const groupName = (group: Node.Group) => {
-    const known = knownGroups.get(group) ?? custom.get(group);
+    const known = custom.get(group) ?? (builtInGroups.has(group) ? group.name : null);
     if (known) return known;
-    const name = `group #${custom.size + 1}`;
+    const name = group.name ?? `group #${++unnamed}`;
     custom.set(group, name);
     return name;
   };
@@ -179,7 +176,7 @@ export const schemaInfo = (schema: Schema, extras?: SchemaExtras): SchemaInfo =>
   /** A spec as JSON: what a developer wrote, readable. */
   const specJSON = (name: string, spec: object): Record<string, unknown> => {
     const one = (value: unknown) => (value instanceof Group ? groupName(value) : plain(value));
-    const roleName = (role: unknown) => [...roles].find(([r]) => r == role)?.[1] ?? "a role";
+    const roleName = (role: unknown) => (role instanceof Role ? role.name : null) ?? "a role";
     const entries = Object.entries(spec).map(([key, value]): [string, unknown] => [
       key,
       key == "group"
@@ -270,8 +267,7 @@ export const schemaInfo = (schema: Schema, extras?: SchemaExtras): SchemaInfo =>
           notes: { ...effective.notes, "decoration shape": "override" },
         };
 
-  const listed = () =>
-    [...knownGroups.keys(), ...namer.custom()].filter((group) => !implied.has(group));
+  const listed = () => [...builtInGroups, ...namer.custom()].filter((group) => !implied.has(group));
 
   const nodes = schema.nodes.map((type): SchemaNodeType => {
     const flags: string[] = [];
@@ -303,7 +299,9 @@ export const schemaInfo = (schema: Schema, extras?: SchemaExtras): SchemaInfo =>
           : null;
     const inGroups = listed().filter((group) => schema.matchNode(type, group));
     const groups = inGroups.map(groupName);
-    const typeRoles = [...roles].filter(([role]) => type.hasRole(role)).map(([, name]) => name);
+    const typeRoles = roles
+      .filter((role) => type.hasRole(role))
+      .map((role) => role.name ?? "a role");
     const holds = type.isPlot
       ? schema.nodes.filter((child) => schema.canContain(type, child)).map((child) => child.name)
       : [];
@@ -398,7 +396,7 @@ export const schemaInfo = (schema: Schema, extras?: SchemaExtras): SchemaInfo =>
   const groups = [...listed(), ...implied]
     .map((group): SchemaGroup => ({
       name: groupName(group),
-      builtIn: knownGroups.has(group),
+      builtIn: builtInGroups.has(group),
       implied: implied.has(group),
       members: schema.nodes
         .filter((type) => schema.matchNode(type, group))

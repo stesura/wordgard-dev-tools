@@ -7,7 +7,8 @@ Each [`GardState.Field`](https://wordgard.net/docs/ref/#state.GardState.Field): 
 
 ## Tips
 
-- Name unnamed fields ("field #n") with `wordgardDevtools({fields: {name: field}})`.
+- Fields show by their debug name: `GardState.Field.define({name: "wordCount", …})`. Unnamed ones show as "field #n".
+- `wordgardDevtools({fields: {name: field}})` names a field too, overriding its debug name, and adds it to the State tab's JSON.
 - Search filters the fields by name or by value, the whole value, not just its preview.
 - Expand a change to see its value; right-click to log or copy it.
 - For a [`PointSet` or `RangeSet`](https://wordgard.net/docs/ref/#set), click a position to show its node in the Structure.

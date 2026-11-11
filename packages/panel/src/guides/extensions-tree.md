@@ -6,7 +6,7 @@ The configuration nested as the app wrote it: arrays, [precedence](https://wordg
 - `duplicate`: Wordgard keeps one occurrence of an extension, the highest precedence, the first among equals.
 - `#2 of 5`: a value's place in its facet, highest precedence first, then configuration order.
 - A compartment shows its current content, after any [reconfigure](https://wordgard.net/docs/ref/#state.GardState.Compartment.reconfigure).
-- Facets Wordgard exports show its names; the others are numbered.
+- Facets Wordgard exports show its names for them (`Wordgard.updateListener`); others their [debug name](https://wordgard.net/docs/ref/#state.GardState.Facet.Spec.name); unnamed ones are numbered.
 - A compartment of Wordgard's own, at highest, holding [`GardState.textLTR`](https://wordgard.net/docs/ref/#state.GardState.textLTR): it aligns the state's text direction with the editor's.
 
 ## Tips

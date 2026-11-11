@@ -17,10 +17,12 @@ const plain = (id: string, doc: string, extra: GardState.Extension) => {
   return Wordgard.create({ parent, doc, config: [basicSchema(), history(), extra] });
 };
 
-// A state field, named for the Fields tab.
+// A state field with a debug name, which the panel shows. `fields` (below) adds it to the State
+// tab's JSON too.
 const words = (doc: Plot.Doc) =>
   doc.textContent({ blockSeparator: " " }).split(/\s+/).filter(Boolean).length;
 const wordCount = GardState.Field.define<number>({
+  name: "wordCount",
   create: (state) => words(state.doc),
   update: (count, tr) => (tr.docChanged ? words(tr.newDoc) : count),
 });
@@ -28,7 +30,7 @@ const wordCount = GardState.Field.define<number>({
 // The toolbar's highlight: a range decoration (a <mark> around the text, the document untouched)
 // on each "DevTools", kept in a field an effect switches, worked out again as the text changes.
 const WORD = "DevTools";
-const setHighlight = Transaction.Effect.define<boolean>();
+const setHighlight = Transaction.Effect.define<boolean>({ name: "setHighlight" });
 const highlightRange = Decoration.Range.wrapper("mark", { attributes: { class: "highlight" } });
 const occurrences = (doc: Plot.Doc) =>
   Decoration.Range.set((add) =>
@@ -39,6 +41,7 @@ const occurrences = (doc: Plot.Doc) =>
     })
   );
 const highlight = GardState.Field.define<{ on: boolean; ranges: Decoration.Range.Set }>({
+  name: "highlight",
   create: () => ({ on: false, ranges: Decoration.Range.none }),
   update: (value, tr) => {
     const on = tr.effects.reduce((was, e) => (e.is(setHighlight) ? e.value : was), value.on);

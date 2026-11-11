@@ -42,6 +42,11 @@ const row = (text: string) =>
   [...(tree()?.querySelectorAll<HTMLElement>("[data-extension]") ?? [])].find((element) =>
     element.textContent?.includes(text)
   );
+/** A top-level row whose text starts with `text`: by facet, a facet's heading, not a value. */
+const heading = (text: string) =>
+  [...(tree()?.querySelectorAll<HTMLElement>("[data-extension][aria-level='1']") ?? [])].find(
+    (element) => element.textContent?.startsWith(text)
+  );
 const pane = () => shadow().querySelector<HTMLElement>("[aria-label='Extension']");
 
 const count = GardState.Field.define<number>({ create: () => 1, update: (v) => v });
@@ -440,14 +445,14 @@ it("shows a facet value's place among its facet's, and regroups the tree by face
 
 it("keeps the selected value by facet across a reconfigure that shifts the facets", async () => {
   const editor = await setup();
-  (
-    await until(() =>
-      [...shadow().querySelectorAll<HTMLButtonElement>("button")].find(
-        (element) => element.textContent == "By facet"
-      )
+  const byFacet = await until(() =>
+    [...shadow().querySelectorAll<HTMLButtonElement>("button")].find(
+      (element) => element.textContent == "By facet"
     )
-  ).click();
-  const readOnly = await until(() => row("GardState.readOnly"));
+  );
+  byFacet.click();
+  await until(() => byFacet.getAttribute("aria-pressed") == "true");
+  const readOnly = await until(() => heading("GardState.readOnly"));
   const before = readOnly.getAttribute("data-extension");
   readOnly.click();
   await until(() => pane()?.textContent?.includes("Order in GardState.readOnly"));
@@ -458,8 +463,8 @@ it("keeps the selected value by facet across a reconfigure that shifts the facet
       Decoration.Range.source.of(() => Decoration.Range.none),
     ]),
   });
-  await until(() => row("Decoration.Range.source"));
-  expect(row("GardState.readOnly")?.getAttribute("data-extension")).not.toBe(before);
+  await until(() => heading("Decoration.Range.source"));
+  expect(heading("GardState.readOnly")?.getAttribute("data-extension")).not.toBe(before);
   await until(() => pane()?.textContent?.includes("Order in GardState.readOnly"));
   expect(tree()?.querySelector("[aria-selected='true']")?.textContent).toMatch(/^#1/);
 });

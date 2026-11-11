@@ -122,6 +122,25 @@ it("names a group an override applies, for the types listed before the query tha
   });
 });
 
+it("names a group by its debug name, numbering only the unnamed", async () => {
+  const Asides = Node.Group.define({ name: "Asides" });
+  const Unnamed = Node.Group.define();
+  const Box = Plot.define("Box", {
+    blockContent: [Asides, Unnamed],
+    group: [Node.Group.Content, Asides],
+    shape: { element: "div" },
+  });
+  const wg = editor([wordgardDevtools(), GardState.schemaElement.of([Box])]);
+  editors.push(wg);
+  const schema = await schemaOf(wg);
+  expect(schema.nodes.find((n) => n.name == "Box")).toMatchObject({
+    groups: ["Content", "Asides"],
+    content: "block: Asides | group #1",
+  });
+  expect(schema.groups.find((g) => g.name == "Asides")).toMatchObject({ builtIn: false });
+  expect(schema.groups.find((g) => g.name == "Content")).toMatchObject({ builtIn: true });
+});
+
 it("resolves each type's spec: defaults, what the schema works out", async () => {
   const wg = editor([wordgardDevtools(), GardState.schemaElement.of([Callout, Flagged])]);
   editors.push(wg);

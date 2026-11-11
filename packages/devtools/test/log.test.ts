@@ -34,6 +34,8 @@ const type = (wg: Wordgard, text: string, pos = 1) =>
 
 const effect = Transaction.Effect.define<{ note: string }>();
 const note = Transaction.Annotation.define<string>();
+const language = Transaction.Effect.define<string>({ name: "language" });
+const fromServer = Transaction.Annotation.define<boolean>("fromServer");
 
 it("records transactions only while recording, with their rows", async () => {
   const wg = open();
@@ -141,8 +143,8 @@ it("serialises an entry on request: changes, ranges, selection, effects, annotat
   wg.dispatch({
     changes: { from: 3, to: 5, insert: [Leaf.text("XY")] },
     selection: { anchor: 4 },
-    effects: effect.of({ note: "x" }),
-    annotations: note.of("n"),
+    effects: [effect.of({ note: "x" }), language.of("en")],
+    annotations: [note.of("n"), fromServer.of(true)],
     userEvent: "input",
   });
   const entry = await ask({ type: "entry", id: idOf(wg), index: 0 });
@@ -158,9 +160,14 @@ it("serialises an entry on request: changes, ranges, selection, effects, annotat
   });
   expect(entry.selection.set).toEqual({ type: "text", anchor: 4 });
   expect(entry.selection.after).toEqual({ type: "text", anchor: 4 });
-  expect(entry.effectValues).toEqual([{ type: "effect", value: { note: "x" } }]);
+  // Unnamed, then by debug name.
+  expect(entry.effectValues).toEqual([
+    { type: "effect", value: { note: "x" } },
+    { type: "language", value: "en" },
+  ]);
   expect(entry.annotationValues.map((a) => a.type)).toEqual([
     expect.stringMatching(/^annotation #\d+$/),
+    "fromServer",
     "userEvent",
     "time",
   ]);

@@ -102,7 +102,7 @@ const KNOWN: [unknown, string][] = [
 ];
 
 let known: Map<unknown, string> | null = null;
-/** The facets Wordgard exports, by name. The others have none (and aren't exported). */
+/** The facets Wordgard exports, by their qualified names: clearer than their debug names. */
 const knownFacets = () =>
   (known ??= new Map(
     KNOWN.map(([from, name]): [unknown, string] => [read(from, name.split(".")), name]).filter(
@@ -110,7 +110,8 @@ const knownFacets = () =>
     )
   ));
 
-// Numbered as first seen, page-wide: the same facet or compartment keeps its number across reloads.
+// Unnamed ones are numbered as first seen, page-wide: the same facet or compartment keeps its
+// number across reloads.
 const numbered = () => {
   const numbers = new WeakMap<object, number>();
   let count = 0;
@@ -202,8 +203,11 @@ const build = (state: GardState, labels: Labels): { root: Shape; facets: FacetOr
     [tagged.markShape, "Decoration.Mark.shape"],
   ] satisfies [unknown, string][])
     if (facet) facetNames.set(facet, name);
-  const facetLabel = (facet: object) =>
-    named.get(facet) ?? facetNames.get(facet) ?? `facet #${facetNumber(facet)}`;
+  /** The app's name, Wordgard's export, or the facet's debug name (`Facet.define({name})`). */
+  const facetName = (facet: GardState.Facet<unknown, unknown>) =>
+    named.get(facet) ?? facetNames.get(facet) ?? facet.name ?? null;
+  const facetLabel = (facet: GardState.Facet<unknown, unknown>) =>
+    facetName(facet) ?? `facet #${facetNumber(facet)}`;
   let count = 0;
 
   const shape = (
@@ -301,13 +305,16 @@ const build = (state: GardState, labels: Labels): { root: Shape; facets: FacetOr
     const wrapped = precedenceOf(ext);
     const provider = providerOf(ext);
     if (Array.isArray(ext)) return `${ext.length} extensions`;
-    if (compartment) return `compartment #${compartmentNumber(compartment.compartment)}`;
+    if (compartment)
+      return (
+        compartment.compartment.name ?? `compartment #${compartmentNumber(compartment.compartment)}`
+      );
     if (wrapped) return precedence(wrapped.prec);
     if (isField(ext)) {
       const name = Object.entries(labels.fields ?? {}).find(([, f]) => f == ext)?.[0];
-      return name ?? `field #${fields.indexOf(ext) + 1}`;
+      return name ?? ext.name ?? `field #${fields.indexOf(ext) + 1}`;
     }
-    if (isDerived(ext)) return `derived field #${derivedNumber(ext)}`;
+    if (isDerived(ext)) return ext.name ?? `derived field #${derivedNumber(ext)}`;
     if (provider) return facetLabel(provider.facet);
     if (isObject(ext) && "extension" in ext && ext.extension)
       return className(ext) ?? "extension object";
@@ -332,7 +339,7 @@ const build = (state: GardState, labels: Labels): { root: Shape; facets: FacetOr
       node.field = index < 0 ? null : index;
     } else if (isDerived(ext)) made.field = ext;
     else if (provider) {
-      const name = named.get(provider.facet) ?? facetNames.get(provider.facet) ?? null;
+      const name = facetName(provider.facet);
       node.value = provider.isStatic
         ? (preview(provider.value) ?? String(provider.value))
         : "computed";
@@ -379,7 +386,7 @@ const build = (state: GardState, labels: Labels): { root: Shape; facets: FacetOr
   // Each facet's kept values, in tree order: Wordgard's walk order. `flatten` puts each in its
   // precedence's bucket in that order, then joins the buckets: the facet's input.
   const byFacet = new Map<
-    object,
+    GardState.Facet<unknown, unknown>,
     { label: string; wordgard: string | null; values: FacetValue[]; nodes: ExtensionNode[] }
   >();
   const walk = (parent: Shape, path: Path, from: string[]) =>
@@ -411,7 +418,7 @@ const build = (state: GardState, labels: Labels): { root: Shape; facets: FacetOr
     });
   walk(root, [], []);
   const rank = (prec: Precedence) => PRECEDENCES.indexOf(prec);
-  const numbered = (facet: object) => !named.has(facet) && !facetNames.has(facet);
+  const numbered = (facet: GardState.Facet<unknown, unknown>) => facetName(facet) == null;
   const sorted = [...byFacet].toSorted(([a, x], [b, y]) =>
     numbered(a) != numbered(b)
       ? Number(numbered(a)) - Number(numbered(b))
@@ -479,7 +486,7 @@ export const extensionDetail = (state: GardState, labels: Labels, path: Path): E
     }
   };
   return {
-    resolved: facet ? guarded(() => state.facet(facet)) : null,
+    resolved: facet ? guarded(() => state.facet(facet.reader)) : null,
     value: field
       ? guarded(() => (isField(field) ? state.field(field, false) : state.field(field)))
       : null,
@@ -491,7 +498,10 @@ export const logExtension = (state: GardState, labels: Labels, path: Path, resol
   const { node, ext, facet } = at(state, labels, path);
   if (resolved) {
     if (!facet) throw new Error(`${node.label} has no resolved value here`);
-    console.log(`[wordgard-devtools] state.facet(${node.facet ?? node.label})`, state.facet(facet));
+    console.log(
+      `[wordgard-devtools] state.facet(${node.facet ?? node.label})`,
+      state.facet(facet.reader)
+    );
     return;
   }
   console.log(`[wordgard-devtools] ${node.label}`, ext);

@@ -78,8 +78,9 @@ it("tracks changes while watched, linked to the log when recording", async () =>
   wg.flush();
   info = (await ask({ type: "fields", id })).fields.find((f) => f.name == "counter");
   expect(info?.changes).toBe(2);
-  expect((await ask({ type: "fields", id })).fields.some((f) => !f.named && f.changes > 0)).toBe(
-    true
+  // Named by its debug name.
+  expect((await ask({ type: "fields", id })).fields.find((f) => f.name == "history")).toMatchObject(
+    { named: true, changes: 1 }
   );
 });
 

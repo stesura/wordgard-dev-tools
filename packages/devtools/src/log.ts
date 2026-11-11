@@ -16,6 +16,7 @@ import { agentReading } from "./reads.ts";
 import type { Entry, Registry } from "./registry.ts";
 import { toSafe } from "./serialise.ts";
 import { flushDecorations, logFlushDecorations, summaryOf } from "./flushes.ts";
+import { effectTypeOf } from "./internals.ts";
 
 // Loaded with the serialisers, on the first panel request.
 
@@ -178,46 +179,23 @@ const time = (wg: Wordgard, log: Log, changed: () => void): Timer => {
   };
 };
 
-const annotationNames = new Map<object, string>([
-  [wordgardState.Transaction.time, "time"],
-  [wordgardState.Transaction.userEvent, "userEvent"],
-  [wordgardState.Transaction.addToHistory, "addToHistory"],
-  [wordgardState.Transaction.remote, "remote"],
-  [wordgardState.Transaction.appended, "appended"],
-]);
-
-// The annotation on the transaction Wordgard dispatches when the editor gains or loses focus.
-// Checked for: not every Wordgard in the peer range may have it.
-const focusChange: object | null =
-  "isFocusChange" in wordgardEditor.Wordgard ? wordgardEditor.Wordgard.isFocusChange : null;
-if (focusChange) annotationNames.set(focusChange, "focus");
-
 const isFocusChange = (tr: Transaction) =>
-  focusChange != null && annotationsOf(tr).some((a) => a.type == focusChange);
+  tr.annotations.some((a) => a.type == wordgardEditor.Wordgard.isFocusChange);
 
-// Annotation types carry no name: those that aren't Wordgard's are numbered as first seen, page-wide.
+// Unnamed annotation types are numbered as first seen, page-wide.
 const customNames = new WeakMap<object, string>();
 let customCount = 0;
-const annotationName = (type: object) => {
-  const own = annotationNames.get(type);
-  if (own) return own;
+/** Its debug name (`Annotation.define(name)`); the focus change's is "focus", as the Log's flag. */
+const annotationName = (type: Transaction.Annotation.Type<unknown>) => {
+  if (type == wordgardEditor.Wordgard.isFocusChange) return "focus";
+  if (type.name) return type.name;
   let name = customNames.get(type);
   if (!name) customNames.set(type, (name = `annotation #${++customCount}`));
   return name;
 };
 
-// `annotations` is internal to Wordgard (`annotation(type)` is the public reader): counted when present.
-const annotationsOf = (tr: Transaction): Transaction.Annotation<unknown>[] =>
-  "annotations" in tr && Array.isArray(tr.annotations)
-    ? tr.annotations.filter((a) => a instanceof wordgardState.Transaction.Annotation)
-    : [];
-
-const effectName = (effect: Transaction.Effect<unknown>) =>
-  effect.is(wordgardState.GardState.reconfigure)
-    ? "reconfigure"
-    : effect.is(wordgardState.GardState.appendConfig)
-      ? "appendConfig"
-      : "effect";
+/** Its debug name (`Effect.define({name})`), or "effect". */
+const effectName = (effect: Transaction.Effect<unknown>) => effectTypeOf(effect)?.name ?? "effect";
 
 const row = ({ index, tr, dispatchMs, flushMs, flush, agentFlush }: Item): LogRow => ({
   index,
@@ -227,7 +205,7 @@ const row = ({ index, tr, dispatchMs, flushMs, flush, agentFlush }: Item): LogRo
   docChanged: tr.docChanged,
   selectionSet: tr.selection != null,
   effects: tr.effects.length,
-  annotations: annotationsOf(tr).map((a) => annotationName(a.type)),
+  annotations: tr.annotations.map((a) => annotationName(a.type)),
   dispatchMs,
   flushMs,
   flush,
@@ -267,7 +245,7 @@ const detail = (item: Item, decorations: FlushDecorations | null): LogEntryDetai
       type: effectName(effect),
       value: toSafe(effect.value),
     })),
-    annotationValues: annotationsOf(tr).map((a): NamedValue => ({
+    annotationValues: tr.annotations.map((a): NamedValue => ({
       type: annotationName(a.type),
       value: toSafe(a.value),
     })),
@@ -501,7 +479,7 @@ export const createRecorder = (registry: Registry, push: (message: Push) => void
             : part == "effects"
               ? tr.effects
               : part == "annotations"
-                ? annotationsOf(tr)
+                ? tr.annotations
                 : tr;
       console.log(
         `[wordgard-devtools] transaction #${index}${part == "transaction" ? "" : `, ${part}`}`,

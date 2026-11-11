@@ -103,7 +103,8 @@ const setup = async () => {
 it("lists the fields and tracks their changes while shown", async () => {
   const editor = await setup();
   expect(row("counter")?.textContent).toContain("0");
-  expect(row("field #1")).not.toBeNull();
+  // history()'s field, by its debug name.
+  expect(row("history")).not.toBeNull();
   await tracking();
   editor.dispatch({ effects: bump.of(4) });
   await until(() => row("counter")?.textContent?.startsWith("counter41"));

@@ -1,3 +1,19 @@
+## Unreleased
+
+### Breaking changes
+
+Requires `wordgard` ~0.7.0 (0.7.x): each Wordgard minor release, which may break its API, needs a devtools release.
+
+### New features
+
+The panel shows the debug names Wordgard 0.7 adds: of state fields and derived fields, facets, compartments, node groups and roles, effects and annotations. Unnamed ones are still numbered; the `fields` and `names` options override debug names.
+
+The Log names a transaction's effects by their debug names, not just "effect", and saves annotation filters for named annotations.
+
+### Bug fixes
+
+The DOM tab marks widgets as chrome again: Wordgard 0.7 no longer makes them uneditable, so an element is now chrome when it draws no node and holds none of the document's text.
+
 ## 0.1.2 (2026-11-07)
 
 ### Bug fixes

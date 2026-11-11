@@ -100,6 +100,12 @@ export const tagFacetsOf = (make: Record<TagFacetName, () => unknown>): TagFacet
   };
 };
 
+/** An effect's type, with its debug name: internal in Wordgard's typings. */
+export const effectTypeOf = (effect: object) =>
+  "type" in effect && isObject(effect.type) && "name" in effect.type
+    ? { name: typeof effect.type.name == "string" ? effect.type.name || null : null }
+    : null;
+
 /** `Command.bind(command, param)`: its command and parameter. */
 export const boundOf = (value: unknown) =>
   isObject(value) && "command" in value && typeof value.command == "function"

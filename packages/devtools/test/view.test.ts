@@ -24,7 +24,21 @@ it("maps the content's DOM back to the document, and flags chrome", async () => 
     "start",
     Widget.create({ render: () => document.createElement("b") })
   );
-  const wg = editor([wordgardDevtools(), badge]);
+  const label = Decoration.Tag.widget(
+    Paragraph,
+    "end",
+    Widget.create({
+      render: () => {
+        const span = document.createElement("i");
+        span.textContent = "label";
+        return span;
+      },
+    })
+  );
+  const wrapped = Decoration.Range.source.of(() =>
+    Decoration.Range.set((add) => add(Decoration.Range.wrapper("u", { attributes: {} }), 9, 11))
+  );
+  const wg = editor([wordgardDevtools(), badge, label, wrapped]);
   editors.push(wg);
   const { status, dom } = await ask({ type: "view", id: idOf(wg) });
   expect(status).toMatchObject({ connected: true, editable: true, root: "document" });
@@ -33,7 +47,13 @@ it("maps the content's DOM back to the document, and flags chrome", async () => 
   expect(heading).toMatchObject({ tag: "h1", node: { path: [0], from: 0, to: 7 } });
   const text = find(dom, (n) => n.kind == "text" && n.text == "Title");
   expect(text?.pos).toBe(1);
-  expect(find(dom, (n) => n.tag == "b" && n.chrome)).not.toBeNull();
+  // Widgets, empty or with their own text, are chrome; a mark or a wrapper holding the
+  // document's text isn't.
+  expect(find(dom, (n) => n.tag == "b")?.chrome).toBe(true);
+  expect(find(dom, (n) => n.tag == "i")?.chrome).toBe(true);
+  expect(find(dom, (n) => n.tag == "strong")?.chrome).toBe(false);
+  expect(find(dom, (n) => n.tag == "u")?.chrome).toBe(false);
+  expect(find(dom, (n) => n.tag == "p")?.chrome).toBe(false);
 });
 
 it("outlines and logs a view element", async () => {

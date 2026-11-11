@@ -11,3 +11,4 @@ Which [transactions](https://wordgard.net/docs/ref/#state.Transaction) the Log s
 
 - Switch a changed flag off to hide the rows where only it changed; a row that also changed something still on stays.
 - Untick user events to hide their rows; switch an annotation on to show only the rows that have it.
+- The filters are saved, except unnamed annotations (`annotation #n`): their numbers change on reload. Name them with `Transaction.Annotation.define("name")`.

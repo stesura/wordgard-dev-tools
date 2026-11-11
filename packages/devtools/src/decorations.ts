@@ -42,8 +42,8 @@ export const sourcesOf = (state: GardState): Source[] => {
   let points: readonly ((state: GardState) => unknown)[];
   let ranges: readonly ((state: GardState) => unknown)[];
   try {
-    points = state.facet(Decoration.Point.source);
-    ranges = state.facet(Decoration.Range.source);
+    points = state.facet(Decoration.Point.source.reader);
+    ranges = state.facet(Decoration.Range.source.reader);
   } catch {
     // A Wordgard without these facets.
     return [];

@@ -37,7 +37,7 @@ export const tagFacets = (state: GardState): TagFacets => {
 const read = (state: GardState, facet: GardState.Facet<unknown, unknown> | null): unknown => {
   if (!facet) return undefined;
   try {
-    return state.facet(facet);
+    return state.facet(facet.reader);
   } catch {
     return undefined;
   }
