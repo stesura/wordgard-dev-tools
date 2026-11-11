@@ -280,7 +280,9 @@ export const createFramesTransport = (
       frames.set(frameId, { url, agent: m.agent, v: m.v });
       emit({ type: "editorsChanged" });
     } else if (m.type == "reply") {
-      pending.get(m.id)?.settle(m.reply);
+      // Only the frame that was asked answers: ids are guessable, and any frame can post a reply.
+      const asked = pending.get(m.id);
+      if (asked?.frameId == frameId) asked.settle(m.reply);
     } else if (usable(frameId)) {
       const push = m.push;
       emit("id" in push ? { ...push, id: panelId(frameId, push.id) } : push);

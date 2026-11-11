@@ -106,6 +106,25 @@ describe("frames transport", () => {
     );
   });
 
+  it("ignores a reply from a frame that wasn't asked", async () => {
+    const frames = twoFrames();
+    const { transport, receive, announce } = setup(frames);
+    announce(0);
+    announce(7);
+    await transport.send({ type: "listEditors" });
+    // Slow from here on: the forged replies come while the top frame is still to answer.
+    frames[0].delay = 20;
+    const asked = transport.send({ type: "node", id: 1, path: [0] });
+    for (let id = 1; id <= 50; id++)
+      receive({
+        type: "fromFrame",
+        frameId: 7,
+        url: frames[7].url,
+        message: { type: "reply", v: PROTOCOL, id, reply: { ok: true, value: "forged" } },
+      });
+    expect(await asked).toEqual({ type: "node", id: 1, path: [0] });
+  });
+
   it("routes the extensions requests with their paths", async () => {
     const frames = twoFrames();
     const { transport, announce } = setup(frames);

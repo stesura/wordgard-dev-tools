@@ -16,6 +16,8 @@ The Log names a transaction's effects by their debug names, not just "effect", a
 
 The DOM tab marks widgets as chrome again: Wordgard 0.7 no longer makes them uneditable, so an element is now chrome when it draws no node and holds none of the document's text.
 
+The extension takes a reply only from the frame it asked: a frame of the page could answer a request sent to another frame's editor.
+
 ## 0.1.2 (2026-11-07)
 
 ### Bug fixes

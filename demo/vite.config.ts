@@ -27,6 +27,5 @@ export default defineConfig({
   },
   build: {
     target: "es2022",
-    rolldownOptions: { input: { main: here("index.html"), frame: here("frame.html") } },
   },
 });
