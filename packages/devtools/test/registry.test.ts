@@ -311,6 +311,25 @@ describe("postMessage", () => {
     expect(await pushed).toEqual({ type: "editorsChanged" });
   });
 
+  it("answers with an error when the reply can't be cloned", async () => {
+    open(wordgardDevtools());
+    const send = window.postMessage.bind(window);
+    let thrown = false;
+    vi.spyOn(window, "postMessage").mockImplementation((message: unknown, target: unknown) => {
+      const data = typeof message == "object" && message != null ? message : {};
+      if (!thrown && "kind" in data && data.kind == "reply") {
+        thrown = true;
+        throw new DOMException("It could not be cloned.", "DataCloneError");
+      }
+      send(message, typeof target == "string" ? target : "*");
+    });
+    const [reply] = await post({ type: "listEditors" });
+    expect(reply).toEqual({
+      ok: false,
+      error: "The reply couldn't be sent: It could not be cloned.",
+    });
+  });
+
   it("announces itself when pinged", async () => {
     open(wordgardDevtools());
     const announced = nextMessage("announce");

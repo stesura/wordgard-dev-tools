@@ -36,6 +36,17 @@ export type DevtoolsOptions = {
 // Wordgard doesn't catch errors from transaction listeners, so they'd reach the app's dispatch.
 let failed = false;
 
+// This copy's holds on the registry: one per connected plugin.
+const held = new Map<Wordgard, number>();
+
+const release = (wg: Wordgard) => {
+  const count = held.get(wg);
+  if (!count) return;
+  if (count > 1) held.set(wg, count - 1);
+  else held.delete(wg);
+  currentRegistry()?.unregister(wg);
+};
+
 const fail = (error: unknown) => {
   if (failed) return;
   failed = true;
@@ -43,6 +54,12 @@ const fail = (error: unknown) => {
     `Wordgard DevTools ${VERSION} turned itself off after an error. If you've just upgraded wordgard, this version may not support it yet.`,
     error
   );
+  // Its editors leave the panel: nothing reports their updates anymore.
+  try {
+    for (const [wg, count] of [...held]) for (let i = 0; i < count; i++) release(wg);
+  } catch {
+    held.clear();
+  }
 };
 
 const guard =
@@ -81,11 +98,10 @@ const sharedListeners = () =>
 export const wordgardDevtools = (options: DevtoolsOptions = {}): GardState.Extension => {
   if (failed || !(options.enabled ?? !isProduction())) return [];
   const register = guard((wg: Wordgard) => {
-    ensureRegistry()?.register(wg, options.name, options.fields, options.names);
+    if (!ensureRegistry()?.register(wg, options.name, options.fields, options.names)) return;
+    held.set(wg, (held.get(wg) ?? 0) + 1);
   });
-  const unregister = guard((wg: Wordgard) => {
-    currentRegistry()?.unregister(wg);
-  });
+  const unregister = guard(release);
   try {
     const provided = sharedListeners();
     return wordgardEditor.Wordgard.Plugin.define(

@@ -26,6 +26,10 @@ The panel docked in the page shrinks with the window: a dock larger than a windo
 
 In the Extensions tab, Ctrl+F goes to the search nearest the focus: the key bindings' search from their pane, the extensions' search from anywhere else. It went to whichever was shown last.
 
+When the devtools turn themselves off after an error, their editors leave the panel, which showed them with a state that no longer updated.
+
+In the extension, a reply the page can't send (a transaction inserting a node whose parameter isn't plain data) fails with a message, not after a ten-second wait; the Log's changes are now always plain data.
+
 The extension takes a reply only from the frame it asked: a frame of the page could answer a request sent to another frame's editor.
 
 ## 0.1.2 (2026-11-07)

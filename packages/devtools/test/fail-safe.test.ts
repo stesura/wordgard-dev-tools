@@ -32,5 +32,8 @@ it("turns itself off on an error instead of breaking the app's editor", async ()
   );
 
   expect(wordgardDevtools()).toEqual([]);
+  // Its editors leave the registry: nothing reports their updates anymore.
+  expect(registry().editors.size).toBe(0);
+  expect((await ask({ type: "listEditors" })).editors).toEqual([]);
   wg.dom.remove();
 });

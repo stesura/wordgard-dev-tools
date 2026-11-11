@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { Leaf } from "wordgard/doc";
 import { Wordgard } from "wordgard/editor";
-import { Transaction } from "wordgard/state";
+import { GardState, Transaction } from "wordgard/state";
 import { wordgardDevtools, type Push } from "../src/index.ts";
 import { agent, ask, editor, post, registry } from "./helpers.ts";
 
@@ -338,4 +338,17 @@ it("logs a transaction, or one of its parts, live", async () => {
   await expect(ask({ type: "logEntry", id: idOf(wg), index: 9 })).rejects.toThrow(
     "no longer in the log"
   );
+});
+
+it("sends a transaction's changes as plain data, whatever a node's parameter holds", async () => {
+  const Stamp = Leaf.Type.define<{ make: () => string }>("Stamp", {
+    inline: true,
+    shape: { element: "span", selector: "span[data-stamp]", attributes: { "data-stamp": "" } },
+  });
+  const wg = open(GardState.schemaElement.of([Stamp]));
+  await recording(wg);
+  wg.dispatch({ changes: { from: 1, insert: [Stamp.of({ make: () => "now" })] } });
+  const [reply] = await post({ type: "entry", id: idOf(wg), index: 0 });
+  expect(reply).toMatchObject({ ok: true });
+  expect(JSON.stringify(reply)).toContain("[Function make]");
 });

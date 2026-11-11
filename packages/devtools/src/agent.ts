@@ -470,7 +470,19 @@ export const createAgent = (registry: Registry): Agent => {
         v == PROTOCOL
           ? request(message, "remote")
           : Promise.resolve({ ok: false, error: mismatch(PROTOCOL, v) });
-      void reply.then((r) => post({ source: SOURCE, v: PROTOCOL, kind: "reply", id, reply: r }));
+      const answer = (r: Reply) =>
+        post({ source: SOURCE, v: PROTOCOL, kind: "reply", id, reply: r });
+      void reply.then((r) => {
+        try {
+          answer(r);
+        } catch (e) {
+          // A value postMessage can't clone: the panel hears why, instead of waiting.
+          answer({
+            ok: false,
+            error: `The reply couldn't be sent: ${e instanceof Error ? e.message : String(e)}`,
+          });
+        }
+      });
     }
   });
   // A bridge injected before the agent existed learns about it here.

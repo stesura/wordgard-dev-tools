@@ -234,7 +234,8 @@ const detail = (item: Item, decorations: FlushDecorations | null): LogEntryDetai
   });
   return {
     ...row(item),
-    changes: tr.changes.toJSON(),
+    // An inserted node's param may be anything: only plain data crosses postMessage.
+    changes: toSafe(tr.changes.toJSON(), 64),
     ranges,
     selection: {
       set: tr.selection ? toSafe(tr.selection.toJSON(tr.state)) : null,
