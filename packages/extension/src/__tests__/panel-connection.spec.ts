@@ -4,7 +4,7 @@ import { fake, resetBrowser, type FakePort } from "../../__mocks__/wxt/browser.t
 import type { BackgroundToPanel, PanelToBackground } from "../messages.ts";
 import { connectPanel } from "../panel-connection.ts";
 
-vi.mock("wxt/browser");
+vi.mock("wxt/browser", () => import("../../__mocks__/wxt/browser.ts"));
 
 const announced: BackgroundToPanel = {
   type: "fromFrame",

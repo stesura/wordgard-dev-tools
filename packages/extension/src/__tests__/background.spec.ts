@@ -17,7 +17,7 @@ import {
   type ToBridge,
 } from "../messages.ts";
 
-vi.mock("wxt/browser");
+vi.mock("wxt/browser", () => import("../../__mocks__/wxt/browser.ts"));
 
 const openPanel = (tabId: number) => {
   const panel = fakePort(PANEL_PORT);
