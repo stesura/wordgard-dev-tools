@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { Leaf } from "wordgard/doc";
 import { Wordgard } from "wordgard/editor";
 import { Transaction } from "wordgard/state";
@@ -742,4 +742,39 @@ it("marks the selected bar in the timeline below it, not by its shade alone", as
   const marker = shadow().querySelector("[data-selected-marker]");
   // A border, which forced colours keep.
   expect(marker && getComputedStyle(marker).borderTopWidth).toBe("2px");
+});
+
+it("wraps its toolbar when narrow: the recording settings under the rest, the count unbroken", async () => {
+  const { innerWidth: width, innerHeight: height } = window;
+  await setup();
+  const record = await until(() =>
+    [...shadow().querySelectorAll("button")].find((b) => b.textContent?.trim() == "Record")
+  );
+  const strip = record.parentElement;
+  const find = (text: string) =>
+    until(() =>
+      [...(strip?.querySelectorAll("button, label, span") ?? [])].find(
+        (element) => element.textContent?.trim() == text
+      )
+    );
+  const count = await until(() => strip?.querySelector("[aria-live]"));
+  const decorations = await find("Decorations");
+  const focus = await find("record focus");
+  const rect = (element: Element) => element.getBoundingClientRect();
+  try {
+    await page.viewport(1100, height);
+    await until(() => rect(focus).top < rect(record).bottom);
+    await page.viewport(560, height);
+    await until(() => rect(focus).top >= rect(record).bottom);
+    expect(rect(decorations).top).toBeLessThan(rect(record).bottom);
+    // On one line, and at the right of its own.
+    expect(rect(count).height).toBeLessThan(20);
+    expect(Math.round(rect(focus).right)).toBeGreaterThan(
+      Math.round(rect(strip ?? focus).right) - 40
+    );
+    await page.viewport(340, height);
+    expect(rect(count).height).toBeLessThan(20);
+  } finally {
+    await page.viewport(width, height);
+  }
 });

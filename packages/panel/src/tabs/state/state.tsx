@@ -10,7 +10,7 @@ import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Path } from "@stesura/wordgard-dev-tools";
 import { CopyButton } from "#components/copy-button";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
-import { SearchBox, searchStrip, matchClass, useSearch } from "#components/search-box";
+import { SearchBox, searchStrip, matchClass, useSearch, searchRest } from "#components/search-box";
 import { centreRow } from "#lib/dom.ts";
 import { createStateSource } from "./state-source.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
@@ -216,7 +216,7 @@ export const State = ({ store, editorId }: { store: PanelStore; editorId: number
           placeholder="Search keys and values"
         />
 
-        <span className="flex items-center gap-1">
+        <span className={searchRest}>
           <ExpandCollapse
             onExpand={() => setCollapsed(new Set())}
             // The root stays open: its keys show.

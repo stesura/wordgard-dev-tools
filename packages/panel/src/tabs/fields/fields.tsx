@@ -14,7 +14,7 @@ import { scrollInto } from "#lib/dom.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { SplitPane, type Orientation, type SplitKind } from "#components/split-pane";
 import { Tip } from "#components/tip";
-import { SearchInput, searchStrip } from "#components/search-box";
+import { SearchInput, searchRest, searchStrip } from "#components/search-box";
 import { FieldMenu, type MenuTarget } from "./field-menu.tsx";
 import { FieldView } from "./field-view.tsx";
 import { When } from "./field-history.tsx";
@@ -210,14 +210,16 @@ export const Fields = ({ store, editorId }: { store: PanelStore; editorId: numbe
             {fields.length} of {all.length} field{all.length == 1 ? "" : "s"}
           </span>
         )}
-        <Button
-          variant="ghost"
-          size="xs"
-          disabled={!all.some((field) => field.changes > 0)}
-          onClick={() => clearFrom()}
-        >
-          <NoSymbolIcon /> Clear all
-        </Button>
+        <span className={searchRest}>
+          <Button
+            variant="ghost"
+            size="xs"
+            disabled={!all.some((field) => field.changes > 0)}
+            onClick={() => clearFrom()}
+          >
+            <NoSymbolIcon /> Clear all
+          </Button>
+        </span>
       </div>
       <SplitPane kind={FIELDS_SPLIT} pane={pane}>
         <div

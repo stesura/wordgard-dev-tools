@@ -5,7 +5,7 @@ import { whileShown } from "#stores/while-shown.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { LoadError } from "#components/load-error";
 import { ExpandCollapse } from "#components/expand-collapse";
-import { SearchBox, matchClass, searchStrip, useSearch } from "#components/search-box";
+import { SearchBox, matchClass, searchStrip, useSearch, searchRest } from "#components/search-box";
 import { IconButton } from "#components/icon-button";
 import { SplitPane, type SplitKind } from "#components/split-pane";
 import { keepRowInView, useRows } from "#hooks/use-rows.ts";
@@ -313,15 +313,15 @@ export const Extensions = ({ store, editorId }: { store: PanelStore; editorId: n
           label="Search the extensions"
           placeholder="Search names and values"
         />
-        {info && (
-          <span className="shrink-0 text-muted-foreground">
-            {facets
-              ? `${info.facets.length} facet${info.facets.length == 1 ? "" : "s"}`
-              : `${info.count} extension${info.count == 1 ? "" : "s"}`}
-            {info.capped && ", some left out"}
-          </span>
-        )}
-        <span className="flex items-center gap-1">
+        <span className={searchRest}>
+          {info && (
+            <span className="shrink-0 text-muted-foreground">
+              {facets
+                ? `${info.facets.length} facet${info.facets.length == 1 ? "" : "s"}`
+                : `${info.count} extension${info.count == 1 ? "" : "s"}`}
+              {info.capped && ", some left out"}
+            </span>
+          )}
           <Tip label="Each facet, with its values in the order Wordgard gives them">
             <Button
               variant={byFacet ? "secondary" : "ghost"}

@@ -10,7 +10,7 @@ import { includes } from "#lib/text.ts";
 import { toggled } from "#lib/sets.ts";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import { ClearFilters } from "#components/clear-filters";
-import { SearchInput } from "#components/search-box";
+import { SearchInput, searchRest, searchStrip } from "#components/search-box";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
 import { createSchemaSource } from "./schema-source.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
@@ -240,8 +240,7 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
       <LoadError what="the schema" error={error} onRetry={() => void source.load()} />
-      {/* Narrow: the filter on its own line, its buttons under it. */}
-      <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-2 border-b bg-strip px-2 pb-1 text-xs @md:flex-nowrap @md:pb-0">
+      <div className={searchStrip}>
         <h3 className="shrink-0 font-medium">Schema</h3>
         <SearchInput
           value={query}
@@ -254,11 +253,10 @@ export const Schema = ({ store, editorId }: { store: PanelStore; editorId: numbe
           }}
           aria-label="Filter the types"
           placeholder="Filter node types, mark types and groups"
-          className="basis-full @md:basis-0"
         />
         {filtered && <ClearFilters onClick={clearAll} />}
         {schema && (
-          <span className="flex shrink-0 gap-1">
+          <span className={searchRest}>
             <FilterChip pressed={open.node} onPressedChange={() => toggleOpen("node")}>
               {schema.nodes.length} nodes
             </FilterChip>

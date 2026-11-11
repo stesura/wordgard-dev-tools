@@ -13,7 +13,7 @@ import { ROOT, dataPath, itemId, pathOf } from "#lib/paths.ts";
 import { NodeMenu, createNodeMenuAnchor } from "#components/node-menu";
 import { NodePane } from "#components/node-pane";
 import { isPrefix } from "#lib/paths.ts";
-import { SearchBox, searchStrip, useSearch } from "#components/search-box";
+import { SearchBox, searchStrip, useSearch, searchRest } from "#components/search-box";
 import { SplitPane, type SplitKind } from "#components/split-pane";
 import type { PanelStore } from "#stores/panel-store.ts";
 import { createStructureSource } from "./structure-source.ts";
@@ -338,7 +338,7 @@ export const Structure = ({ store, editorId }: { store: PanelStore; editorId: nu
           label="Search the structure"
           placeholder="Search text, node names, params"
         />
-        <span className="flex items-center gap-1">
+        <span className={searchRest}>
           <Tip label="Show the selected node's detail and JSON (or double-click a node)">
             <Button
               ref={nodeButton}

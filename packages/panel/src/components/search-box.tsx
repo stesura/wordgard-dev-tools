@@ -57,12 +57,23 @@ export const matchClass = (
       ? "search-match bg-yellow-500/20 outline-1 -outline-offset-2 outline-transparent forced-colors:outline-dashed dark:bg-yellow-500/10 dark:outline-yellow-500/60"
       : "";
 
-/** The toolbar holding a search box. */
-export const searchStrip = "flex h-7 shrink-0 items-center gap-1 border-b bg-strip px-2 text-xs";
+/**
+ * The toolbar holding a search box. It wraps when narrow: the label and the search stay on the
+ * first line, and what follows them (`searchRest`) goes under it once the search would get
+ * narrower than its basis.
+ */
+export const searchStrip =
+  "flex min-h-7 shrink-0 flex-wrap items-center gap-x-1 border-b bg-strip px-2 text-xs";
+
+/**
+ * The strip's buttons after the search: a line of their own when the strip wraps, at its right
+ * (beside the search, which takes the free space, the margin does nothing).
+ */
+export const searchRest = "ml-auto flex min-h-[27px] items-center gap-1";
 
 // No ring: focus grows an underline from the centre, over the toolbar's border (as Fluent's input).
 const underline =
-  "relative flex min-w-0 flex-1 self-stretch after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:scale-x-0 after:bg-ring/70 after:transition-transform after:duration-200 after:ease-out focus-within:after:scale-x-100 motion-reduce:after:transition-none";
+  "relative flex min-h-[27px] min-w-0 shrink grow basis-48 self-stretch after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:scale-x-0 after:bg-ring/70 after:transition-transform after:duration-200 after:ease-out focus-within:after:scale-x-100 motion-reduce:after:transition-none";
 
 /** The tab panel's search input nearest to `from`: in its closest ancestor that holds one. */
 const nearestSearch = (scope: Element, from: Element) => {

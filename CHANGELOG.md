@@ -12,6 +12,8 @@ The panel shows the debug names Wordgard 0.7 adds: of state fields and derived f
 
 The Log names a transaction's effects by their debug names, not just "effect", and saves annotation filters for named annotations.
 
+In a narrow panel, a tab's toolbar wraps: its label and search stay on the first line, with the search's own buttons, and the other buttons go on a line under it, at the right. The Schema tab's "Clear filters" stays beside its filter. The Log's toolbar wraps too, its two recording settings under the rest, and its transaction count no longer breaks across lines.
+
 ### Bug fixes
 
 `mountDevtools()` mounts at most one panel per page: while one is mounted, later calls return handles to it, and the panel is removed when every handle has been unmounted. A page that called it from a React effect without returning `unmount` got two panels in development, where Strict Mode runs effects twice.

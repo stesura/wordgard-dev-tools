@@ -4,7 +4,7 @@ import { XMarkIcon } from "#icons";
 import { GuidePopover } from "#components/guide-popover";
 import { IconButton } from "#components/icon-button";
 import { LoadError } from "#components/load-error";
-import { SearchInput, searchStrip } from "#components/search-box";
+import { SearchInput, searchRest, searchStrip } from "#components/search-box";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
 import { KEY_BINDINGS } from "../../guides/guides.ts";
 import { KeymapMenu, type KeyBindingTarget } from "./keymap-menu.tsx";
@@ -68,15 +68,17 @@ export const KeymapPane = ({
           aria-label="Search the key bindings"
           placeholder="Search keys, commands, descriptions"
         />
-        {keymap && (
-          <span className="shrink-0 text-muted-foreground" aria-live="polite">
-            {shown.length != keymap.bindings.length && `${shown.length} of `}
-            {keymap.bindings.length} key binding{keymap.bindings.length == 1 ? "" : "s"}
-          </span>
-        )}
-        <IconButton label="Close the key bindings" className="ml-auto" onClick={onClose}>
-          <XMarkIcon />
-        </IconButton>
+        <span className={searchRest}>
+          {keymap && (
+            <span className="shrink-0 text-muted-foreground" aria-live="polite">
+              {shown.length != keymap.bindings.length && `${shown.length} of `}
+              {keymap.bindings.length} key binding{keymap.bindings.length == 1 ? "" : "s"}
+            </span>
+          )}
+          <IconButton label="Close the key bindings" onClick={onClose}>
+            <XMarkIcon />
+          </IconButton>
+        </span>
       </div>
       {keymap && <KeymapView keymap={keymap} query={query} menu={menu} />}
       <KeymapMenu

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { Leaf } from "wordgard/doc";
 import { Wordgard } from "wordgard/editor";
 import { basicSchema } from "wordgard/schema";
@@ -222,4 +222,30 @@ it("logs or copies an element's outer HTML from its menu, and shows its node in 
       "[aria-label='Document structure'] [data-path='1'][aria-selected='true']"
     )
   );
+});
+
+it("puts the toolbar's buttons under the search when narrow, beside it when wide", async () => {
+  const { innerWidth: width, innerHeight: height } = window;
+  await setup();
+  const search = await until(() => shadow().querySelector("[aria-label='Search the DOM']"));
+  const next = await until(() => shadow().querySelector("[aria-label='Next match']"));
+  const clear = await until(() => shadow().querySelector("[aria-label='Clear the selection']"));
+  const top = (element: Element) => Math.round(element.getBoundingClientRect().top);
+  const bottom = (element: Element) => Math.round(element.getBoundingClientRect().bottom);
+  try {
+    await page.viewport(900, height);
+    await until(() => top(clear) < bottom(search));
+    await page.viewport(340, height);
+    // The search's own buttons stay on its line; the others go under it.
+    await until(() => top(clear) >= bottom(search));
+    expect(top(next)).toBeLessThan(bottom(search));
+    // At the right of their line.
+    const strip = search.closest("div");
+    const last = await until(() => strip?.querySelector("[aria-label='Collapse all']"));
+    expect(Math.round(last.getBoundingClientRect().right)).toBe(
+      Math.round((strip?.getBoundingClientRect().right ?? 0) - 8)
+    );
+  } finally {
+    await page.viewport(width, height);
+  }
 });

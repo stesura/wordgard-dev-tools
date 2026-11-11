@@ -7,7 +7,7 @@ import { CommandLineIcon, NoSymbolIcon } from "#icons";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Path, ViewNode } from "@stesura/wordgard-dev-tools";
 import { Button } from "#components/ui/button";
-import { SearchBox, searchStrip, matchClass, useSearch } from "#components/search-box";
+import { SearchBox, searchStrip, matchClass, useSearch, searchRest } from "#components/search-box";
 import { centreRow } from "#lib/dom.ts";
 import { createMenuAnchor } from "#lib/menu-anchor.ts";
 import type { PanelStore } from "#stores/panel-store.ts";
@@ -180,7 +180,7 @@ export const Dom = ({ store, editorId }: { store: PanelStore; editorId: number }
           placeholder="Search text, tags, attributes, node names"
         />
 
-        <span className="flex items-center gap-1">
+        <span className={searchRest}>
           <Tip label="Clear the selection and its outline in the page">
             <Button
               variant="ghost"

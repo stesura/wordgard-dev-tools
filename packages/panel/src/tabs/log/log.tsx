@@ -209,7 +209,8 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b bg-strip px-2 text-xs">
+      {/* Wraps when narrow: the recording settings go under the rest, at the right. */}
+      <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-2 border-b bg-strip px-2 text-xs">
         <Button
           variant={view.recording ? "secondary" : "ghost"}
           size="xs"
@@ -219,7 +220,7 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
           {view.recording ? <PauseIcon /> : <RecordIcon className="text-destructive" />}
           {view.recording ? "Pause" : "Record"}
         </Button>
-        <span className="text-muted-foreground" aria-live="polite">
+        <span className="whitespace-nowrap text-muted-foreground" aria-live="polite">
           {filtered.length != rows.length && `${filtered.length} of `}
           {rows.length} transaction{rows.length == 1 ? "" : "s"}
           {view.size > 0 && rows.length >= view.size && ` (the last ${view.size} kept)`}
@@ -252,25 +253,27 @@ export const Log = ({ store, editorId }: { store: PanelStore; editorId: number }
           </Button>
         </Tip>
         {checked && checked.checked < checked.flushes && (
-          <span className="text-muted-foreground" aria-live="polite">
+          <span className="whitespace-nowrap text-muted-foreground" aria-live="polite">
             decorations checked for {checked.checked} of {checked.flushes} flushes
           </span>
         )}
-        <span className="ml-auto flex items-center gap-2">
-          <span className="flex items-center gap-0.5">
-            <Tip label="Check what each flush did to the decoration sources: wasted rebuilds, sets not mapped. Calls every source twice per flush.">
-              <Button
-                variant="ghost"
-                size="xs"
-                aria-pressed={view.decorations}
-                onClick={() => void source.setDecorations(!view.decorations)}
-                className="aria-pressed:bg-foreground/10 aria-pressed:shadow-[inset_0_-2px_0_var(--color-ring)]"
-              >
-                Decorations
-              </Button>
-            </Tip>
-            <GuidePopover guide={LOG_DECORATIONS} label="About decorations in the Log" />
-          </span>
+        {/* Takes the free space: an auto margin here would share it with the settings'. */}
+        <span className="grow" />
+        <span className="flex min-h-[27px] items-center gap-0.5">
+          <Tip label="Check what each flush did to the decoration sources: wasted rebuilds, sets not mapped. Calls every source twice per flush.">
+            <Button
+              variant="ghost"
+              size="xs"
+              aria-pressed={view.decorations}
+              onClick={() => void source.setDecorations(!view.decorations)}
+              className="aria-pressed:bg-foreground/10 aria-pressed:shadow-[inset_0_-2px_0_var(--color-ring)]"
+            >
+              Decorations
+            </Button>
+          </Tip>
+          <GuidePopover guide={LOG_DECORATIONS} label="About decorations in the Log" />
+        </span>
+        <span className="ml-auto flex min-h-[27px] items-center gap-2">
           <SettingBox
             source={source}
             setting="selectPointer"
