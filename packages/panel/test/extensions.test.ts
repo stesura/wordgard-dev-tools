@@ -346,6 +346,31 @@ it("gives each panel a header, and the pane the row's menu from the keyboard", a
   await until(() => shadow().activeElement == body);
 });
 
+it("sends Ctrl+F to the search nearest the focus: the tree's, or the key bindings'", async () => {
+  await setup();
+  (await until(() => keysButton())).click();
+  const keys = await until(() =>
+    shadow().querySelector<HTMLInputElement>("[aria-label='Search the key bindings']")
+  );
+  const extensions = await until(() =>
+    shadow().querySelector<HTMLInputElement>("[aria-label='Search the extensions']")
+  );
+  const find = (from: Element) => {
+    const event = new KeyboardEvent("keydown", {
+      key: "f",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    from.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    return shadow().activeElement;
+  };
+  expect(find(await until(() => tree()))).toBe(extensions);
+  expect(find(await until(() => keysPane()?.querySelector("tbody tr")))).toBe(keys);
+  expect(find(await until(() => tree()?.querySelector("[role='treeitem']")))).toBe(extensions);
+});
+
 it("logs and copies a key binding from its context menu", async () => {
   await setup();
   const copied: string[] = [];

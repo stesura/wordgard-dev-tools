@@ -24,6 +24,8 @@ Keys typed in the panel docked in the page no longer reach the page's own keyboa
 
 The panel docked in the page shrinks with the window: a dock larger than a window made smaller kept its size, with its tabs and resize handle out of view.
 
+In the Extensions tab, Ctrl+F goes to the search nearest the focus: the key bindings' search from their pane, the extensions' search from anywhere else. It went to whichever was shown last.
+
 The extension takes a reply only from the frame it asked: a frame of the page could answer a request sent to another frame's editor.
 
 ## 0.1.2 (2026-11-07)

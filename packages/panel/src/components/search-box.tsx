@@ -64,7 +64,21 @@ export const searchStrip = "flex h-7 shrink-0 items-center gap-1 border-b bg-str
 const underline =
   "relative flex min-w-0 flex-1 self-stretch after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:scale-x-0 after:bg-ring/70 after:transition-transform after:duration-200 after:ease-out focus-within:after:scale-x-100 motion-reduce:after:transition-none";
 
-/** Ctrl+F (Cmd+F) with focus anywhere in the input's tab panel goes to the input, not the browser's find. */
+/** The tab panel's search input nearest to `from`: in its closest ancestor that holds one. */
+const nearestSearch = (scope: Element, from: Element) => {
+  const inputs = [...scope.querySelectorAll<HTMLInputElement>("input[type='search']")];
+  for (let at: Element | null = from; at; at = at == scope ? null : at.parentElement) {
+    const here = at;
+    const found = inputs.find((input) => here.contains(input));
+    if (found) return found;
+  }
+  return inputs[0] ?? null;
+};
+
+/**
+ * Ctrl+F (Cmd+F) with focus anywhere in the input's tab panel goes to the input, not the browser's
+ * find. A tab with several (a pane with its own search): to the one nearest the focus.
+ */
 const findShortcut = (input: HTMLInputElement | null) => {
   const scope = input?.closest("[role='tabpanel']");
   if (!input || !scope) return;
@@ -74,7 +88,8 @@ const findShortcut = (input: HTMLInputElement | null) => {
       (event.ctrlKey || event.metaKey) &&
       !event.altKey &&
       !event.shiftKey &&
-      event.key.toLowerCase() == "f"
+      event.key.toLowerCase() == "f" &&
+      nearestSearch(scope, event.target instanceof Element ? event.target : scope) == input
     ) {
       event.preventDefault();
       input.focus();
