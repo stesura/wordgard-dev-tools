@@ -44,6 +44,15 @@ const readLayout = (json: unknown): DockLayout => {
 /** The dock's layout, saved: created by `renderDock` as it mounts. */
 export const createDockLayout = () => persistent(KEY, readLayout(null), asJSON(readLayout));
 
+/** The window's size, as an external store: the dock is clamped again when it changes. */
+export const viewport = {
+  subscribe: (changed: () => void) => {
+    window.addEventListener("resize", changed);
+    return () => window.removeEventListener("resize", changed);
+  },
+  get: () => `${window.innerWidth}x${window.innerHeight}`,
+};
+
 export const clamp = (side: DockSide, size: number) => {
   const [min, max] = vertical(side)
     ? [120, window.innerHeight - 40]

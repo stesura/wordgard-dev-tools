@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { Leaf } from "wordgard/doc";
 import { Wordgard } from "wordgard/editor";
 import { basicSchema } from "wordgard/schema";
@@ -327,6 +327,20 @@ it("keeps a saved size within the window", async () => {
   localStorage.setItem("wordgard-devtools:dock", JSON.stringify({ side: "bottom", size: 10 }));
   const small = await mountDock();
   expect(small.dock.style.height).toBe("120px");
+});
+
+it("shrinks with the window", async () => {
+  const { innerWidth: width, innerHeight: height } = window;
+  localStorage.setItem("wordgard-devtools:dock", JSON.stringify({ side: "bottom", size: 99999 }));
+  const { dock } = await mountDock();
+  expect(dock.style.height).toBe(`${height - 40}px`);
+  try {
+    await page.viewport(width, height - 200);
+    await until(() => dock.style.height == `${window.innerHeight - 40}px`);
+    expect(window.innerHeight).toBe(height - 200);
+  } finally {
+    await page.viewport(width, height);
+  }
 });
 
 it("switches the theme from its menu", async () => {

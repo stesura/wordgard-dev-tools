@@ -22,6 +22,8 @@ The DOM tab marks widgets as chrome again: Wordgard 0.7 no longer makes them une
 
 Keys typed in the panel docked in the page no longer reach the page's own keyboard shortcuts. Escape still does, so the panel's menus close on it.
 
+The panel docked in the page shrinks with the window: a dock larger than a window made smaller kept its size, with its tabs and resize handle out of view.
+
 The extension takes a reply only from the frame it asked: a frame of the page could answer a request sent to another frame's editor.
 
 ## 0.1.2 (2026-11-07)

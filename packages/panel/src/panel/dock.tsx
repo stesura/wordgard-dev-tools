@@ -44,6 +44,7 @@ import {
   growKeys,
   placement,
   vertical,
+  viewport,
 } from "./dock-layout.ts";
 
 const sides: Choice<DockSide>[] = [
@@ -108,6 +109,8 @@ export const Dock = ({ store, theme, layout, setActive }: DockProps) => {
   const { side, collapsed, corner, minimized, ...saved } = useStore(layout);
   // While dragging, the size the pointer gives; saved when the drag ends.
   const [dragged, setDragged] = useState<number | null>(null);
+  // `clamp` reads the window: a smaller one renders the dock again, within it.
+  useSyncExternalStore(viewport.subscribe, viewport.get);
   const size = dragged ?? clamp(side, saved.size);
   const [reopenRoot, setReopenRoot] = useState<HTMLDivElement | null>(null);
   const save = (patch: Partial<DockLayout>) => layout.set({ ...layout.get(), size, ...patch });
