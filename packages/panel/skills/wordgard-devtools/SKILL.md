@@ -83,8 +83,9 @@ import { mountDevtools } from "@stesura/wordgard-dev-tools-panel";
 mountDevtools();
 ```
 
-- Call it **once per page**, in the entry file; each call docks another panel. It returns
-  `{ unmount, ready, host }`.
+- Call it once, in the entry file. It returns `{ unmount, ready, host }`. A page has at most one
+  panel: repeat calls return handles to the mounted one, and it goes when every handle is
+  unmounted.
 - `parent` (default `document.body`) must be outside every editor.
 - The panel brings its own React, lazily loaded, in a shadow root: the page needs no React, and
   the page's CSS doesn't reach it. There is no React component to render. To show it only while a
@@ -96,6 +97,8 @@ mountDevtools();
     return null;
   };
   ```
+
+  Always return `unmount` from the effect.
 
 - Skip this step if the developer uses the browser extension.
 

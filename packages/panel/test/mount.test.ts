@@ -4,10 +4,12 @@ import { Leaf } from "wordgard/doc";
 import { Wordgard } from "wordgard/editor";
 import { basicSchema } from "wordgard/schema";
 import { wordgardDevtools } from "@stesura/wordgard-dev-tools";
-import { mountDevtools, type MountedDevtools } from "../src/index.ts";
+import { inPageTransport, mountDevtools, type MountedDevtools } from "../src/index.ts";
 
 const editors: Wordgard[] = [];
 let mounted: MountedDevtools | null = null;
+/** More handles a test holds; released after it. */
+const handles: MountedDevtools[] = [];
 
 const open = (name: string, doc: string) => {
   const wg = Wordgard.create({
@@ -22,6 +24,7 @@ const open = (name: string, doc: string) => {
 afterEach(() => {
   mounted?.unmount();
   mounted = null;
+  for (const handle of handles.splice(0)) handle.unmount();
   for (const wg of editors.splice(0)) wg.dom.remove();
   localStorage.clear();
   vi.restoreAllMocks();
@@ -120,6 +123,78 @@ it("detaches on unmount", async () => {
   mounted = null;
   await until(() => entryOf(a)?.attached === false);
   expect(document.querySelector("wordgard-devtools")).toBeNull();
+});
+
+const hosts = () => document.querySelectorAll("wordgard-devtools").length;
+
+const mount = (options?: Parameters<typeof mountDevtools>[0]) => {
+  const handle = mountDevtools(options);
+  handles.push(handle);
+  return handle;
+};
+
+it("shares one dock between calls, until the last handle unmounts", async () => {
+  const a = mount();
+  const b = mount();
+  expect(b.host).toBe(a.host);
+  expect(hosts()).toBe(1);
+  await b.ready;
+  expect(b.host.shadowRoot?.childElementCount).toBeGreaterThan(0);
+  a.unmount();
+  expect(a.host.isConnected).toBe(true);
+  b.unmount();
+  expect(hosts()).toBe(0);
+});
+
+it("leaves one dock after mount, unmount, mount, and cancels the first render", async () => {
+  const a = mount();
+  a.unmount();
+  const b = mount();
+  expect(b.host).not.toBe(a.host);
+  await Promise.all([a.ready, b.ready]);
+  expect(hosts()).toBe(1);
+  expect(a.host.shadowRoot?.childElementCount).toBe(0);
+  expect(b.host.shadowRoot?.childElementCount).toBeGreaterThan(0);
+});
+
+it("releases one reference per handle, however often it's unmounted", () => {
+  const a = mount();
+  const b = mount();
+  a.unmount();
+  a.unmount();
+  expect(b.host.isConnected).toBe(true);
+  b.unmount();
+  expect(hosts()).toBe(0);
+});
+
+it("neither counts nor mounts a disabled call", () => {
+  const off = mount({ enabled: false });
+  expect(hosts()).toBe(0);
+  const a = mount();
+  const offToo = mount({ enabled: false });
+  expect(offToo.host).not.toBe(a.host);
+  expect(offToo.host.isConnected).toBe(false);
+  off.unmount();
+  offToo.unmount();
+  expect(a.host.isConnected).toBe(true);
+  a.unmount();
+  expect(hosts()).toBe(0);
+});
+
+it("keeps the dock, and warns once, when a call asks for another parent or transport", () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const a = mount();
+  const elsewhere = document.createElement("div");
+  document.body.append(elsewhere);
+  try {
+    expect(mount({ parent: elsewhere }).host).toBe(a.host);
+    expect(mount({ transport: inPageTransport() }).host).toBe(a.host);
+    expect(mount({ parent: document.body }).host).toBe(a.host);
+    expect(a.host.parentElement).toBe(document.body);
+    expect(warn).toHaveBeenCalledTimes(1);
+  } finally {
+    elsewhere.remove();
+  }
 });
 
 it("follows the picked editor through a remount", async () => {

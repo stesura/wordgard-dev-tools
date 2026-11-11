@@ -145,9 +145,13 @@ It returns a handle:
 
 | Field     | Type            | Description                                                              |
 | --------- | --------------- | ------------------------------------------------------------------------ |
-| `unmount` | `() => void`    | Removes the panel, for example on a route change in a single-page app.   |
+| `unmount` | `() => void`    | Releases the handle; the panel goes when every handle is released.       |
 | `ready`   | `Promise<void>` | Resolves once the panel has rendered.                                    |
 | `host`    | `HTMLElement`   | The `<wordgard-devtools>` element; the panel renders in its shadow root. |
+
+A page has at most one panel. While one is mounted, `mountDevtools()` returns another handle to
+it, and ignores a different `parent` or `transport` (with a warning). The panel is removed when
+every handle has been unmounted, for example on a route change in a single-page app.
 
 The panel renders in a shadow root, so its styles and your page's styles don't affect each other.
 Its React UI is bundled with it and loaded lazily on the first `mountDevtools()` call. Your page
@@ -163,6 +167,9 @@ const WordgardDevtools = () => {
   return null;
 };
 ```
+
+Return `unmount` from the effect, as above: React's Strict Mode runs the effect twice, and the
+panel only goes once both handles are released.
 
 ### Keep it out of production
 

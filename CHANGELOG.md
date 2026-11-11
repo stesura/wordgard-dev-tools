@@ -12,6 +12,8 @@ The Log names a transaction's effects by their debug names, not just "effect", a
 
 ### Bug fixes
 
+`mountDevtools()` mounts at most one panel per page: while one is mounted, later calls return handles to it, and the panel is removed when every handle has been unmounted. A page that called it from a React effect without returning `unmount` got two panels in development, where Strict Mode runs effects twice.
+
 The DOM tab marks widgets as chrome again: Wordgard 0.7 no longer makes them uneditable, so an element is now chrome when it draws no node and holds none of the document's text.
 
 ## 0.1.2 (2026-11-07)

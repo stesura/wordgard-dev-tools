@@ -18,32 +18,80 @@ export type MountedDevtools = {
   host: HTMLElement;
   /** Resolves once the panel has rendered. */
   ready: Promise<void>;
+  /** Releases this handle. The dock goes when every handle to it is released. */
   unmount: () => void;
 };
 
-/** Docks the panel at the bottom of the page, in a shadow root. */
-export const mountDevtools = (options: MountOptions = {}): MountedDevtools => {
+type Dock = {
+  host: HTMLElement;
+  ready: Promise<void>;
+  parent: Element;
+  transport: Transport | undefined;
+  refs: number;
+  warned: boolean;
+  teardown: () => void;
+};
+
+/** At most one dock per document, shared by every handle. */
+let live: Dock | null = null;
+
+const createDock = (parent: Element, transport: Transport | undefined): Dock => {
   const host = document.createElement("wordgard-devtools");
-  if (!(options.enabled ?? !isProduction())) {
-    return { host, ready: Promise.resolve(), unmount: () => {} };
-  }
   // Nothing the page sets on its ancestors is inherited into the panel.
   host.setAttribute("style", "all: initial");
-  (options.parent ?? document.body).append(host);
+  parent.append(host);
   const shadow = host.attachShadow({ mode: "open" });
   let unmountDock: (() => void) | null = null;
   let disposed = false;
   const ready = import("./app.tsx").then(({ renderDock }) => {
-    if (!disposed) unmountDock = renderDock(shadow, options.transport ?? inPageTransport());
+    if (!disposed) unmountDock = renderDock(shadow, transport ?? inPageTransport());
   });
   ready.catch((e) => console.error("wordgard-devtools-panel: failed to load the panel", e));
+  const teardown = () => {
+    disposed = true;
+    unmountDock?.();
+    host.remove();
+  };
+  return { host, ready, parent, transport, refs: 0, warned: false, teardown };
+};
+
+/**
+ * Docks the panel at the bottom of the page, in a shadow root.
+ *
+ * There is at most one dock per document: while one is mounted, later calls return handles to it,
+ * and their `parent` and `transport` are ignored (with a warning when they differ). The dock is
+ * removed when every handle has been unmounted, so a caller that mounts from an effect should still
+ * return `unmount` from it.
+ */
+export const mountDevtools = (options: MountOptions = {}): MountedDevtools => {
+  if (!(options.enabled ?? !isProduction())) {
+    return {
+      host: document.createElement("wordgard-devtools"),
+      ready: Promise.resolve(),
+      unmount: () => {},
+    };
+  }
+  const parent = options.parent ?? document.body;
+  if (!live) live = createDock(parent, options.transport);
+  else if (!live.warned && (parent != live.parent || options.transport != live.transport)) {
+    live.warned = true;
+    console.warn(
+      "wordgard-devtools-panel: mountDevtools() was called with a different parent or transport " +
+        "while a dock is mounted; the mounted dock is kept."
+    );
+  }
+  const dock = live;
+  dock.refs++;
+  let released = false;
   return {
-    host,
-    ready,
+    host: dock.host,
+    ready: dock.ready,
     unmount: () => {
-      disposed = true;
-      unmountDock?.();
-      host.remove();
+      if (released) return;
+      released = true;
+      if (--dock.refs > 0) return;
+      dock.teardown();
+      live = null;
     },
   };
 };
